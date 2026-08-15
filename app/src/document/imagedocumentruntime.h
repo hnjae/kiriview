@@ -86,7 +86,6 @@ public:
     [[nodiscard]] qreal maximumManualZoomPercent() const;
     [[nodiscard]] qreal clampedManualZoomPercent(qreal zoomPercent) const;
     [[nodiscard]] qreal steppedManualZoomPercent(qreal stepCount) const;
-    [[nodiscard]] int rotationDegrees() const;
     quint64 requestViewportPanBy(QPointF delta);
     quint64 requestViewportPanToInitialScanPosition();
     quint64 requestViewportPanToFinalScanPosition();

@@ -12,6 +12,7 @@
 
 #include "qml_component_test_support.h"
 
+#include <ImageViewport/imageviewport.h>
 #include <KConfigGroup>
 #include <KLocalizedQmlContext>
 #include <KSharedConfig>
@@ -55,6 +56,7 @@ private Q_SLOTS:
     void shiftArrowsAreIgnoredWhileViewerShortcutsAreSuppressed();
     void zoomPresetAndFitShortcutsUseNewMapping();
     void configuredActionShortcutsTriggerActions();
+    void rotationShortcutsAccumulateAndWrap();
     void invalidPersistedViewerShortcutDoesNotDispatch();
     void quitViewerLocalShortcutTriggersQuitAction();
     void windowCommandShortcutsWorkWithoutQmlShortcutInstallers();
@@ -689,6 +691,30 @@ void TestImageShortcuts::configuredActionShortcutsTriggerActions()
 
     pressKey(fixture.view.get(), Qt::Key_R, Qt::ControlModifier);
     QCOMPARE(triggeredSpy.count(), 1);
+}
+
+void TestImageShortcuts::rotationShortcutsAccumulateAndWrap()
+{
+    ImageShortcutsFixture fixture = createReadyFixture();
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    QTRY_VERIFY(documentReady(fixture.root));
+
+    KiriImageViewportSurface* surface
+        = fixture.root->findChild<KiriImageViewportSurface*>(QString());
+    QVERIFY(surface != nullptr);
+    ImageViewport* viewport = surface->viewport();
+    QVERIFY(viewport != nullptr);
+    QCOMPARE(viewport->state().presentation().rotationDegrees(), 0);
+
+    for (const int expected : { 90, 180, 270, 0 }) {
+        pressKey(fixture.view.get(), Qt::Key_R);
+        QTRY_COMPARE(viewport->state().presentation().rotationDegrees(), expected);
+    }
+
+    for (const int expected : { 270, 180, 90, 0 }) {
+        pressKey(fixture.view.get(), Qt::Key_R, Qt::ShiftModifier);
+        QTRY_COMPARE(viewport->state().presentation().rotationDegrees(), expected);
+    }
 }
 
 void TestImageShortcuts::invalidPersistedViewerShortcutDoesNotDispatch()

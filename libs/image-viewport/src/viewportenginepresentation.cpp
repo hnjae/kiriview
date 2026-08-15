@@ -148,11 +148,12 @@ bool commandHasOperation(const ViewportEnginePresentationCommand& command)
 bool commandValid(const ViewportEnginePresentationCommandInput& input)
 {
     const ViewportEnginePresentationCommand& command = input.command;
+    const bool relativeRotation = input.quarterTurnDeltaSet;
     const bool resetConflicts = command.resetView()
         && (command.hasFitMode() || command.hasPreferredManualZoomPercent()
             || command.hasZoomStepDelta() || command.hasZoomAnchor() || command.hasContentPosition()
             || command.hasPanDelta() || command.hasContentAnchor() || command.hasRotationDegrees()
-            || command.hasMirrorHorizontally() || command.hasMirrorVertically()
+            || relativeRotation || command.hasMirrorHorizontally() || command.hasMirrorVertically()
             || command.hasSpreadDirection() || command.hasPageGap());
     const int geometryPositioningOperations = (command.hasPreferredManualZoomPercent() ? 1 : 0)
         + (command.hasZoomStepDelta() ? 1 : 0) + (command.hasContentPosition() ? 1 : 0)
@@ -163,18 +164,17 @@ bool commandValid(const ViewportEnginePresentationCommandInput& input)
         && (!zoomOperation || command.resetView() || command.hasContentPosition()
             || command.hasPanDelta() || command.hasContentAnchor() || command.hasRotationDegrees()
             || command.hasMirrorHorizontally() || command.hasMirrorVertically()
-            || command.hasSpreadDirection() || command.hasPageGap() || input.quarterTurnDelta != 0
+            || command.hasSpreadDirection() || command.hasPageGap() || relativeRotation
             || (command.hasFitMode() && command.fitMode() != ImageViewportFitMode::Manual));
     const auto validRotation = [](int degrees) {
         return degrees == 0 || degrees == 90 || degrees == 180 || degrees == 270;
     };
     const double minimumZoom = ViewportDisplayLimits::minimumManualZoomPercent();
 
-    const bool relativeRotation = input.quarterTurnDelta != 0;
     return (commandHasOperation(command) || relativeRotation) && !resetConflicts
         && !zoomAnchorConflict && geometryPositioningOperations <= 1
-        && (input.quarterTurnDelta == 0 || input.quarterTurnDelta == 1
-            || input.quarterTurnDelta == -1)
+        && ((relativeRotation && (input.quarterTurnDelta == 1 || input.quarterTurnDelta == -1))
+            || (!relativeRotation && input.quarterTurnDelta == 0))
         && !(relativeRotation && command.hasRotationDegrees())
         && ImageViewportInternal::isFinitePoint(input.anchor)
         && std::isfinite(input.geometry.devicePixelRatio) && input.geometry.devicePixelRatio > 0.0
@@ -223,7 +223,7 @@ PresentationState presentationForZoomRange(
     if (command.hasRotationDegrees()) {
         result.rotationDegrees = command.rotationDegrees();
     }
-    if (input.quarterTurnDelta != 0) {
+    if (input.quarterTurnDeltaSet) {
         result.rotationDegrees = (result.rotationDegrees + input.quarterTurnDelta * 90 + 360) % 360;
     }
     if (command.hasMirrorHorizontally()) {
@@ -378,7 +378,7 @@ ViewportEnginePresentationCommandReduction reduceViewportEnginePresentationComma
     if (command.hasRotationDegrees() && next.rotationDegrees != command.rotationDegrees()) {
         applyAnchored([&] { next.rotationDegrees = command.rotationDegrees(); });
     }
-    if (input.quarterTurnDelta != 0) {
+    if (input.quarterTurnDeltaSet) {
         applyAnchored([&] {
             next.rotationDegrees = (next.rotationDegrees + input.quarterTurnDelta * 90 + 360) % 360;
         });
@@ -467,7 +467,7 @@ ViewportEngineCommandTransition ViewportEngine::applyPresentationCommand(
     const QPointF anchor = input.command.hasZoomAnchor() ? input.command.zoomAnchor()
                                                          : m_state->viewport.itemBounds.center();
     const ViewportEnginePresentationCommandInput operationInput { input.command, geometry, anchor,
-        0 };
+        input.quarterTurnDelta, input.quarterTurnDeltaSet };
     if (!validateViewportEnginePresentationCommand(operationInput)) {
         return finalizeCommandTransition(rejectInvalidCommand(), std::move(transition));
     }

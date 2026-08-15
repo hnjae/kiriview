@@ -595,7 +595,6 @@ void ImageViewportIntegrationRuntime::acceptSnapshot(const ImageViewportStateSna
     projection.minimumManualZoomPercent = snapshot.presentation().minimumManualZoomPercent();
     projection.maximumManualZoomPercent = snapshot.presentation().maximumManualZoomPercent();
     projection.manualZoomStepFactor = snapshot.presentation().manualZoomStepFactor();
-    projection.rotationDegrees = snapshot.presentation().rotationDegrees();
     projection.horizontallyPannable = snapshot.display().horizontalPannable();
     projection.verticallyPannable = snapshot.display().verticalPannable();
     projection.viewportSize = m_viewport->size();
@@ -768,10 +767,10 @@ bool ImageViewportIntegrationRuntime::setContentPosition(QPointF position)
     return submitPresentation(command);
 }
 
-bool ImageViewportIntegrationRuntime::setRotationDegrees(int degrees)
+bool ImageViewportIntegrationRuntime::rotateByQuarterTurns(int delta)
 {
     ImageViewportPresentationCommand command;
-    command.setRotationDegrees(degrees);
+    command.setRotationQuarterTurnDelta(delta);
     return submitPresentation(command);
 }
 

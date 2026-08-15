@@ -164,6 +164,9 @@ class ImageViewportPresentationCommand
     Q_PROPERTY(ImageViewportContentAnchor contentAnchor READ contentAnchor WRITE setContentAnchor)
     Q_PROPERTY(bool rotationDegreesSet READ hasRotationDegrees CONSTANT)
     Q_PROPERTY(int rotationDegrees READ rotationDegrees WRITE setRotationDegrees)
+    Q_PROPERTY(bool rotationQuarterTurnDeltaSet READ hasRotationQuarterTurnDelta CONSTANT)
+    Q_PROPERTY(int rotationQuarterTurnDelta READ rotationQuarterTurnDelta WRITE
+            setRotationQuarterTurnDelta)
     Q_PROPERTY(bool mirrorHorizontallySet READ hasMirrorHorizontally CONSTANT)
     Q_PROPERTY(bool mirrorHorizontally READ mirrorHorizontally WRITE setMirrorHorizontally)
     Q_PROPERTY(bool mirrorVerticallySet READ hasMirrorVertically CONSTANT)
@@ -269,6 +272,13 @@ public:
     {
         m_rotationDegrees = degrees;
         m_hasRotationDegrees = true;
+    }
+    [[nodiscard]] bool hasRotationQuarterTurnDelta() const { return m_hasRotationQuarterTurnDelta; }
+    [[nodiscard]] int rotationQuarterTurnDelta() const { return m_rotationQuarterTurnDelta; }
+    void setRotationQuarterTurnDelta(int delta)
+    {
+        m_rotationQuarterTurnDelta = delta;
+        m_hasRotationQuarterTurnDelta = true;
     }
     [[nodiscard]] bool hasMirrorHorizontally() const { return m_hasMirrorHorizontally; }
     [[nodiscard]] bool mirrorHorizontally() const { return m_mirrorHorizontally; }
@@ -386,6 +396,7 @@ private:
     ImageViewportFitMode m_fitMode = ImageViewportFitMode::Contain;
     ImageViewportContentAnchor m_contentAnchor = ImageViewportContentAnchor::Start;
     int m_rotationDegrees = 0;
+    int m_rotationQuarterTurnDelta = 0;
     ImageViewportSpreadDirection m_spreadDirection = ImageViewportSpreadDirection::LeftToRight;
     ImageViewportBackgroundMode m_backgroundMode = ImageViewportBackgroundMode::Transparent;
     ImageViewportQualityPreference m_qualityPreference = ImageViewportQualityPreference::Default;
@@ -403,6 +414,7 @@ private:
     bool m_hasPanDelta = false;
     bool m_hasContentAnchor = false;
     bool m_hasRotationDegrees = false;
+    bool m_hasRotationQuarterTurnDelta = false;
     bool m_hasMirrorHorizontally = false;
     bool m_mirrorHorizontally = false;
     bool m_hasMirrorVertically = false;

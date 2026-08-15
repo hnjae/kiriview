@@ -124,6 +124,8 @@ Starting KiriView, opening an ordinary direct image, moving between ordinary dir
 
 When an image is ready and Two-Page Spread is disabled, Rotate Clockwise turns the current image view by 90 degrees clockwise and Rotate Counterclockwise turns it by 90 degrees counterclockwise.
 
+Successive rotation commands accumulate immediately in quarter turns and wrap after a full turn: four clockwise or four counterclockwise commands return the view to 0 degrees. A same-image detail replacement pending for an earlier rotation does not block a newer rotation command or revert its result.
+
 Rotation is display-only. It does not modify image files, metadata, archive contents, remote URLs, or any saved file state.
 
 Fit, Fit Height, Fit Width, manual zoom, scrollbars, drag panning, wheel zoom, keyboard panning, and scan shortcuts use the rotated logical image bounds.

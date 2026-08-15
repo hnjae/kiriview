@@ -16,6 +16,7 @@ struct ViewportEnginePresentationCommandInput
     ViewportEngineGeometryInput geometry;
     QPointF anchor;
     int quarterTurnDelta = 0;
+    bool quarterTurnDeltaSet = false;
 };
 
 struct ViewportEnginePresentationTargetTransitionInput

@@ -83,6 +83,7 @@ ImageViewport {
     property imageViewportPresentationCommand scanStartCommand
     property imageViewportPresentationCommand scanEndCommand
     property imageViewportPresentationCommand rotationCommand
+    property imageViewportPresentationCommand relativeRotationCommand
     property imageViewportPresentationCommand horizontalMirrorCommand
     property imageViewportPresentationCommand verticalMirrorCommand
 
@@ -155,6 +156,7 @@ ImageViewport {
         scanStartCommand.contentAnchor = ImageViewport.ContentAnchor.Start
         scanEndCommand.contentAnchor = ImageViewport.ContentAnchor.End
         rotationCommand.rotationDegrees = 0
+        relativeRotationCommand.rotationQuarterTurnDelta = 1
         horizontalMirrorCommand.mirrorHorizontally = false
         verticalMirrorCommand.mirrorVertically = false
         panCommand.panDelta = Qt.point(0, 0)
@@ -170,6 +172,10 @@ ImageViewport {
             && setPresentation(panCommand).outcome === ImageViewport.CommandOutcome.Accepted
             && setPresentation(scanStartCommand).outcome === ImageViewport.CommandOutcome.Accepted
             && setPresentation(scanEndCommand).outcome === ImageViewport.CommandOutcome.Accepted
+            && relativeRotationCommand.rotationQuarterTurnDeltaSet
+            && relativeRotationCommand.rotationQuarterTurnDelta === 1
+            && setPresentation(relativeRotationCommand).outcome === ImageViewport.CommandOutcome.Accepted
+            && state.presentation.rotationDegrees === 90
             && setPresentation(rotationCommand).outcome === ImageViewport.CommandOutcome.Accepted
             && setPresentation(horizontalMirrorCommand).outcome === ImageViewport.CommandOutcome.Accepted
             && setPresentation(verticalMirrorCommand).outcome === ImageViewport.CommandOutcome.Accepted

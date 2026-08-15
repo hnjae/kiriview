@@ -289,6 +289,8 @@ void ImageViewportPublicApiTest::exposesTypedPublicValueSurfaces()
         "zoomStepDelta",
         "zoomAnchorSet",
         "zoomAnchor",
+        "rotationQuarterTurnDeltaSet",
+        "rotationQuarterTurnDelta",
         "checkerboardLightColorSet",
         "checkerboardLightColor",
         "checkerboardDarkColorSet",
@@ -309,6 +311,10 @@ void ImageViewportPublicApiTest::exposesTypedPublicValueSurfaces()
     const int zoomStepDeltaIndex = presentationCommandMetaObject.indexOfProperty("zoomStepDelta");
     QCOMPARE(presentationCommandMetaObject.property(zoomStepDeltaIndex).metaType(),
         QMetaType::fromType<double>());
+    const int rotationQuarterTurnDeltaIndex
+        = presentationCommandMetaObject.indexOfProperty("rotationQuarterTurnDelta");
+    QCOMPARE(presentationCommandMetaObject.property(rotationQuarterTurnDeltaIndex).metaType(),
+        QMetaType::fromType<int>());
 
     const QMetaObject& displayLimitsMetaObject = ImageViewportDisplayLimits::staticMetaObject;
     QCOMPARE(displayLimitsMetaObject.indexOfProperty("maximumManualZoomPercent"), -1);

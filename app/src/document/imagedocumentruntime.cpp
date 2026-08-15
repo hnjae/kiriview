@@ -367,8 +367,6 @@ qreal ImageDocumentRuntime::steppedManualZoomPercent(qreal stepCount) const
         projection.zoomPercent * std::pow(projection.manualZoomStepFactor, stepCount));
 }
 
-int ImageDocumentRuntime::rotationDegrees() const { return viewportProjection().rotationDegrees; }
-
 quint64 ImageDocumentRuntime::requestViewportPanBy(QPointF delta)
 {
     return viewportPannable() && pointIsFinite(delta)
@@ -621,14 +619,14 @@ void ImageDocumentRuntime::setFitMode(ImageZoomMode zoomMode)
 void ImageDocumentRuntime::rotateClockwise()
 {
     if (!secondaryPageVisible()) {
-        runtimeGraph->viewportIntegration().setRotationDegrees(rotationDegrees() + 90);
+        runtimeGraph->viewportIntegration().rotateByQuarterTurns(1);
     }
 }
 
 void ImageDocumentRuntime::rotateCounterclockwise()
 {
     if (!secondaryPageVisible()) {
-        runtimeGraph->viewportIntegration().setRotationDegrees(rotationDegrees() - 90);
+        runtimeGraph->viewportIntegration().rotateByQuarterTurns(-1);
     }
 }
 

@@ -64,7 +64,6 @@ struct ImageViewportIntegrationProjection
     qreal minimumManualZoomPercent = 0.0;
     qreal maximumManualZoomPercent = 0.0;
     qreal manualZoomStepFactor = 1.0;
-    int rotationDegrees = 0;
     bool horizontallyPannable = false;
     bool verticallyPannable = false;
     QSizeF viewportSize;
@@ -107,7 +106,7 @@ public:
     bool zoomBySteps(qreal steps, std::optional<QPointF> anchor = std::nullopt);
     bool panBy(QPointF delta);
     bool setContentPosition(QPointF position);
-    bool setRotationDegrees(int degrees);
+    bool rotateByQuarterTurns(int delta);
     bool setSpreadDirection(ImageViewportSpreadDirection direction);
     bool submitHorizontalScrollPosition(qreal position);
     bool submitVerticalScrollPosition(qreal position);

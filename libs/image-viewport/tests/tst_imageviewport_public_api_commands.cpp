@@ -40,6 +40,7 @@ private Q_SLOTS:
     void invalidClearStyleTransitionPolicyPreservesState();
     void sameTargetRefinementPreservesSelectionAndRejectsIncompatibleTiming();
     void unresolvedTargetAnchorResolvesWhenProviderGeometryArrives();
+    void relativeRotationCommandsAccumulateAndWrap();
     void invalidPresentationCommandsPreserveDiagnostics();
 };
 
@@ -106,6 +107,13 @@ static ImageViewportCommandOutcome setPageGapCommand(ImageViewport& item, double
 {
     ImageViewportPresentationCommand command;
     command.setPageGap(gap);
+    return item.setPresentation(command).outcome();
+}
+
+static ImageViewportCommandOutcome rotateByQuarterTurn(ImageViewport& item, int delta)
+{
+    ImageViewportPresentationCommand command;
+    command.setRotationQuarterTurnDelta(delta);
     return item.setPresentation(command).outcome();
 }
 
@@ -1377,6 +1385,54 @@ void ImageViewportPublicApiCommandsTest::invalidClearStyleTransitionPolicyPreser
     QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
     QCOMPARE(
         commandReasonValue(item), enumValue(item.metaObject(), "CommandReason", "InvalidRequest"));
+}
+
+void ImageViewportPublicApiCommandsTest::relativeRotationCommandsAccumulateAndWrap()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+    acknowledgePendingRenderCommitForTest(item);
+
+    for (const int expected : { 90, 180, 270, 0 }) {
+        QCOMPARE(rotateByQuarterTurn(item, 1), ImageViewportCommandOutcome::Accepted);
+        QCOMPARE(item.state().presentation().rotationDegrees(), expected);
+    }
+    for (const int expected : { 270, 180, 90, 0 }) {
+        QCOMPARE(rotateByQuarterTurn(item, -1), ImageViewportCommandOutcome::Accepted);
+        QCOMPARE(item.state().presentation().rotationDegrees(), expected);
+    }
+
+    const ImageViewportStateSnapshot beforeInvalid = item.state();
+    for (const int invalidDelta : { -2, 0, 2 }) {
+        QCOMPARE(rotateByQuarterTurn(item, invalidDelta), ImageViewportCommandOutcome::Invalid);
+        QCOMPARE(item.state().presentation(), beforeInvalid.presentation());
+        QCOMPARE(item.state().request(), beforeInvalid.request());
+        QCOMPARE(item.state().display(), beforeInvalid.display());
+    }
+
+    ImageViewportPresentationCommand conflictingRotation;
+    conflictingRotation.setRotationDegrees(90);
+    conflictingRotation.setRotationQuarterTurnDelta(1);
+    conflictingRotation.setBackgroundColor(Qt::green);
+    QCOMPARE(
+        item.setPresentation(conflictingRotation).outcome(), ImageViewportCommandOutcome::Invalid);
+    QCOMPARE(item.state().presentation(), beforeInvalid.presentation());
+
+    ImageViewportPresentationCommand conflictingReset
+        = ImageViewportPresentationCommand::resetViewCommand();
+    conflictingReset.setRotationQuarterTurnDelta(1);
+    QCOMPARE(
+        item.setPresentation(conflictingReset).outcome(), ImageViewportCommandOutcome::Invalid);
+    QCOMPARE(item.state().presentation(), beforeInvalid.presentation());
 }
 
 void ImageViewportPublicApiCommandsTest::invalidPresentationCommandsPreserveDiagnostics()

@@ -82,6 +82,8 @@ struct ViewportEnginePlaybackTickRequest
 struct ViewportEnginePresentationCommandRequest
 {
     ViewportEnginePresentationCommand command;
+    int quarterTurnDelta = 0;
+    bool quarterTurnDeltaSet = false;
 };
 
 class ViewportEngineProviderHostEventRequest

@@ -136,6 +136,13 @@ void setExactnessPreference(ImageViewport& viewport, ImageViewportExactnessPrefe
     command.setExactnessPreference(preference);
     QCOMPARE(viewport.setPresentation(command).outcome(), ImageViewportCommandOutcome::Accepted);
 }
+
+void rotateByQuarterTurn(ImageViewport& viewport, int delta)
+{
+    ImageViewportPresentationCommand command;
+    command.setRotationQuarterTurnDelta(delta);
+    QCOMPARE(viewport.setPresentation(command).outcome(), ImageViewportCommandOutcome::Accepted);
+}
 }
 
 class ImageViewportProviderRefinementTest : public QObject
@@ -153,6 +160,7 @@ private Q_SLOTS:
     void firstDisplayTargetCommitIssuesOneNonRecursiveRefinement();
     void committedProviderPayloadRefinesWithoutLeavingReady();
     void newerDemandCancelsOlderRefinementAndStaleResultCannotCommit();
+    void successiveRelativeRotationsSupersedePendingRefinements();
     void refinementFailureIsIsolatedFromTheDisplayRequest();
     void refinementMissingDemandRevisionIsIsolatedFromTheDisplayRequest();
     void refinementKindMismatchIsGenerationTerminal();
@@ -319,6 +327,38 @@ void ImageViewportProviderRefinementTest::
     fixture.adapter.session->emitReady(newer, Qt::blue);
     QVERIFY(hasPendingRenderCommitForTest(fixture.viewport));
     acknowledgePendingRenderCommitForTest(fixture.viewport);
+    QCOMPARE(fixture.viewport.state().primary().display().currentForDemand(), true);
+    QCOMPARE(fixture.viewport.state().primary().display().demandRevision(),
+        newer.demand().demandRevision());
+}
+
+void ImageViewportProviderRefinementTest::successiveRelativeRotationsSupersedePendingRefinements()
+{
+    ReadyProviderViewport fixture;
+
+    rotateByQuarterTurn(fixture.viewport, 1);
+    const ImageSequenceProviderRequest older = fixture.adapter.session->frameRequests().constLast();
+    QCOMPARE(older.demand().rotationDegrees(), 90);
+
+    rotateByQuarterTurn(fixture.viewport, 1);
+    rotateByQuarterTurn(fixture.viewport, 1);
+    rotateByQuarterTurn(fixture.viewport, 1);
+
+    QCOMPARE(fixture.viewport.state().presentation().rotationDegrees(), 0);
+    const ImageSequenceProviderRequest newer = fixture.adapter.session->frameRequests().constLast();
+    QCOMPARE(newer.demand().rotationDegrees(), 0);
+    QVERIFY(newer.demand().demandRevision() != older.demand().demandRevision());
+    QCOMPARE(fixture.viewport.state().primary().display().currentForDemand(), false);
+
+    fixture.adapter.session->emitReady(older, Qt::green);
+    QVERIFY(!hasPendingRenderCommitForTest(fixture.viewport));
+    QCOMPARE(fixture.viewport.state().presentation().rotationDegrees(), 0);
+    QCOMPARE(fixture.viewport.state().primary().display().currentForDemand(), false);
+
+    fixture.adapter.session->emitReady(newer, Qt::blue);
+    QVERIFY(hasPendingRenderCommitForTest(fixture.viewport));
+    acknowledgePendingRenderCommitForTest(fixture.viewport);
+    QCOMPARE(fixture.viewport.state().presentation().rotationDegrees(), 0);
     QCOMPARE(fixture.viewport.state().primary().display().currentForDemand(), true);
     QCOMPARE(fixture.viewport.state().primary().display().demandRevision(),
         newer.demand().demandRevision());
