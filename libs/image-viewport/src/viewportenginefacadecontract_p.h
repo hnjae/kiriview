@@ -84,6 +84,8 @@ struct ViewportEnginePresentationCommandRequest
     ViewportEnginePresentationCommand command;
     int quarterTurnDelta = 0;
     bool quarterTurnDeltaSet = false;
+    bool toggleMirrorHorizontally = false;
+    bool toggleMirrorVertically = false;
 };
 
 class ViewportEngineProviderHostEventRequest

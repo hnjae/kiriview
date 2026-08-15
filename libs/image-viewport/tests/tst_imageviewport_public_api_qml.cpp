@@ -86,6 +86,8 @@ ImageViewport {
     property imageViewportPresentationCommand relativeRotationCommand
     property imageViewportPresentationCommand horizontalMirrorCommand
     property imageViewportPresentationCommand verticalMirrorCommand
+    property imageViewportPresentationCommand horizontalMirrorToggleCommand
+    property imageViewportPresentationCommand verticalMirrorToggleCommand
 
     function nearlyEqual(left, right) {
         return Math.abs(left - right) < 0.000001
@@ -159,6 +161,8 @@ ImageViewport {
         relativeRotationCommand.rotationQuarterTurnDelta = 1
         horizontalMirrorCommand.mirrorHorizontally = false
         verticalMirrorCommand.mirrorVertically = false
+        horizontalMirrorToggleCommand.toggleMirrorHorizontally = true
+        verticalMirrorToggleCommand.toggleMirrorVertically = true
         panCommand.panDelta = Qt.point(0, 0)
         presentationCommandsReachViewport = setPresentation(spreadDirectionCommand).outcome === ImageViewport.CommandOutcome.Accepted
             && setPresentation(pageGapCommand).outcome === ImageViewport.CommandOutcome.Accepted
@@ -179,6 +183,16 @@ ImageViewport {
             && setPresentation(rotationCommand).outcome === ImageViewport.CommandOutcome.Accepted
             && setPresentation(horizontalMirrorCommand).outcome === ImageViewport.CommandOutcome.Accepted
             && setPresentation(verticalMirrorCommand).outcome === ImageViewport.CommandOutcome.Accepted
+            && horizontalMirrorToggleCommand.toggleMirrorHorizontally
+            && verticalMirrorToggleCommand.toggleMirrorVertically
+            && setPresentation(horizontalMirrorToggleCommand).outcome === ImageViewport.CommandOutcome.Accepted
+            && state.presentation.mirrorHorizontally
+            && setPresentation(horizontalMirrorToggleCommand).outcome === ImageViewport.CommandOutcome.Accepted
+            && !state.presentation.mirrorHorizontally
+            && setPresentation(verticalMirrorToggleCommand).outcome === ImageViewport.CommandOutcome.Accepted
+            && state.presentation.mirrorVertically
+            && setPresentation(verticalMirrorToggleCommand).outcome === ImageViewport.CommandOutcome.Accepted
+            && !state.presentation.mirrorVertically
             && resetView().outcome === ImageViewport.CommandOutcome.Accepted
 
     }

@@ -418,6 +418,10 @@ void TestApplicationShortcutPolicy::videoUnsupportedActionPolicyRejectsImageOnly
 {
     QVERIFY(
         kiriview::ApplicationActions::videoActionUnsupported(ActionId::ViewRotateClockwiseAction));
+    QVERIFY(
+        kiriview::ApplicationActions::videoActionUnsupported(ActionId::ViewFlipHorizontallyAction));
+    QVERIFY(
+        kiriview::ApplicationActions::videoActionUnsupported(ActionId::ViewFlipVerticallyAction));
     QVERIFY(kiriview::ApplicationActions::videoActionUnsupported(ActionId::ViewZoomInAction));
     QVERIFY(
         kiriview::ApplicationActions::videoActionUnsupported(ActionId::ViewZoom50PercentAction));

@@ -136,6 +136,18 @@ msgstr ""
 #: src/application/applicationactionstatepolicy.cpp
 #, kde-format
 msgctxt "@action:inmenu"
+msgid "Flip &Horizontally"
+msgstr ""
+
+#: src/application/applicationactionstatepolicy.cpp
+#, kde-format
+msgctxt "@action:inmenu"
+msgid "Flip &Vertically"
+msgstr ""
+
+#: src/application/applicationactionstatepolicy.cpp
+#, kde-format
+msgctxt "@action:inmenu"
 msgid "Two-Page &Spread"
 msgstr ""
 
@@ -390,6 +402,16 @@ msgstr ""
 #: src/application/kiriviewapplicationactions.cpp
 msgctxt "@action"
 msgid "Rotate Counterclockwise"
+msgstr ""
+
+#: src/application/kiriviewapplicationactions.cpp
+msgctxt "@action"
+msgid "Flip Horizontally"
+msgstr ""
+
+#: src/application/kiriviewapplicationactions.cpp
+msgctxt "@action"
+msgid "Flip Vertically"
 msgstr ""
 
 #: src/application/kiriviewapplicationactions.cpp

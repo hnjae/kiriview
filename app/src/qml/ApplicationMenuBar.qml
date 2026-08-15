@@ -191,6 +191,16 @@ Controls.MenuBar {
             visible: root.imageMode
         }
 
+        MenuActionItem {
+            action: root.actions.flipHorizontallyMenuAction
+            visible: root.imageMode
+        }
+
+        MenuActionItem {
+            action: root.actions.flipVerticallyMenuAction
+            visible: root.imageMode
+        }
+
         Controls.MenuSeparator {
             visible: root.imageMode || root.collectionMode
         }

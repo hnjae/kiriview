@@ -70,10 +70,10 @@ bool imageActionAvailabilityShortcutsEnabledForScope(
         return projection.collectionReadingShortcutsEnabled;
     case Scope::CollectionReadingViewerShortcutScope:
         return projection.collectionReadingViewerShortcutsEnabled;
-    case Scope::RotateShortcutScope:
-        return projection.rotateShortcutsEnabled;
-    case Scope::RotateViewerShortcutScope:
-        return projection.rotateViewerShortcutsEnabled;
+    case Scope::TransformShortcutScope:
+        return projection.transformShortcutsEnabled;
+    case Scope::TransformViewerShortcutScope:
+        return projection.transformViewerShortcutsEnabled;
     case Scope::PannableShortcutScope:
         return projection.pannableShortcutsEnabled;
     case Scope::PannableViewerShortcutScope:
@@ -138,13 +138,13 @@ bool videoShortcutsEnabledForScope(VideoShortcutAvailabilityInput input, ImageSh
     case ImageShortcutScope::ViewerShortcutScope:
         return input.viewerShortcutsEnabled;
     case ImageShortcutScope::ReadyShortcutScope:
-    case ImageShortcutScope::RotateShortcutScope:
+    case ImageShortcutScope::TransformShortcutScope:
     case ImageShortcutScope::PannableShortcutScope:
     case ImageShortcutScope::ContainerShortcutScope:
     case ImageShortcutScope::CollectionReadingShortcutScope:
         return ready;
     case ImageShortcutScope::ReadyViewerShortcutScope:
-    case ImageShortcutScope::RotateViewerShortcutScope:
+    case ImageShortcutScope::TransformViewerShortcutScope:
     case ImageShortcutScope::PannableViewerShortcutScope:
     case ImageShortcutScope::MediaStartEndViewerShortcutScope:
     case ImageShortcutScope::ContainerViewerShortcutScope:

@@ -64,7 +64,8 @@ ImageViewportCommandResult ImageViewportPrivate::setPresentation(
     ImageViewportPresentationCommand command)
 {
     auto reduced = engine.applyPresentationCommand({ enginePresentationCommand(command),
-        command.rotationQuarterTurnDelta(), command.hasRotationQuarterTurnDelta() });
+        command.rotationQuarterTurnDelta(), command.hasRotationQuarterTurnDelta(),
+        command.toggleMirrorHorizontally(), command.toggleMirrorVertically() });
     const CommandOutcome outcome = reduced.outcome();
     const ImageViewportStateSnapshot snapshot = applyEngineTransition(reduced.takeTransition());
     return commandResult(outcome, snapshot);

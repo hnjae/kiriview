@@ -458,7 +458,11 @@ bool ImageDocumentRuntime::twoPageModeEnabled() const
 
 void ImageDocumentRuntime::setTwoPageModeEnabled(bool enabled)
 {
+    const bool enabling = enabled && !runtimeGraph->spreadController().twoPageModeEnabled();
     runtimeGraph->spreadController().setTwoPageModeEnabled(enabled);
+    if (enabling) {
+        runtimeGraph->viewportIntegration().resetImageTransforms();
+    }
 }
 
 bool ImageDocumentRuntime::twoPageModeAvailable() const
@@ -618,15 +622,29 @@ void ImageDocumentRuntime::setFitMode(ImageZoomMode zoomMode)
 
 void ImageDocumentRuntime::rotateClockwise()
 {
-    if (!secondaryPageVisible()) {
+    if (!runtimeGraph->spreadController().twoPageModeActive()) {
         runtimeGraph->viewportIntegration().rotateByQuarterTurns(1);
     }
 }
 
 void ImageDocumentRuntime::rotateCounterclockwise()
 {
-    if (!secondaryPageVisible()) {
+    if (!runtimeGraph->spreadController().twoPageModeActive()) {
         runtimeGraph->viewportIntegration().rotateByQuarterTurns(-1);
+    }
+}
+
+void ImageDocumentRuntime::flipHorizontally()
+{
+    if (!runtimeGraph->spreadController().twoPageModeActive()) {
+        runtimeGraph->viewportIntegration().toggleMirrorHorizontally();
+    }
+}
+
+void ImageDocumentRuntime::flipVertically()
+{
+    if (!runtimeGraph->spreadController().twoPageModeActive()) {
+        runtimeGraph->viewportIntegration().toggleMirrorVertically();
     }
 }
 

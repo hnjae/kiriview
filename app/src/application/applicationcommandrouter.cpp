@@ -106,6 +106,12 @@ void ApplicationCommandRouter::handleActionTriggered(ActionId actionId,
     case ActionId::ViewRotateCounterclockwiseAction:
         callVoid(ports.imageDocument.rotateCounterclockwise);
         return;
+    case ActionId::ViewFlipHorizontallyAction:
+        callVoid(ports.imageDocument.flipHorizontally);
+        return;
+    case ActionId::ViewFlipVerticallyAction:
+        callVoid(ports.imageDocument.flipVertically);
+        return;
     case ActionId::ViewToggleTwoPageModeAction:
         callVoid(ports.imageDocument.requestToggleTwoPageMode);
         return;

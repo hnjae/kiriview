@@ -55,7 +55,7 @@ Actions::ApplicationActionStateInput actionStateInput(
     input.uiGateRevision = snapshot.uiGateRevision;
     input.helpActionsEnabled = projection.helpShortcutsEnabled;
     input.readyActionsEnabled = projection.canUseReadyActions;
-    input.rotateActionsEnabled = projection.canUseRotateActions;
+    input.transformActionsEnabled = projection.canUseTransformActions;
     input.twoPageModeActionsEnabled = projection.canUseTwoPageModeActions;
     input.rightToLeftReadingActionsEnabled = projection.canUseRightToLeftReadingActions;
     input.containerNavigationActionsEnabled = projection.containerShortcutsEnabled;
@@ -89,8 +89,8 @@ Actions::ApplicationActionStateInput actionStateInput(
     input.collectionReadingShortcutsEnabled = projection.collectionReadingShortcutsEnabled;
     input.collectionReadingViewerShortcutsEnabled
         = projection.collectionReadingViewerShortcutsEnabled;
-    input.rotateShortcutsEnabled = projection.rotateShortcutsEnabled;
-    input.rotateViewerShortcutsEnabled = projection.rotateViewerShortcutsEnabled;
+    input.transformShortcutsEnabled = projection.transformShortcutsEnabled;
+    input.transformViewerShortcutsEnabled = projection.transformViewerShortcutsEnabled;
     input.pannableShortcutsEnabled = projection.pannableShortcutsEnabled;
     input.pannableViewerShortcutsEnabled = projection.pannableViewerShortcutsEnabled;
     input.containerViewerShortcutsEnabled = projection.containerViewerShortcutsEnabled;

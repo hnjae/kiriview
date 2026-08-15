@@ -143,6 +143,13 @@ void rotateByQuarterTurn(ImageViewport& viewport, int delta)
     command.setRotationQuarterTurnDelta(delta);
     QCOMPARE(viewport.setPresentation(command).outcome(), ImageViewportCommandOutcome::Accepted);
 }
+
+void toggleMirrorHorizontally(ImageViewport& viewport)
+{
+    ImageViewportPresentationCommand command;
+    command.setToggleMirrorHorizontally(true);
+    QCOMPARE(viewport.setPresentation(command).outcome(), ImageViewportCommandOutcome::Accepted);
+}
 }
 
 class ImageViewportProviderRefinementTest : public QObject
@@ -161,6 +168,7 @@ private Q_SLOTS:
     void committedProviderPayloadRefinesWithoutLeavingReady();
     void newerDemandCancelsOlderRefinementAndStaleResultCannotCommit();
     void successiveRelativeRotationsSupersedePendingRefinements();
+    void successiveMirrorTogglesSupersedePendingRefinements();
     void refinementFailureIsIsolatedFromTheDisplayRequest();
     void refinementMissingDemandRevisionIsIsolatedFromTheDisplayRequest();
     void refinementKindMismatchIsGenerationTerminal();
@@ -359,6 +367,36 @@ void ImageViewportProviderRefinementTest::successiveRelativeRotationsSupersedePe
     QVERIFY(hasPendingRenderCommitForTest(fixture.viewport));
     acknowledgePendingRenderCommitForTest(fixture.viewport);
     QCOMPARE(fixture.viewport.state().presentation().rotationDegrees(), 0);
+    QCOMPARE(fixture.viewport.state().primary().display().currentForDemand(), true);
+    QCOMPARE(fixture.viewport.state().primary().display().demandRevision(),
+        newer.demand().demandRevision());
+}
+
+void ImageViewportProviderRefinementTest::successiveMirrorTogglesSupersedePendingRefinements()
+{
+    ReadyProviderViewport fixture;
+
+    toggleMirrorHorizontally(fixture.viewport);
+    const ImageSequenceProviderRequest older = fixture.adapter.session->frameRequests().constLast();
+    QCOMPARE(older.demand().mirrorHorizontally(), true);
+
+    toggleMirrorHorizontally(fixture.viewport);
+
+    QCOMPARE(fixture.viewport.state().presentation().mirrorHorizontally(), false);
+    const ImageSequenceProviderRequest newer = fixture.adapter.session->frameRequests().constLast();
+    QCOMPARE(newer.demand().mirrorHorizontally(), false);
+    QVERIFY(newer.demand().demandRevision() != older.demand().demandRevision());
+    QCOMPARE(fixture.viewport.state().primary().display().currentForDemand(), false);
+
+    fixture.adapter.session->emitReady(older, Qt::green);
+    QVERIFY(!hasPendingRenderCommitForTest(fixture.viewport));
+    QCOMPARE(fixture.viewport.state().presentation().mirrorHorizontally(), false);
+    QCOMPARE(fixture.viewport.state().primary().display().currentForDemand(), false);
+
+    fixture.adapter.session->emitReady(newer, Qt::blue);
+    QVERIFY(hasPendingRenderCommitForTest(fixture.viewport));
+    acknowledgePendingRenderCommitForTest(fixture.viewport);
+    QCOMPARE(fixture.viewport.state().presentation().mirrorHorizontally(), false);
     QCOMPARE(fixture.viewport.state().primary().display().currentForDemand(), true);
     QCOMPARE(fixture.viewport.state().primary().display().demandRevision(),
         newer.demand().demandRevision());

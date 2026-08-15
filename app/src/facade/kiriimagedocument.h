@@ -186,6 +186,8 @@ public:
     void deleteDisplayedFile(KiriImageDocument::DeletionMode mode);
     Q_INVOKABLE void rotateClockwise();
     Q_INVOKABLE void rotateCounterclockwise();
+    Q_INVOKABLE void flipHorizontally();
+    Q_INVOKABLE void flipVertically();
     Q_INVOKABLE [[nodiscard]] double steppedManualZoomPercent(double stepCount) const;
     Q_INVOKABLE bool requestManualZoomPercent(double zoomPercent);
     Q_INVOKABLE bool requestZoomByStep(double stepCount, QPointF viewportAnchorPoint);

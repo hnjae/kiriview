@@ -15,7 +15,7 @@ struct ApplicationActionStateInput
     quint64 uiGateRevision = 0;
     bool helpActionsEnabled = false;
     bool readyActionsEnabled = false;
-    bool rotateActionsEnabled = false;
+    bool transformActionsEnabled = false;
     bool twoPageModeActionsEnabled = false;
     bool rightToLeftReadingActionsEnabled = false;
     bool containerNavigationActionsEnabled = false;
@@ -47,8 +47,8 @@ struct ApplicationActionStateInput
     bool twoPageViewerShortcutsEnabled = false;
     bool collectionReadingShortcutsEnabled = false;
     bool collectionReadingViewerShortcutsEnabled = false;
-    bool rotateShortcutsEnabled = false;
-    bool rotateViewerShortcutsEnabled = false;
+    bool transformShortcutsEnabled = false;
+    bool transformViewerShortcutsEnabled = false;
     bool pannableShortcutsEnabled = false;
     bool pannableViewerShortcutsEnabled = false;
     bool containerViewerShortcutsEnabled = false;

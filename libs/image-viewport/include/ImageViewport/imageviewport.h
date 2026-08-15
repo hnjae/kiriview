@@ -167,6 +167,10 @@ class ImageViewportPresentationCommand
     Q_PROPERTY(bool rotationQuarterTurnDeltaSet READ hasRotationQuarterTurnDelta CONSTANT)
     Q_PROPERTY(int rotationQuarterTurnDelta READ rotationQuarterTurnDelta WRITE
             setRotationQuarterTurnDelta)
+    Q_PROPERTY(bool toggleMirrorHorizontally READ toggleMirrorHorizontally WRITE
+            setToggleMirrorHorizontally)
+    Q_PROPERTY(
+        bool toggleMirrorVertically READ toggleMirrorVertically WRITE setToggleMirrorVertically)
     Q_PROPERTY(bool mirrorHorizontallySet READ hasMirrorHorizontally CONSTANT)
     Q_PROPERTY(bool mirrorHorizontally READ mirrorHorizontally WRITE setMirrorHorizontally)
     Q_PROPERTY(bool mirrorVerticallySet READ hasMirrorVertically CONSTANT)
@@ -280,6 +284,10 @@ public:
         m_rotationQuarterTurnDelta = delta;
         m_hasRotationQuarterTurnDelta = true;
     }
+    [[nodiscard]] bool toggleMirrorHorizontally() const { return m_toggleMirrorHorizontally; }
+    void setToggleMirrorHorizontally(bool toggle) { m_toggleMirrorHorizontally = toggle; }
+    [[nodiscard]] bool toggleMirrorVertically() const { return m_toggleMirrorVertically; }
+    void setToggleMirrorVertically(bool toggle) { m_toggleMirrorVertically = toggle; }
     [[nodiscard]] bool hasMirrorHorizontally() const { return m_hasMirrorHorizontally; }
     [[nodiscard]] bool mirrorHorizontally() const { return m_mirrorHorizontally; }
     void setMirrorHorizontally(bool mirror)
@@ -415,6 +423,8 @@ private:
     bool m_hasContentAnchor = false;
     bool m_hasRotationDegrees = false;
     bool m_hasRotationQuarterTurnDelta = false;
+    bool m_toggleMirrorHorizontally = false;
+    bool m_toggleMirrorVertically = false;
     bool m_hasMirrorHorizontally = false;
     bool m_mirrorHorizontally = false;
     bool m_hasMirrorVertically = false;

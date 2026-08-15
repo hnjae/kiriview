@@ -33,7 +33,7 @@ struct ImageActionAvailabilityInput
 struct ImageActionAvailabilityProjection
 {
     bool canUseReadyActions = false;
-    bool canUseRotateActions = false;
+    bool canUseTransformActions = false;
     bool canUseTwoPageModeActions = false;
     bool canUseRightToLeftReadingActions = false;
     bool rightToLeftReadingActive = false;
@@ -45,8 +45,8 @@ struct ImageActionAvailabilityProjection
     bool twoPageViewerShortcutsEnabled = false;
     bool collectionReadingShortcutsEnabled = false;
     bool collectionReadingViewerShortcutsEnabled = false;
-    bool rotateShortcutsEnabled = false;
-    bool rotateViewerShortcutsEnabled = false;
+    bool transformShortcutsEnabled = false;
+    bool transformViewerShortcutsEnabled = false;
     bool pannableShortcutsEnabled = false;
     bool pannableViewerShortcutsEnabled = false;
     bool containerShortcutsEnabled = false;

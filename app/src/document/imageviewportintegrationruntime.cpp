@@ -96,9 +96,6 @@ PresentationTargetTransitionPolicy transitionPolicy(
         policy.setZoomTransition(PresentationTargetTransitionPolicy::ZoomTransition::Preserve);
         policy.setContentPositionTransition(
             PresentationTargetTransitionPolicy::ContentPositionTransition::Clamp);
-        policy.setRotationTransition(
-            PresentationTargetTransitionPolicy::RotationTransition::Preserve);
-        policy.setMirrorTransition(PresentationTargetTransitionPolicy::MirrorTransition::Preserve);
         return policy;
     }
     return policy;
@@ -767,10 +764,33 @@ bool ImageViewportIntegrationRuntime::setContentPosition(QPointF position)
     return submitPresentation(command);
 }
 
+bool ImageViewportIntegrationRuntime::resetImageTransforms()
+{
+    ImageViewportPresentationCommand command;
+    command.setRotationDegrees(0);
+    command.setMirrorHorizontally(false);
+    command.setMirrorVertically(false);
+    return submitPresentation(command);
+}
+
 bool ImageViewportIntegrationRuntime::rotateByQuarterTurns(int delta)
 {
     ImageViewportPresentationCommand command;
     command.setRotationQuarterTurnDelta(delta);
+    return submitPresentation(command);
+}
+
+bool ImageViewportIntegrationRuntime::toggleMirrorHorizontally()
+{
+    ImageViewportPresentationCommand command;
+    command.setToggleMirrorHorizontally(true);
+    return submitPresentation(command);
+}
+
+bool ImageViewportIntegrationRuntime::toggleMirrorVertically()
+{
+    ImageViewportPresentationCommand command;
+    command.setToggleMirrorVertically(true);
     return submitPresentation(command);
 }
 

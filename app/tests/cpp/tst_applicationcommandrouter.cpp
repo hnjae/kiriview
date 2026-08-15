@@ -117,6 +117,10 @@ ApplicationCommandRouterPorts commandPorts(CommandLog& log)
         = [&log]() { log.actionCalls.push_back(QStringLiteral("rotate-clockwise")); };
     ports.imageDocument.rotateCounterclockwise
         = [&log]() { log.actionCalls.push_back(QStringLiteral("rotate-counterclockwise")); };
+    ports.imageDocument.flipHorizontally
+        = [&log]() { log.actionCalls.push_back(QStringLiteral("flip-horizontally")); };
+    ports.imageDocument.flipVertically
+        = [&log]() { log.actionCalls.push_back(QStringLiteral("flip-vertically")); };
     ports.imageDocument.requestToggleTwoPageMode
         = [&log]() { log.actionCalls.push_back(QStringLiteral("toggle-two-page")); };
     ports.imageDocument.requestToggleRightToLeftReading
@@ -249,6 +253,8 @@ void TestApplicationCommandRouter::actionDispatchRoutesToPorts()
     router.handleActionTriggered(ActionId::ViewFitWidthAction, input, ports);
     router.handleActionTriggered(ActionId::ViewRotateClockwiseAction, input, ports);
     router.handleActionTriggered(ActionId::ViewRotateCounterclockwiseAction, input, ports);
+    router.handleActionTriggered(ActionId::ViewFlipHorizontallyAction, input, ports);
+    router.handleActionTriggered(ActionId::ViewFlipVerticallyAction, input, ports);
     router.handleActionTriggered(ActionId::ViewToggleTwoPageModeAction, input, ports);
     router.handleActionTriggered(ActionId::ViewToggleRightToLeftReadingAction, input, ports);
     router.handleActionTriggered(ActionId::ViewToggleInfoPanelAction, input, ports);
@@ -284,6 +290,8 @@ void TestApplicationCommandRouter::actionDispatchRoutesToPorts()
         QStringLiteral("fit-width"),
         QStringLiteral("rotate-clockwise"),
         QStringLiteral("rotate-counterclockwise"),
+        QStringLiteral("flip-horizontally"),
+        QStringLiteral("flip-vertically"),
         QStringLiteral("toggle-two-page"),
         QStringLiteral("toggle-right-to-left"),
         QStringLiteral("toggle-info-panel"),

@@ -51,6 +51,8 @@ Item {
     readonly property var zoom200PercentMenuAction: zoom200PercentManagedAction.menuProxy
     readonly property var rotateClockwiseMenuAction: rotateClockwiseManagedAction.menuProxy
     readonly property var rotateCounterclockwiseMenuAction: rotateCounterclockwiseManagedAction.menuProxy
+    readonly property var flipHorizontallyMenuAction: flipHorizontallyManagedAction.menuProxy
+    readonly property var flipVerticallyMenuAction: flipVerticallyManagedAction.menuProxy
     readonly property var twoPageModeMenuAction: twoPageModeManagedAction.menuProxy
     readonly property var rightToLeftReadingMenuAction: rightToLeftReadingManagedAction.menuProxy
     readonly property var infoPanelMenuAction: infoPanelManagedAction.menuProxy
@@ -67,9 +69,9 @@ Item {
     readonly property bool mediaMode: root.imageMode || root.videoMode
     readonly property var applicationMenuNavigationActions: navigationPresentationOrder.applicationMenuNavigationActions
     readonly property var applicationMenuDocumentActions: root.imageMode || root.videoMode ? [applicationMenuNavigationSeparator, previousImageManagedAction.menuProxy, nextImageManagedAction.menuProxy, firstImageManagedAction.menuProxy, lastImageManagedAction.menuProxy] : []
-    readonly property var applicationMenuImageActions: root.imageMode ? root.applicationMenuNavigationActions.concat([rotateClockwiseManagedAction.menuProxy, rotateCounterclockwiseManagedAction.menuProxy, twoPageModeManagedAction.menuProxy, rightToLeftReadingManagedAction.menuProxy]) : root.collectionMode ? root.applicationMenuNavigationActions.concat([twoPageModeManagedAction.menuProxy, rightToLeftReadingManagedAction.menuProxy]) : []
+    readonly property var applicationMenuImageActions: root.imageMode ? root.applicationMenuNavigationActions.concat([rotateClockwiseManagedAction.menuProxy, rotateCounterclockwiseManagedAction.menuProxy, flipHorizontallyManagedAction.menuProxy, flipVerticallyManagedAction.menuProxy, twoPageModeManagedAction.menuProxy, rightToLeftReadingManagedAction.menuProxy]) : root.collectionMode ? root.applicationMenuNavigationActions.concat([twoPageModeManagedAction.menuProxy, rightToLeftReadingManagedAction.menuProxy]) : []
     readonly property var applicationMenuActions: [openManagedAction.menuProxy, openWithManagedAction.menuProxy, applicationMenuFileSeparator, moveToTrashManagedAction.menuProxy, deleteFileManagedAction.menuProxy].concat(root.applicationMenuDocumentActions, root.applicationMenuImageActions, [applicationMenuViewSeparator, infoPanelManagedAction.menuProxy, thumbnailPanelManagedAction.menuProxy, fullscreenManagedAction.menuProxy, applicationMenuSettingsSeparator, showMenubarManagedAction.menuProxy, configureShortcutsManagedAction.menuProxy, applicationMenuHelpSeparator, shortcutHelpManagedAction.menuProxy, applicationMenuQuitSeparator, quitManagedAction.menuProxy])
-    readonly property var contextMenuActions: [openManagedAction.menuProxy, openWithManagedAction.menuProxy, contextMenuNavigationSeparator, previousImageManagedAction.menuProxy, nextImageManagedAction.menuProxy, firstImageManagedAction.menuProxy, lastImageManagedAction.menuProxy, contextMenuImageSeparator, rotateClockwiseManagedAction.menuProxy, rotateCounterclockwiseManagedAction.menuProxy, zoomInManagedAction.menuProxy, zoomOutManagedAction.menuProxy, zoom50PercentManagedAction.menuProxy, zoom100PercentManagedAction.menuProxy, zoom200PercentManagedAction.menuProxy, fitManagedAction.menuProxy, fitHeightManagedAction.menuProxy, fitWidthManagedAction.menuProxy, contextMenuViewSeparator, infoPanelManagedAction.menuProxy, thumbnailPanelManagedAction.menuProxy, fullscreenManagedAction.menuProxy]
+    readonly property var contextMenuActions: [openManagedAction.menuProxy, openWithManagedAction.menuProxy, contextMenuNavigationSeparator, previousImageManagedAction.menuProxy, nextImageManagedAction.menuProxy, firstImageManagedAction.menuProxy, lastImageManagedAction.menuProxy, contextMenuImageSeparator, rotateClockwiseManagedAction.menuProxy, rotateCounterclockwiseManagedAction.menuProxy, flipHorizontallyManagedAction.menuProxy, flipVerticallyManagedAction.menuProxy, zoomInManagedAction.menuProxy, zoomOutManagedAction.menuProxy, zoom50PercentManagedAction.menuProxy, zoom100PercentManagedAction.menuProxy, zoom200PercentManagedAction.menuProxy, fitManagedAction.menuProxy, fitHeightManagedAction.menuProxy, fitWidthManagedAction.menuProxy, contextMenuViewSeparator, infoPanelManagedAction.menuProxy, thumbnailPanelManagedAction.menuProxy, fullscreenManagedAction.menuProxy]
 
     NavigationPresentationOrder {
         id: navigationPresentationOrder
@@ -253,6 +255,22 @@ Item {
         id: rotateCounterclockwiseManagedAction
 
         actionId: KiriViewApplication.ViewRotateCounterclockwiseAction
+        application: root.application
+        displayHint: Kirigami.DisplayHint.AlwaysHide
+    }
+
+    ManagedAction {
+        id: flipHorizontallyManagedAction
+
+        actionId: KiriViewApplication.ViewFlipHorizontallyAction
+        application: root.application
+        displayHint: Kirigami.DisplayHint.AlwaysHide
+    }
+
+    ManagedAction {
+        id: flipVerticallyManagedAction
+
+        actionId: KiriViewApplication.ViewFlipVerticallyAction
         application: root.application
         displayHint: Kirigami.DisplayHint.AlwaysHide
     }

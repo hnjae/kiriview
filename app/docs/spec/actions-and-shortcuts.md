@@ -22,6 +22,8 @@ Unmodified ASCII printable key sequences are allowed for viewer-local configurab
 
 Viewer commands use viewer-local shortcuts by default unless the action explicitly declares a program-wide shortcut slot. KiriView does not derive hidden viewer aliases by dropping Ctrl from program-wide shortcuts and does not keep program-wide Ctrl fallbacks for viewer-local commands.
 
+Flip Horizontally and Flip Vertically declare configurable viewer-local shortcut slots with no default key sequences and no program-wide shortcut slots.
+
 Toolbar controls, menus, context menus, shortcut help, and shortcut handling expose one coherent current-media, navigation, viewport, and interaction-context state, subject only to the documented navigation-boundary and media-mismatch shortcut feedback exceptions. During media replacement, mode switches, deletion, modal dialogs, or focus changes, KiriView must not display or trigger state from an older media item, viewport, or interaction context after a newer state is active.
 
 ## Shortcut Help

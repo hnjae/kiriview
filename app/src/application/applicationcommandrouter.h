@@ -50,6 +50,8 @@ struct ApplicationCommandRouterImageDocumentPorts
     std::function<void()> openNextSinglePage;
     std::function<void()> rotateClockwise;
     std::function<void()> rotateCounterclockwise;
+    std::function<void()> flipHorizontally;
+    std::function<void()> flipVertically;
     std::function<void()> requestToggleTwoPageMode;
     std::function<void()> requestToggleRightToLeftReading;
 };

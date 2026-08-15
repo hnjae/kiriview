@@ -133,6 +133,8 @@ public:
     void setFitMode(ImageZoomMode zoomMode);
     void rotateClockwise();
     void rotateCounterclockwise();
+    void flipHorizontally();
+    void flipVertically();
 
 private:
     [[nodiscard]] QPointF scanPosition(bool forward) const;

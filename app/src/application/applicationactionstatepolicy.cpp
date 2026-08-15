@@ -99,7 +99,9 @@ ApplicationActionState applicationActionState(
         return checkableState(input.readyActionsEnabled, input.fitWidthModeSelected);
     case ActionId::ViewRotateClockwiseAction:
     case ActionId::ViewRotateCounterclockwiseAction:
-        return state(input.rotateActionsEnabled);
+    case ActionId::ViewFlipHorizontallyAction:
+    case ActionId::ViewFlipVerticallyAction:
+        return state(input.transformActionsEnabled);
     case ActionId::ViewToggleTwoPageModeAction:
         return checkableState(input.twoPageModeActionsEnabled, input.twoPageModeActive);
     case ActionId::ViewToggleRightToLeftReadingAction:
@@ -176,6 +178,10 @@ QString applicationActionMenuText(ActionId actionId, const ApplicationActionStat
         return i18nc("@action:inmenu", "Rotate &Clockwise");
     case ActionId::ViewRotateCounterclockwiseAction:
         return i18nc("@action:inmenu", "Rotate C&ounterclockwise");
+    case ActionId::ViewFlipHorizontallyAction:
+        return i18nc("@action:inmenu", "Flip &Horizontally");
+    case ActionId::ViewFlipVerticallyAction:
+        return i18nc("@action:inmenu", "Flip &Vertically");
     case ActionId::ViewToggleTwoPageModeAction:
         return i18nc("@action:inmenu", "Two-Page &Spread");
     case ActionId::ViewToggleRightToLeftReadingAction:
@@ -230,7 +236,7 @@ bool applicationShortcutsEnabledForScope(
 {
     const ImageActionAvailabilityProjection projection {
         input.readyActionsEnabled,
-        input.rotateActionsEnabled,
+        input.transformActionsEnabled,
         input.twoPageModeActionsEnabled,
         input.rightToLeftReadingActionsEnabled,
         input.rightToLeftReadingActive,
@@ -242,8 +248,8 @@ bool applicationShortcutsEnabledForScope(
         input.twoPageViewerShortcutsEnabled,
         input.collectionReadingShortcutsEnabled,
         input.collectionReadingViewerShortcutsEnabled,
-        input.rotateShortcutsEnabled,
-        input.rotateViewerShortcutsEnabled,
+        input.transformShortcutsEnabled,
+        input.transformViewerShortcutsEnabled,
         input.pannableShortcutsEnabled,
         input.pannableViewerShortcutsEnabled,
         input.containerNavigationActionsEnabled,

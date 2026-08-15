@@ -291,6 +291,8 @@ void ImageViewportPublicApiTest::exposesTypedPublicValueSurfaces()
         "zoomAnchor",
         "rotationQuarterTurnDeltaSet",
         "rotationQuarterTurnDelta",
+        "toggleMirrorHorizontally",
+        "toggleMirrorVertically",
         "checkerboardLightColorSet",
         "checkerboardLightColor",
         "checkerboardDarkColorSet",

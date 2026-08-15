@@ -78,6 +78,8 @@ public:
         ViewFitWidthAction,
         ViewRotateClockwiseAction,
         ViewRotateCounterclockwiseAction,
+        ViewFlipHorizontallyAction,
+        ViewFlipVerticallyAction,
         ViewToggleTwoPageModeAction,
         ViewToggleRightToLeftReadingAction,
         ViewToggleInfoPanelAction,

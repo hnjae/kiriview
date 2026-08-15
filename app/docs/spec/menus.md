@@ -54,7 +54,9 @@ The viewer context menu is available in image and video mode, including fullscre
 
 Right-clicking the toolbar, menubar, Info Panel, or Thumbnail Panel does not open the viewer context menu.
 
-The viewer context menu contains a concise set of viewer actions: Open, Open With, active navigation, image-only view actions such as zoom, fit, and rotation, panel toggles, and Fullscreen.
+The viewer context menu contains a concise set of viewer actions: Open, Open With, active navigation, image-only view actions such as zoom, fit, rotation, and flipping, panel toggles, and Fullscreen.
+
+Image menus place Flip Horizontally followed by Flip Vertically immediately after the clockwise and counterclockwise rotation actions. Flip actions are ordinary commands without checked state.
 
 The viewer context menu uses the same application actions as the toolbar application menu and menubar. Action identity, text, shortcut display, enabled state, and checked state remain consistent across all menus.
 

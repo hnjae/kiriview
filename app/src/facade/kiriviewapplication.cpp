@@ -141,6 +141,10 @@ constexpr std::array actionIdMappings {
         Actions::ActionId::ViewRotateClockwiseAction },
     ActionIdMapping { KiriViewApplication::ViewRotateCounterclockwiseAction,
         Actions::ActionId::ViewRotateCounterclockwiseAction },
+    ActionIdMapping { KiriViewApplication::ViewFlipHorizontallyAction,
+        Actions::ActionId::ViewFlipHorizontallyAction },
+    ActionIdMapping { KiriViewApplication::ViewFlipVerticallyAction,
+        Actions::ActionId::ViewFlipVerticallyAction },
     ActionIdMapping { KiriViewApplication::ViewToggleTwoPageModeAction,
         Actions::ActionId::ViewToggleTwoPageModeAction },
     ActionIdMapping { KiriViewApplication::ViewToggleRightToLeftReadingAction,
@@ -619,6 +623,16 @@ Actions::KiriViewApplicationCommandPortSource::commandRouterImageDocumentPorts()
     ports.rotateCounterclockwise = [this]() {
         if (KiriImageDocument* image = imageDocument()) {
             image->rotateCounterclockwise();
+        }
+    };
+    ports.flipHorizontally = [this]() {
+        if (KiriImageDocument* image = imageDocument()) {
+            image->flipHorizontally();
+        }
+    };
+    ports.flipVertically = [this]() {
+        if (KiriImageDocument* image = imageDocument()) {
+            image->flipVertically();
         }
     };
     ports.requestToggleTwoPageMode = [this]() {

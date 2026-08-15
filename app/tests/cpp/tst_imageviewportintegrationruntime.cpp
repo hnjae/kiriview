@@ -252,6 +252,7 @@ private Q_SLOTS:
     void failureReferenceResolvesOnlyForMatchingTarget();
     void targetTransitionsApplyIntentSpecificFallbackPolicy_data();
     void targetTransitionsApplyIntentSpecificFallbackPolicy();
+    void presentationShapeChangeResetsSinglePageTransforms();
     void displayedImageFollowsCommittedAndRetainedDisplay();
     void authoritativeCandidateWaitsForCommitOverProvisionalDisplay();
     void firstDisplayAutomaticallyRefinesWithoutInteraction();
@@ -895,6 +896,43 @@ void TestImageViewportIntegrationRuntime::targetTransitionsApplyIntentSpecificFa
     QVERIFY(viewport.state().display().displayedRoleSet().primary());
     QCOMPARE(viewport.state().display().displayedRoleSet().secondary(),
         replacement.secondarySource != nullptr);
+}
+
+void TestImageViewportIntegrationRuntime::presentationShapeChangeResetsSinglePageTransforms()
+{
+    kiriview::ImageViewportIntegrationRuntime runtime;
+    QQuickWindow window;
+    ImageViewport viewport;
+    hostViewport(window, viewport);
+    runtime.attach(&viewport);
+
+    TargetFixture initial;
+    initial.generation = 63;
+    initial.primaryUrl = QUrl(QStringLiteral("file:///tmp/transform.png"));
+    QVERIFY(runtime.submitTarget(initial.target()));
+    QTRY_COMPARE(initial.primarySource->pendingFrames.size(), std::size_t(1));
+    initial.primarySource->completeNext(QStringLiteral("transform"));
+    QVERIFY(driveRenderUntil(window, [&runtime]() {
+        return runtime.projection().status == kiriview::ImageDocumentStatus::Ready;
+    }));
+
+    QVERIFY(runtime.rotateByQuarterTurns(1));
+    QVERIFY(runtime.toggleMirrorHorizontally());
+    QVERIFY(runtime.toggleMirrorVertically());
+    QCOMPARE(viewport.state().presentation().rotationDegrees(), 90);
+    QCOMPARE(viewport.state().presentation().mirrorHorizontally(), true);
+    QCOMPARE(viewport.state().presentation().mirrorVertically(), true);
+
+    TargetFixture shape;
+    shape.generation = 64;
+    shape.primaryUrl = initial.primaryUrl;
+    shape.secondaryUrl = QUrl(QStringLiteral("file:///tmp/transform-secondary.png"));
+    shape.intent = kiriview::ImageViewportTargetTransitionIntent::PresentationShapeChange;
+    QVERIFY(runtime.submitTarget(shape.target()));
+
+    QCOMPARE(viewport.state().presentation().rotationDegrees(), 0);
+    QCOMPARE(viewport.state().presentation().mirrorHorizontally(), false);
+    QCOMPARE(viewport.state().presentation().mirrorVertically(), false);
 }
 
 void TestImageViewportIntegrationRuntime::displayedImageFollowsCommittedAndRetainedDisplay()

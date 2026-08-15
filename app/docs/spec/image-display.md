@@ -136,6 +136,18 @@ Rotation resets to 0 degrees whenever a different image or page is displayed, an
 
 Rotation is unavailable while Two-Page Spread is enabled. Enabling Two-Page Spread resets rotation to 0 degrees.
 
+## Flipping
+
+When an image is ready and Two-Page Spread is disabled, Flip Horizontally reflects the current image view across the vertical item axis and Flip Vertically reflects it across the horizontal item axis. These axes remain the visible viewer axes after rotation: horizontal always exchanges the displayed left and right sides, and vertical always exchanges the displayed top and bottom sides.
+
+Each flip command toggles its axis independently. Applying the same flip twice returns that axis to its original state, and horizontal flip, vertical flip, and rotation may be combined. Successive flip commands take effect immediately; a same-image detail replacement pending for an earlier flip does not block a newer flip command or revert its result.
+
+Flipping is display-only. It does not modify image files, metadata, archive contents, remote URLs, or any saved file state.
+
+Flip Horizontally and Flip Vertically have configurable viewer-local shortcut slots with no default key bindings.
+
+Both flip axes reset whenever a different image or page is displayed or the displayed image is cleared. Flipping is unavailable while Two-Page Spread is enabled, and enabling Two-Page Spread clears both flip axes.
+
 ## Zoom Controls
 
 The toolbar provides a fixed-width zoom percentage input with a separate percent suffix. It shows values below 10,000% as a rounded integer percentage without digit grouping, capped at `9999 %`. It shows values from 10,000% through 999,999% in thousands using `k`, adds `+` when the actual value is above the displayed thousand bucket, and shows values at or above 1,000,000% as `999k+ %`. The editable value text is right-aligned, uses a fixed-width font, and excludes `%`; the adjacent percent suffix provides `%` after a one-space visual gap and keeps toolbar spacing before the stepper buttons.

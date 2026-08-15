@@ -387,6 +387,8 @@ bool videoActionUnsupported(ActionId actionId)
     case ActionId::ViewFitWidthAction:
     case ActionId::ViewRotateClockwiseAction:
     case ActionId::ViewRotateCounterclockwiseAction:
+    case ActionId::ViewFlipHorizontallyAction:
+    case ActionId::ViewFlipVerticallyAction:
     case ActionId::ViewToggleTwoPageModeAction:
     case ActionId::ViewToggleRightToLeftReadingAction:
         return true;

@@ -57,6 +57,8 @@ private Q_SLOTS:
     void zoomPresetAndFitShortcutsUseNewMapping();
     void configuredActionShortcutsTriggerActions();
     void rotationShortcutsAccumulateAndWrap();
+    void configuredFlipShortcutsToggleWithoutDefaults();
+    void flipShortcutsResetAndDisableInTwoPageMode();
     void invalidPersistedViewerShortcutDoesNotDispatch();
     void quitViewerLocalShortcutTriggersQuitAction();
     void windowCommandShortcutsWorkWithoutQmlShortcutInstallers();
@@ -715,6 +717,99 @@ void TestImageShortcuts::rotationShortcutsAccumulateAndWrap()
         pressKey(fixture.view.get(), Qt::Key_R, Qt::ShiftModifier);
         QTRY_COMPARE(viewport->state().presentation().rotationDegrees(), expected);
     }
+}
+
+void TestImageShortcuts::configuredFlipShortcutsToggleWithoutDefaults()
+{
+    ImageShortcutsFixture fixture = createReadyFixture();
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    QTRY_VERIFY(documentReady(fixture.root));
+
+    QCOMPARE(fixture.application->programWideShortcutsForId(
+                 KiriViewApplication::ViewFlipHorizontallyAction),
+        QList<QKeySequence>());
+    QCOMPARE(fixture.application->viewerLocalShortcutsForId(
+                 KiriViewApplication::ViewFlipHorizontallyAction),
+        QList<QKeySequence>());
+    QCOMPARE(fixture.application->programWideShortcutsForId(
+                 KiriViewApplication::ViewFlipVerticallyAction),
+        QList<QKeySequence>());
+    QCOMPARE(fixture.application->viewerLocalShortcutsForId(
+                 KiriViewApplication::ViewFlipVerticallyAction),
+        QList<QKeySequence>());
+
+    QVERIFY(fixture.application->setViewerLocalShortcutsForId(
+        KiriViewApplication::ViewFlipHorizontallyAction,
+        { QKeySequence::fromString(QStringLiteral("H"), QKeySequence::PortableText) }));
+    QVERIFY(fixture.application->setViewerLocalShortcutsForId(
+        KiriViewApplication::ViewFlipVerticallyAction,
+        { QKeySequence::fromString(QStringLiteral("V"), QKeySequence::PortableText) }));
+
+    KiriImageViewportSurface* surface
+        = fixture.root->findChild<KiriImageViewportSurface*>(QString());
+    QVERIFY(surface != nullptr);
+    ImageViewport* viewport = surface->viewport();
+    QVERIFY(viewport != nullptr);
+
+    pressKey(fixture.view.get(), Qt::Key_H);
+    QTRY_COMPARE(viewport->state().presentation().mirrorHorizontally(), true);
+    QCOMPARE(viewport->state().presentation().mirrorVertically(), false);
+    pressKey(fixture.view.get(), Qt::Key_H);
+    QTRY_COMPARE(viewport->state().presentation().mirrorHorizontally(), false);
+
+    pressKey(fixture.view.get(), Qt::Key_V);
+    QTRY_COMPARE(viewport->state().presentation().mirrorVertically(), true);
+    QCOMPARE(viewport->state().presentation().mirrorHorizontally(), false);
+    pressKey(fixture.view.get(), Qt::Key_V);
+    QTRY_COMPARE(viewport->state().presentation().mirrorVertically(), false);
+}
+
+void TestImageShortcuts::flipShortcutsResetAndDisableInTwoPageMode()
+{
+    ImageShortcutsFixture fixture = createComicBookFixture();
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    QTRY_VERIFY(documentReady(fixture.root));
+    QTRY_VERIFY(fixture.root->property("twoPageModeAvailable").toBool());
+
+    QVERIFY(fixture.application->setViewerLocalShortcutsForId(
+        KiriViewApplication::ViewFlipHorizontallyAction,
+        { QKeySequence::fromString(QStringLiteral("H"), QKeySequence::PortableText) }));
+    QVERIFY(fixture.application->setViewerLocalShortcutsForId(
+        KiriViewApplication::ViewFlipVerticallyAction,
+        { QKeySequence::fromString(QStringLiteral("V"), QKeySequence::PortableText) }));
+
+    QAction* horizontalAction
+        = fixture.application->actionForId(KiriViewApplication::ViewFlipHorizontallyAction);
+    QAction* verticalAction
+        = fixture.application->actionForId(KiriViewApplication::ViewFlipVerticallyAction);
+    QVERIFY(horizontalAction != nullptr);
+    QVERIFY(verticalAction != nullptr);
+    QTRY_VERIFY(horizontalAction->isEnabled());
+    QTRY_VERIFY(verticalAction->isEnabled());
+
+    KiriImageViewportSurface* surface
+        = fixture.root->findChild<KiriImageViewportSurface*>(QString());
+    QVERIFY(surface != nullptr);
+    ImageViewport* viewport = surface->viewport();
+    QVERIFY(viewport != nullptr);
+
+    pressKey(fixture.view.get(), Qt::Key_H);
+    pressKey(fixture.view.get(), Qt::Key_V);
+    QTRY_COMPARE(viewport->state().presentation().mirrorHorizontally(), true);
+    QTRY_COMPARE(viewport->state().presentation().mirrorVertically(), true);
+
+    QVERIFY(fixture.root->setProperty("twoPageModeEnabled", true));
+    QVERIFY(refreshDerivedDocumentState(fixture.root));
+    QTRY_VERIFY(fixture.root->property("twoPageModeEnabled").toBool());
+    QTRY_VERIFY(!horizontalAction->isEnabled());
+    QTRY_VERIFY(!verticalAction->isEnabled());
+    QTRY_COMPARE(viewport->state().presentation().mirrorHorizontally(), false);
+    QTRY_COMPARE(viewport->state().presentation().mirrorVertically(), false);
+
+    pressKey(fixture.view.get(), Qt::Key_H);
+    pressKey(fixture.view.get(), Qt::Key_V);
+    QCOMPARE(viewport->state().presentation().mirrorHorizontally(), false);
+    QCOMPARE(viewport->state().presentation().mirrorVertically(), false);
 }
 
 void TestImageShortcuts::invalidPersistedViewerShortcutDoesNotDispatch()

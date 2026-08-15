@@ -149,12 +149,15 @@ bool commandValid(const ViewportEnginePresentationCommandInput& input)
 {
     const ViewportEnginePresentationCommand& command = input.command;
     const bool relativeRotation = input.quarterTurnDeltaSet;
+    const bool toggleMirrorHorizontally = input.toggleMirrorHorizontally;
+    const bool toggleMirrorVertically = input.toggleMirrorVertically;
     const bool resetConflicts = command.resetView()
         && (command.hasFitMode() || command.hasPreferredManualZoomPercent()
             || command.hasZoomStepDelta() || command.hasZoomAnchor() || command.hasContentPosition()
             || command.hasPanDelta() || command.hasContentAnchor() || command.hasRotationDegrees()
             || relativeRotation || command.hasMirrorHorizontally() || command.hasMirrorVertically()
-            || command.hasSpreadDirection() || command.hasPageGap());
+            || toggleMirrorHorizontally || toggleMirrorVertically || command.hasSpreadDirection()
+            || command.hasPageGap());
     const int geometryPositioningOperations = (command.hasPreferredManualZoomPercent() ? 1 : 0)
         + (command.hasZoomStepDelta() ? 1 : 0) + (command.hasContentPosition() ? 1 : 0)
         + (command.hasPanDelta() ? 1 : 0) + (command.hasContentAnchor() ? 1 : 0);
@@ -164,18 +167,22 @@ bool commandValid(const ViewportEnginePresentationCommandInput& input)
         && (!zoomOperation || command.resetView() || command.hasContentPosition()
             || command.hasPanDelta() || command.hasContentAnchor() || command.hasRotationDegrees()
             || command.hasMirrorHorizontally() || command.hasMirrorVertically()
-            || command.hasSpreadDirection() || command.hasPageGap() || relativeRotation
+            || toggleMirrorHorizontally || toggleMirrorVertically || command.hasSpreadDirection()
+            || command.hasPageGap() || relativeRotation
             || (command.hasFitMode() && command.fitMode() != ImageViewportFitMode::Manual));
     const auto validRotation = [](int degrees) {
         return degrees == 0 || degrees == 90 || degrees == 180 || degrees == 270;
     };
     const double minimumZoom = ViewportDisplayLimits::minimumManualZoomPercent();
 
-    return (commandHasOperation(command) || relativeRotation) && !resetConflicts
-        && !zoomAnchorConflict && geometryPositioningOperations <= 1
+    return (commandHasOperation(command) || relativeRotation || toggleMirrorHorizontally
+               || toggleMirrorVertically)
+        && !resetConflicts && !zoomAnchorConflict && geometryPositioningOperations <= 1
         && ((relativeRotation && (input.quarterTurnDelta == 1 || input.quarterTurnDelta == -1))
             || (!relativeRotation && input.quarterTurnDelta == 0))
         && !(relativeRotation && command.hasRotationDegrees())
+        && !(toggleMirrorHorizontally && command.hasMirrorHorizontally())
+        && !(toggleMirrorVertically && command.hasMirrorVertically())
         && ImageViewportInternal::isFinitePoint(input.anchor)
         && std::isfinite(input.geometry.devicePixelRatio) && input.geometry.devicePixelRatio > 0.0
         && (!command.hasFitMode() || ImageViewportInternal::isValidFitMode(command.fitMode()))
@@ -229,8 +236,14 @@ PresentationState presentationForZoomRange(
     if (command.hasMirrorHorizontally()) {
         result.mirrorHorizontally = command.mirrorHorizontally();
     }
+    if (input.toggleMirrorHorizontally) {
+        result.mirrorHorizontally = !result.mirrorHorizontally;
+    }
     if (command.hasMirrorVertically()) {
         result.mirrorVertically = command.mirrorVertically();
+    }
+    if (input.toggleMirrorVertically) {
+        result.mirrorVertically = !result.mirrorVertically;
     }
     if (command.hasSpreadDirection()) {
         result.spreadDirection = command.spreadDirection();
@@ -387,8 +400,14 @@ ViewportEnginePresentationCommandReduction reduceViewportEnginePresentationComma
         && next.mirrorHorizontally != command.mirrorHorizontally()) {
         applyAnchored([&] { next.mirrorHorizontally = command.mirrorHorizontally(); });
     }
+    if (input.toggleMirrorHorizontally) {
+        applyAnchored([&] { next.mirrorHorizontally = !next.mirrorHorizontally; });
+    }
     if (command.hasMirrorVertically() && next.mirrorVertically != command.mirrorVertically()) {
         applyAnchored([&] { next.mirrorVertically = command.mirrorVertically(); });
+    }
+    if (input.toggleMirrorVertically) {
+        applyAnchored([&] { next.mirrorVertically = !next.mirrorVertically; });
     }
     if (command.hasSpreadDirection() && next.spreadDirection != command.spreadDirection()) {
         next.spreadDirection = command.spreadDirection();
@@ -467,7 +486,8 @@ ViewportEngineCommandTransition ViewportEngine::applyPresentationCommand(
     const QPointF anchor = input.command.hasZoomAnchor() ? input.command.zoomAnchor()
                                                          : m_state->viewport.itemBounds.center();
     const ViewportEnginePresentationCommandInput operationInput { input.command, geometry, anchor,
-        input.quarterTurnDelta, input.quarterTurnDeltaSet };
+        input.quarterTurnDelta, input.quarterTurnDeltaSet, input.toggleMirrorHorizontally,
+        input.toggleMirrorVertically };
     if (!validateViewportEnginePresentationCommand(operationInput)) {
         return finalizeCommandTransition(rejectInvalidCommand(), std::move(transition));
     }

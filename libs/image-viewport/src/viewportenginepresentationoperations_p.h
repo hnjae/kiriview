@@ -17,6 +17,8 @@ struct ViewportEnginePresentationCommandInput
     QPointF anchor;
     int quarterTurnDelta = 0;
     bool quarterTurnDeltaSet = false;
+    bool toggleMirrorHorizontally = false;
+    bool toggleMirrorVertically = false;
 };
 
 struct ViewportEnginePresentationTargetTransitionInput

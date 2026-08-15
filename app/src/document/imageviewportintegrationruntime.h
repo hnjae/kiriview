@@ -106,7 +106,10 @@ public:
     bool zoomBySteps(qreal steps, std::optional<QPointF> anchor = std::nullopt);
     bool panBy(QPointF delta);
     bool setContentPosition(QPointF position);
+    bool resetImageTransforms();
     bool rotateByQuarterTurns(int delta);
+    bool toggleMirrorHorizontally();
+    bool toggleMirrorVertically();
     bool setSpreadDirection(ImageViewportSpreadDirection direction);
     bool submitHorizontalScrollPosition(qreal position);
     bool submitVerticalScrollPosition(qreal position);

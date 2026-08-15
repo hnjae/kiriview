@@ -78,6 +78,10 @@ constexpr std::array actionIdMappings {
         KiriViewApplication::ViewRotateClockwiseAction, DomainActionId::ViewRotateClockwiseAction },
     ActionIdMapping { KiriViewApplication::ViewRotateCounterclockwiseAction,
         DomainActionId::ViewRotateCounterclockwiseAction },
+    ActionIdMapping { KiriViewApplication::ViewFlipHorizontallyAction,
+        DomainActionId::ViewFlipHorizontallyAction },
+    ActionIdMapping {
+        KiriViewApplication::ViewFlipVerticallyAction, DomainActionId::ViewFlipVerticallyAction },
     ActionIdMapping { KiriViewApplication::ViewToggleTwoPageModeAction,
         DomainActionId::ViewToggleTwoPageModeAction },
     ActionIdMapping { KiriViewApplication::ViewToggleRightToLeftReadingAction,
@@ -480,6 +484,14 @@ void TestKiriViewApplication::typedShortcutApisReturnCurrentShortcuts()
     QCOMPARE(application.viewerLocalShortcutsForId(
                  KiriViewApplication::ViewRotateCounterclockwiseAction),
         QList<QKeySequence>({ shortcut(QStringLiteral("Shift+R")) }));
+    QCOMPARE(application.programWideShortcutsForId(KiriViewApplication::ViewFlipHorizontallyAction),
+        QList<QKeySequence>());
+    QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::ViewFlipHorizontallyAction),
+        QList<QKeySequence>());
+    QCOMPARE(application.programWideShortcutsForId(KiriViewApplication::ViewFlipVerticallyAction),
+        QList<QKeySequence>());
+    QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::ViewFlipVerticallyAction),
+        QList<QKeySequence>());
 
     QAction* openAction = application.actionForId(KiriViewApplication::FileOpenAction);
     QVERIFY(openAction != nullptr);
@@ -831,6 +843,24 @@ void TestKiriViewApplication::shortcutConfigurationModelExposesDeclaredScopedSlo
         static_cast<int>(KiriViewApplication::ViewerLocalShortcutScope));
     QVERIFY(!shortcutHelpIndexForActionAndScope(
         model, QStringLiteral("view_rotate_clockwise"), QStringLiteral("Program-wide"))
+            .isValid());
+    const QModelIndex horizontalFlipViewerLocalIndex = shortcutHelpIndexForActionAndScope(
+        model, QStringLiteral("view_flip_horizontally"), QStringLiteral("Viewer-local"));
+    const QModelIndex verticalFlipViewerLocalIndex = shortcutHelpIndexForActionAndScope(
+        model, QStringLiteral("view_flip_vertically"), QStringLiteral("Viewer-local"));
+    QVERIFY(horizontalFlipViewerLocalIndex.isValid());
+    QVERIFY(verticalFlipViewerLocalIndex.isValid());
+    QCOMPARE(model->data(horizontalFlipViewerLocalIndex, shortcutHelpPortableShortcutTextsRole)
+                 .toStringList(),
+        QStringList());
+    QCOMPARE(model->data(verticalFlipViewerLocalIndex, shortcutHelpPortableShortcutTextsRole)
+                 .toStringList(),
+        QStringList());
+    QVERIFY(!shortcutHelpIndexForActionAndScope(
+        model, QStringLiteral("view_flip_horizontally"), QStringLiteral("Program-wide"))
+            .isValid());
+    QVERIFY(!shortcutHelpIndexForActionAndScope(
+        model, QStringLiteral("view_flip_vertically"), QStringLiteral("Program-wide"))
             .isValid());
     QVERIFY(!shortcutHelpIndexForActionAndScope(
         model, QStringLiteral("file_open"), QStringLiteral("Viewer-local"))

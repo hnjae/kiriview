@@ -383,6 +383,10 @@ void KiriImageDocument::rotateClockwise() { m_runtime->rotateClockwise(); }
 
 void KiriImageDocument::rotateCounterclockwise() { m_runtime->rotateCounterclockwise(); }
 
+void KiriImageDocument::flipHorizontally() { m_runtime->flipHorizontally(); }
+
+void KiriImageDocument::flipVertically() { m_runtime->flipVertically(); }
+
 double KiriImageDocument::steppedManualZoomPercent(double stepCount) const
 {
     return m_runtime->steppedManualZoomPercent(stepCount);

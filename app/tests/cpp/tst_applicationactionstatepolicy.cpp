@@ -14,7 +14,7 @@ kiriview::ApplicationActions::ApplicationActionStateInput readyImageInput()
     kiriview::ApplicationActions::ApplicationActionStateInput input;
     input.helpActionsEnabled = true;
     input.readyActionsEnabled = true;
-    input.rotateActionsEnabled = true;
+    input.transformActionsEnabled = true;
     input.twoPageModeActionsEnabled = true;
     input.rightToLeftReadingActionsEnabled = true;
     input.containerNavigationActionsEnabled = true;
@@ -116,12 +116,21 @@ void TestApplicationActionStatePolicy::sharedActionEnabledStateUsesRuntimeGates(
     QVERIFY(stateFor(ActionId::FileMoveToTrashAction, input).actionEnabled);
     QVERIFY(stateFor(ActionId::ViewZoomInAction, input).actionEnabled);
     QVERIFY(stateFor(ActionId::ViewRotateClockwiseAction, input).actionEnabled);
+    QVERIFY(stateFor(ActionId::ViewFlipHorizontallyAction, input).actionEnabled);
+    QVERIFY(stateFor(ActionId::ViewFlipVerticallyAction, input).actionEnabled);
+    QVERIFY(!stateFor(ActionId::ViewFlipHorizontallyAction, input).checkable);
+    QVERIFY(!stateFor(ActionId::ViewFlipVerticallyAction, input).checkable);
     QVERIFY(stateFor(ActionId::GoPreviousArchiveAction, input).actionEnabled);
 
     input.helpActionsEnabled = false;
     QVERIFY(!stateFor(ActionId::FileOpenAction, input).actionEnabled);
     QVERIFY(!stateFor(ActionId::FileOpenWithAction, input).actionEnabled);
     QVERIFY(!stateFor(ActionId::GoPreviousImageAction, input).actionEnabled);
+
+    input.transformActionsEnabled = false;
+    QVERIFY(!stateFor(ActionId::ViewRotateClockwiseAction, input).actionEnabled);
+    QVERIFY(!stateFor(ActionId::ViewFlipHorizontallyAction, input).actionEnabled);
+    QVERIFY(!stateFor(ActionId::ViewFlipVerticallyAction, input).actionEnabled);
 }
 
 void TestApplicationActionStatePolicy::videoPlaybackActionUsesVideoModeGates()

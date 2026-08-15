@@ -41,6 +41,7 @@ private Q_SLOTS:
     void sameTargetRefinementPreservesSelectionAndRejectsIncompatibleTiming();
     void unresolvedTargetAnchorResolvesWhenProviderGeometryArrives();
     void relativeRotationCommandsAccumulateAndWrap();
+    void relativeMirrorCommandsToggleAndCompose();
     void invalidPresentationCommandsPreserveDiagnostics();
 };
 
@@ -114,6 +115,20 @@ static ImageViewportCommandOutcome rotateByQuarterTurn(ImageViewport& item, int 
 {
     ImageViewportPresentationCommand command;
     command.setRotationQuarterTurnDelta(delta);
+    return item.setPresentation(command).outcome();
+}
+
+static ImageViewportCommandOutcome toggleMirrorHorizontally(ImageViewport& item, bool toggle = true)
+{
+    ImageViewportPresentationCommand command;
+    command.setToggleMirrorHorizontally(toggle);
+    return item.setPresentation(command).outcome();
+}
+
+static ImageViewportCommandOutcome toggleMirrorVertically(ImageViewport& item, bool toggle = true)
+{
+    ImageViewportPresentationCommand command;
+    command.setToggleMirrorVertically(toggle);
     return item.setPresentation(command).outcome();
 }
 
@@ -1432,6 +1447,69 @@ void ImageViewportPublicApiCommandsTest::relativeRotationCommandsAccumulateAndWr
     conflictingReset.setRotationQuarterTurnDelta(1);
     QCOMPARE(
         item.setPresentation(conflictingReset).outcome(), ImageViewportCommandOutcome::Invalid);
+    QCOMPARE(item.state().presentation(), beforeInvalid.presentation());
+}
+
+void ImageViewportPublicApiCommandsTest::relativeMirrorCommandsToggleAndCompose()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+    acknowledgePendingRenderCommitForTest(item);
+
+    QCOMPARE(toggleMirrorHorizontally(item), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(item.state().presentation().mirrorHorizontally(), true);
+    QCOMPARE(item.state().presentation().mirrorVertically(), false);
+    QCOMPARE(toggleMirrorHorizontally(item), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(item.state().presentation().mirrorHorizontally(), false);
+
+    QCOMPARE(toggleMirrorVertically(item), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(item.state().presentation().mirrorHorizontally(), false);
+    QCOMPARE(item.state().presentation().mirrorVertically(), true);
+    QCOMPARE(toggleMirrorVertically(item), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(item.state().presentation().mirrorVertically(), false);
+
+    ImageViewportPresentationCommand combined;
+    combined.setRotationQuarterTurnDelta(1);
+    combined.setToggleMirrorHorizontally(true);
+    combined.setToggleMirrorVertically(true);
+    QCOMPARE(item.setPresentation(combined).outcome(), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(item.state().presentation().rotationDegrees(), 90);
+    QCOMPARE(item.state().presentation().mirrorHorizontally(), true);
+    QCOMPARE(item.state().presentation().mirrorVertically(), true);
+
+    const ImageViewportStateSnapshot beforeInvalid = item.state();
+    QCOMPARE(toggleMirrorHorizontally(item, false), ImageViewportCommandOutcome::Invalid);
+    QCOMPARE(item.state().presentation(), beforeInvalid.presentation());
+
+    ImageViewportPresentationCommand conflictingHorizontal;
+    conflictingHorizontal.setMirrorHorizontally(false);
+    conflictingHorizontal.setToggleMirrorHorizontally(true);
+    QCOMPARE(item.setPresentation(conflictingHorizontal).outcome(),
+        ImageViewportCommandOutcome::Invalid);
+    QCOMPARE(item.state().presentation(), beforeInvalid.presentation());
+
+    ImageViewportPresentationCommand conflictingReset
+        = ImageViewportPresentationCommand::resetViewCommand();
+    conflictingReset.setToggleMirrorVertically(true);
+    QCOMPARE(
+        item.setPresentation(conflictingReset).outcome(), ImageViewportCommandOutcome::Invalid);
+    QCOMPARE(item.state().presentation(), beforeInvalid.presentation());
+
+    ImageViewportPresentationCommand conflictingAnchor;
+    conflictingAnchor.setZoomStepDelta(1.0);
+    conflictingAnchor.setZoomAnchor(QPointF(50.0, 50.0));
+    conflictingAnchor.setToggleMirrorHorizontally(true);
+    QCOMPARE(
+        item.setPresentation(conflictingAnchor).outcome(), ImageViewportCommandOutcome::Invalid);
     QCOMPARE(item.state().presentation(), beforeInvalid.presentation());
 }
 

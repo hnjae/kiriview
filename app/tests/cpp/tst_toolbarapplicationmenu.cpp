@@ -70,6 +70,7 @@ private Q_SLOTS:
     void pageNavigationButtonsUseSemanticActionsForReadingDirection();
     void menubarGoMenuOrderFollowsReadingDirection();
     void menubarGoMenuIconsFollowReadingDirection();
+    void imageMenubarPlacesFlipActionsAfterRotation();
     void collectionVideoMenubarKeepsCollectionCommands();
     void imageActionsApplicationMenuArchiveOrderFollowsReadingDirection();
 };
@@ -1042,6 +1043,8 @@ Item {
     Kirigami.Action { id: stubZoom200PercentMenuAction; text: "Zoom to 200%" }
     Kirigami.Action { id: stubRotateClockwiseMenuAction; text: "Rotate Clockwise" }
     Kirigami.Action { id: stubRotateCounterclockwiseMenuAction; text: "Rotate Counterclockwise" }
+    Kirigami.Action { id: stubFlipHorizontallyMenuAction; text: "Flip Horizontally" }
+    Kirigami.Action { id: stubFlipVerticallyMenuAction; text: "Flip Vertically" }
     Kirigami.Action { id: stubTwoPageModeMenuAction; text: "Two-Page Spread" }
     Kirigami.Action { id: stubRightToLeftReadingMenuAction; text: "Right-to-Left Reading" }
     Kirigami.Action { id: stubFullscreenMenuAction; text: "Fullscreen" }
@@ -1073,6 +1076,8 @@ Item {
         readonly property var zoom200PercentMenuAction: stubZoom200PercentMenuAction
         readonly property var rotateClockwiseMenuAction: stubRotateClockwiseMenuAction
         readonly property var rotateCounterclockwiseMenuAction: stubRotateCounterclockwiseMenuAction
+        readonly property var flipHorizontallyMenuAction: stubFlipHorizontallyMenuAction
+        readonly property var flipVerticallyMenuAction: stubFlipVerticallyMenuAction
         readonly property var twoPageModeMenuAction: stubTwoPageModeMenuAction
         readonly property var rightToLeftReadingMenuAction: stubRightToLeftReadingMenuAction
         readonly property var fullscreenMenuAction: stubFullscreenMenuAction
@@ -1175,6 +1180,16 @@ Item {
     function applicationMenuActionTexts() {
         const texts = [];
         for (const action of imageActions.applicationMenuActions) {
+            if (!action.separator) {
+                texts.push(String(action.text).replace(/&/g, ""));
+            }
+        }
+        return texts;
+    }
+
+    function contextMenuActionTexts() {
+        const texts = [];
+        for (const action of imageActions.contextMenuActions) {
             if (!action.separator) {
                 texts.push(String(action.text).replace(/&/g, ""));
             }
@@ -2301,6 +2316,27 @@ void TestToolBarApplicationMenu::menubarGoMenuIconsFollowReadingDirection()
     QTRY_COMPARE(invokeStringList(fixture.root, "goMenuActionIconNames"), rightToLeftIcons);
 }
 
+void TestToolBarApplicationMenu::imageMenubarPlacesFlipActionsAfterRotation()
+{
+    ToolBarMenuFixture fixture = createMenuBarFixture();
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+
+    invokeVoid(fixture.root, "openViewMenu");
+    QCoreApplication::processEvents();
+
+    bool ok = false;
+    const QStringList actions = invokeStringList(fixture.root, "visibleViewMenuActionTexts", &ok);
+    QVERIFY(ok);
+    const int clockwise = actions.indexOf(QStringLiteral("Rotate Clockwise"));
+    const int counterclockwise = actions.indexOf(QStringLiteral("Rotate Counterclockwise"));
+    const int horizontal = actions.indexOf(QStringLiteral("Flip Horizontally"));
+    const int vertical = actions.indexOf(QStringLiteral("Flip Vertically"));
+    QVERIFY(clockwise >= 0);
+    QCOMPARE(counterclockwise, clockwise + 1);
+    QCOMPARE(horizontal, counterclockwise + 1);
+    QCOMPARE(vertical, horizontal + 1);
+}
+
 void TestToolBarApplicationMenu::collectionVideoMenubarKeepsCollectionCommands()
 {
     ToolBarMenuFixture fixture = createMenuBarFixture();
@@ -2332,6 +2368,8 @@ void TestToolBarApplicationMenu::collectionVideoMenubarKeepsCollectionCommands()
     QVERIFY(ok);
     QVERIFY(!viewActions.contains(QStringLiteral("Zoom In")));
     QVERIFY(!viewActions.contains(QStringLiteral("Rotate Clockwise")));
+    QVERIFY(!viewActions.contains(QStringLiteral("Flip Horizontally")));
+    QVERIFY(!viewActions.contains(QStringLiteral("Flip Vertically")));
 }
 
 void TestToolBarApplicationMenu::imageActionsApplicationMenuArchiveOrderFollowsReadingDirection()
@@ -2350,6 +2388,26 @@ void TestToolBarApplicationMenu::imageActionsApplicationMenuArchiveOrderFollowsR
     QTRY_VERIFY(invokeBool(fixture.root, "rightToLeftReadingAvailable"));
 
     QStringList texts = invokeStringList(fixture.root, "applicationMenuActionTexts");
+    const int clockwise = texts.indexOf(QStringLiteral("Rotate Clockwise"));
+    const int counterclockwise = texts.indexOf(QStringLiteral("Rotate Counterclockwise"));
+    const int horizontal = texts.indexOf(QStringLiteral("Flip Horizontally"));
+    const int vertical = texts.indexOf(QStringLiteral("Flip Vertically"));
+    QVERIFY(clockwise >= 0);
+    QCOMPARE(counterclockwise, clockwise + 1);
+    QCOMPARE(horizontal, counterclockwise + 1);
+    QCOMPARE(vertical, horizontal + 1);
+
+    const QStringList contextTexts = invokeStringList(fixture.root, "contextMenuActionTexts");
+    const int contextClockwise = contextTexts.indexOf(QStringLiteral("Rotate Clockwise"));
+    const int contextCounterclockwise
+        = contextTexts.indexOf(QStringLiteral("Rotate Counterclockwise"));
+    const int contextHorizontal = contextTexts.indexOf(QStringLiteral("Flip Horizontally"));
+    const int contextVertical = contextTexts.indexOf(QStringLiteral("Flip Vertically"));
+    QVERIFY(contextClockwise >= 0);
+    QCOMPARE(contextCounterclockwise, contextClockwise + 1);
+    QCOMPARE(contextHorizontal, contextCounterclockwise + 1);
+    QCOMPARE(contextVertical, contextHorizontal + 1);
+
     const int previousArchiveIndex = texts.indexOf(QStringLiteral("Previous Archive"));
     const int nextArchiveIndex = texts.indexOf(QStringLiteral("Next Archive"));
     QVERIFY(previousArchiveIndex >= 0);

@@ -216,12 +216,24 @@ constexpr std::array actionDefinitions {
     registeredAction(Actions::ActionId::ViewRotateClockwiseAction, "view_rotate_clockwise",
         Category::View, kli18nc("@action", "Rotate Clockwise"), "object-rotate-right-symbolic",
         noDefaultShortcuts(), portableShortcutSpec("R"),
-        shortcutRouteSpecs(route(ActivationScope::ViewerLocal, Scope::RotateViewerShortcutScope))),
+        shortcutRouteSpecs(
+            route(ActivationScope::ViewerLocal, Scope::TransformViewerShortcutScope))),
     registeredAction(Actions::ActionId::ViewRotateCounterclockwiseAction,
         "view_rotate_counterclockwise", Category::View,
         kli18nc("@action", "Rotate Counterclockwise"), "object-rotate-left-symbolic",
         noDefaultShortcuts(), portableShortcutSpec("Shift+R"),
-        shortcutRouteSpecs(route(ActivationScope::ViewerLocal, Scope::RotateViewerShortcutScope))),
+        shortcutRouteSpecs(
+            route(ActivationScope::ViewerLocal, Scope::TransformViewerShortcutScope))),
+    registeredAction(Actions::ActionId::ViewFlipHorizontallyAction, "view_flip_horizontally",
+        Category::View, kli18nc("@action", "Flip Horizontally"), "object-flip-horizontal",
+        noDefaultShortcuts(), noDefaultShortcuts(),
+        shortcutRouteSpecs(
+            route(ActivationScope::ViewerLocal, Scope::TransformViewerShortcutScope))),
+    registeredAction(Actions::ActionId::ViewFlipVerticallyAction, "view_flip_vertically",
+        Category::View, kli18nc("@action", "Flip Vertically"), "object-flip-vertical",
+        noDefaultShortcuts(), noDefaultShortcuts(),
+        shortcutRouteSpecs(
+            route(ActivationScope::ViewerLocal, Scope::TransformViewerShortcutScope))),
     registeredAction(Actions::ActionId::ViewToggleTwoPageModeAction, "view_toggle_two_page_mode",
         Category::View, kli18nc("@action", "Two-Page Spread"), "view-split-left-right-symbolic",
         noDefaultShortcuts(), portableShortcutSpec("S"),
