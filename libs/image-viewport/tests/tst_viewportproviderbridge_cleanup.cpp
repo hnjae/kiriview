@@ -384,6 +384,7 @@ private Q_SLOTS:
     void staleAndMismatchAdvisoryBurstsPreserveRepresentativeIdentity();
     void advisoryBurstDoesNotLoseFrameOwnership();
     void activeCancelledSubmissionsRetireIngressTokens();
+    void oversizedTimedMetadataRetainsActiveTokenForCorrection();
     void nonAdvisoryBurstHasBoundedConditionalOwnership_data();
     void nonAdvisoryBurstHasBoundedConditionalOwnership();
     void closedSubmissionRetainsProviderOwnership();
@@ -899,6 +900,87 @@ void ViewportProviderBridgeCleanupTest::activeCancelledSubmissionsRetireIngressT
             ImageViewportInternal::ProviderRequestTokenPrivateAccess::fromValue(index + 1));
         QVERIFY(deliveredEvents.at(qsizetype(index)).deliveryId != 0);
     }
+
+    QVERIFY(bridge.closeSession({}, {}).delivered);
+    bridge.drainCleanup();
+    QVERIFY(!session);
+}
+
+void ViewportProviderBridgeCleanupTest::oversizedTimedMetadataRetainsActiveTokenForCorrection()
+{
+    QObject callbackTarget;
+    QVector<ViewportProviderEvent> deliveredEvents;
+    ViewportProviderBridge bridge;
+    bridge.setExecutor(synchronousViewportProviderExecutorForTest());
+    bridge.useSynchronousEventDeliveryForTest();
+    QPointer<CleanupSession> session;
+    auto factory = std::make_shared<ImageSequenceProviderSessionFactory>([&session]() {
+        session = new CleanupSession;
+        return ImageSequenceProviderSessionFactoryResult::created(session);
+    });
+    const auto opened
+        = bridge.openSession({ factory, ImageSequenceProviderThreadingContract::ThreadSafe, 17, 23,
+            &callbackTarget, [&deliveredEvents](const ViewportProviderEvent& event) {
+                deliveredEvents.append(event);
+            } });
+    QVERIFY(opened.isOpened());
+    QVERIFY(session);
+
+    const auto token = ImageViewportInternal::ProviderRequestTokenPrivateAccess::fromValue(1);
+    QVERIFY(bridge.deliverRequest(ImageSequenceProviderRequest::metadata(token)).delivered);
+    const int retainedLimit = ImageSequenceLimits::maximumFrameCount() + 1;
+    const auto oversizedMetadata = ImageSequenceProviderMetadata::timedFrameList(
+        QSizeF(16.0, 8.0), QVector<int>(retainedLimit + 64, 1));
+    QCOMPARE(oversizedMetadata.frameCount(), retainedLimit);
+    QCOMPARE(oversizedMetadata.frameDurations().size(), retainedLimit);
+    QCOMPARE(oversizedMetadata.isValid(), false);
+    QCOMPARE(oversizedMetadata.totalDuration(), -1);
+
+    const auto mismatchToken
+        = ImageViewportInternal::ProviderRequestTokenPrivateAccess::fromValue(2);
+    QCOMPARE(session->submitEvent(
+                 ImageSequenceProviderEvent::metadataReady(mismatchToken, oversizedMetadata)),
+        ImageSequenceProviderEventSubmissionOutcome::Accepted);
+    QCOMPARE(deliveredEvents.size(), 1);
+    QCOMPARE(deliveredEvents.constLast().token, mismatchToken);
+    bridge.completeProviderEventDelivery(deliveredEvents.constLast().deliveryId);
+
+    QCOMPARE(
+        session->submitEvent(ImageSequenceProviderEvent::metadataReady(token, oversizedMetadata)),
+        ImageSequenceProviderEventSubmissionOutcome::Rejected);
+    QCOMPARE(deliveredEvents.size(), 1);
+
+    const auto correctedMetadata
+        = ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100 });
+    QCOMPARE(
+        session->submitEvent(ImageSequenceProviderEvent::metadataReady(token, correctedMetadata)),
+        ImageSequenceProviderEventSubmissionOutcome::Accepted);
+    QCOMPARE(deliveredEvents.size(), 2);
+    QCOMPARE(deliveredEvents.constLast().token, token);
+    QCOMPARE(deliveredEvents.constLast().metadata.frameDurations(), QVector<int>({ 100 }));
+    bridge.completeProviderEventDelivery(deliveredEvents.constLast().deliveryId);
+
+    QCOMPARE(
+        session->submitEvent(ImageSequenceProviderEvent::metadataReady(token, oversizedMetadata)),
+        ImageSequenceProviderEventSubmissionOutcome::Accepted);
+    QCOMPARE(deliveredEvents.size(), 3);
+    QCOMPARE(deliveredEvents.constLast().token, token);
+    bridge.completeProviderEventDelivery(deliveredEvents.constLast().deliveryId);
+
+    const auto frameToken = ImageViewportInternal::ProviderRequestTokenPrivateAccess::fromValue(2);
+    ImageSequenceProviderDisplayDemand demand;
+    demand.setRole(ImageViewportPageRole::Primary);
+    demand.setResolvedFrame(0);
+    QVERIFY(bridge
+            .deliverRequest(ImageSequenceProviderRequest::frame(
+                frameToken, ImageViewportPageRole::Primary, 0, demand))
+            .delivered);
+    QCOMPARE(session->submitEvent(
+                 ImageSequenceProviderEvent::metadataReady(frameToken, oversizedMetadata)),
+        ImageSequenceProviderEventSubmissionOutcome::Accepted);
+    QCOMPARE(deliveredEvents.size(), 4);
+    QCOMPARE(deliveredEvents.constLast().token, frameToken);
+    bridge.completeProviderEventDelivery(deliveredEvents.constLast().deliveryId);
 
     QVERIFY(bridge.closeSession({}, {}).delivered);
     bridge.drainCleanup();

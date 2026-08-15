@@ -80,6 +80,7 @@ ProviderFrameQueueSetup setUpCurrentProviderFrameQueueRequest(
     ViewportEngine& engine, ImageSequenceProviderSession&)
 {
     auto& request = ViewportEngineTestAccess::request(engine);
+    request.roles[0].source.facts.present = true;
     request.roles[0].source.facts.provider = true;
     request.sequenceGeneration = 7;
     request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Playback,

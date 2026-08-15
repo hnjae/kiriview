@@ -73,6 +73,7 @@ struct ViewportEngineGeometryChangeMutation
 {
     ImageViewportInternal::RequestState request;
     ImageViewportInternal::DisplayState display;
+    ImageViewportInternal::PlaybackState playback;
 };
 struct ViewportEngineRenderSynchronizationMutation
 {
@@ -91,9 +92,11 @@ class ViewportEngineGeometryChangeAccess // NOLINT(cppcoreguidelines-special-mem
     friend ViewportEngineGeometryChangeReduction reduceViewportEngineGeometryChange(
         ViewportEngineGeometryChangeInput, ViewportEngineGeometryChangeAccess&);
     ViewportEngineGeometryChangeAccess(const ImageViewportInternal::RequestState& request,
-        const ImageViewportInternal::DisplayState& display)
+        const ImageViewportInternal::DisplayState& display,
+        const ImageViewportInternal::PlaybackState& playback)
         : m_request(request)
         , m_display(display)
+        , m_playback(playback)
     {
     }
 
@@ -104,14 +107,16 @@ public:
         = delete;
     ViewportEngineGeometryChangeMutation takeMutation()
     {
-        return { std::move(m_request), std::move(m_display) };
+        return { std::move(m_request), std::move(m_display), m_playback };
     }
 
 private:
     ImageViewportInternal::RequestState& request() { return m_request; }
     ImageViewportInternal::DisplayState& display() { return m_display; }
+    ImageViewportInternal::PlaybackState& playback() { return m_playback; }
     ImageViewportInternal::RequestState m_request;
     ImageViewportInternal::DisplayState m_display;
+    ImageViewportInternal::PlaybackState m_playback;
 };
 
 class

@@ -241,7 +241,7 @@ void secondary(RequestState& r, DisplayRequestTarget t, ResolvedFrameIdentity re
 ViewportEngineBuiltInFrameStageResult stage(RequestState& r, DisplayState& d,
     PlaybackState& playback, ImageViewportExactnessPreference exactnessPreference)
 {
-    return stageViewportEngineBuiltInTargetSpread(r, d, exactnessPreference, &playback);
+    return stageViewportEngineBuiltInTargetSpread(r, d, exactnessPreference, playback);
 }
 ViewportEnginePresentationTargetState targetState(
     const ViewportEnginePresentationTarget& t, quint64 g)
@@ -523,6 +523,15 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
         if (a.m_mutation.request.roles[1].source.facts.present) {
             a.m_mutation.playback.roles[1].position
                 = refinement ? previousPlayback.roles[1].position : secondaryTarget.position;
+        }
+        if (refinement) {
+            const TargetSpreadIdentity transferredIdentity {
+                a.m_mutation.request.sequenceGeneration,
+                a.m_mutation.request.roles[0].activeRequest.identity.id,
+            };
+            for (auto& rolePlayback : a.m_mutation.playback.roles) {
+                rolePlayback.rebindPendingAuthoredLoopIteration(transferredIdentity);
+            }
         }
     }
     auto accepted = in.geometry;

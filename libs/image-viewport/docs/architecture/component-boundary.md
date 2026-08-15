@@ -20,6 +20,8 @@ The umbrella header is declaration-free and includes all canonical subject heade
 
 Shared enums, opaque tokens, roles, ranges, and value primitives needed by more than one subject belong to shared values rather than the viewport item. State and operation values do not depend on the item declaration, provider implementations do not acquire a Qt Quick item dependency merely to use protocol values, and snapshot consumers do not acquire provider-session transport merely to observe state.
 
+The sequence factory is the sole authority that creates factory-result values and opaque sequence handles. A successful result retains its sequence throughout the result lifetime; viewport acceptance establishes independent ownership before the result may be released. Callers cannot manufacture result tuples or borrow an unowned sequence through the supported interface.
+
 KiriView and the component must evolve atomically in one repository. A contract change must update the component interface and application integration together; it must not preserve old signatures, duplicate values, compatibility adapters, ABI shims, or versioned QML imports for hypothetical consumers.
 
 Backend libraries are private component build dependencies unless KiriView must use one through another application-owned boundary. Backend choice does not make graphics API resources, scene graph object lifetime, texture injection, or render synchronization part of the component interface.

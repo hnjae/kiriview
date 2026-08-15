@@ -130,7 +130,7 @@ ViewportEngineBuiltInFrameStageResult stageBuiltInSecondaryPayload(RequestState&
     DisplayState& display, PlaybackState& playback,
     ImageViewportExactnessPreference exactnessPreference)
 {
-    return stageViewportEngineBuiltInTargetSpread(request, display, exactnessPreference, &playback);
+    return stageViewportEngineBuiltInTargetSpread(request, display, exactnessPreference, playback);
 }
 }
 
@@ -209,6 +209,7 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
             return result;
         result.changes = access.recordTerminal({ input.role, admission.status, admission.reason,
             PublicDiagnosticText::fromTrusted(admission.diagnostic), result.changes });
+        access.m_playback.discardPendingAuthoredLoopIterations();
         updatePlaybackPhase(access.m_playback, ImageViewportPageRole::Primary,
             ImageViewportPlaybackPhase::Stopped, result.changes);
         updatePlaybackPhase(access.m_playback, ImageViewportPageRole::Secondary,

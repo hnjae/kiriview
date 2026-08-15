@@ -142,6 +142,9 @@ ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSe
     bool dc = a.m_request.clearError();
     auto& rolePlayback = a.m_playback.forRole(in.role);
     bool loop = loops(a.m_playback, in.role, p.facts.authoredAnimationFacts);
+    const bool authoredFiniteWrap = loop && !a.m_playback.looping
+        && p.facts.authoredAnimationFacts.loopMode()
+            == ImageSequenceAuthoredAnimationLoopMode::Finite;
     int frame = loop ? 0 : p.facts.timingIntervals.frameCount() - 1;
     int pos = loop ? 0 : p.facts.timingIntervals.frameStartPosition(frame);
     rolePlayback.position = loop ? 0 : p.facts.timingIntervals.totalDuration();
@@ -152,6 +155,7 @@ ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSe
     const bool same
         = !loop && viewportEngineVisibleTargetSpreadMatchesActiveTargets(a.m_request, a.m_display);
     if (same) {
+        rolePlayback.discardPendingAuthoredLoopIteration();
         promoteViewportEngineVisibleTargetSpread(a.m_request, a.m_display);
         a.m_request.status = ImageViewportRequestStatus::Ready;
         a.m_request.reason = ImageViewportRequestReason::Ready;
@@ -166,14 +170,19 @@ ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSe
     }
     a.m_request.targetSpreadTerminal.clear();
     invalidateViewportEngineTargetSpreadRole(a.m_request, a.m_display, in.role);
+    rolePlayback.discardPendingAuthoredLoopIteration();
     auto start = a.startFrame(in.role, target, in.geometry);
     out.providerFrameTransport.closeSession = start.closeSession;
     out.providerFrameTransport.sessionClose = start.sessionClose;
     out.providerFrameTransport.sendCommand = start.sendCommand;
     out.providerFrameTransport.command = start.command;
-    if (loop && !a.m_playback.looping)
-        ++rolePlayback.loopIterationsCompleted;
-    phase(a.m_playback, in.role, ImageViewportPlaybackPhase::Waiting, out.changes);
+    if (start.accepted) {
+        if (authoredFiniteWrap) {
+            rolePlayback.deferAuthoredLoopIteration(
+                { a.m_request.sequenceGeneration, requestFor(a.m_request, in.role).identity.id });
+        }
+        phase(a.m_playback, in.role, ImageViewportPlaybackPhase::Waiting, out.changes);
+    }
     out.changes.requestState = out.changes.requestRevision = out.changes.displayState
         = out.changes.displayRevision = true;
     out.changes.diagnostics = dc || !start.accepted;

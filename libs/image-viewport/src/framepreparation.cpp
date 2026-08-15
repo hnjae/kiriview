@@ -208,7 +208,6 @@ FramePreparation::ProviderMetadataAdmissionResult FramePreparation::admitProvide
         return providerMetadataRejection(
             Cause::InvalidMetadata, QStringLiteral("provider metadata is invalid"));
     }
-
     const QSizeF size = metadata.sourceLogicalSize();
     if (!isPositiveFiniteInteger(size.width()) || !isPositiveFiniteInteger(size.height())) {
         return providerMetadataRejection(
@@ -229,6 +228,11 @@ FramePreparation::ProviderMetadataAdmissionResult FramePreparation::admitProvide
         return providerMetadataRejection(Cause::PixelCountTooLarge,
             QStringLiteral("provider metadata logical size exceeds maximumSourceLogicalPixels"));
     }
+    if (metadata.isTimedFrameList()
+        && metadata.frameCount() > ImageSequenceLimits::maximumFrameCount()) {
+        return providerMetadataRejection(Cause::FrameCountTooLarge,
+            QStringLiteral("provider metadata frame count exceeds maximumFrameCount"));
+    }
 
     if (metadata.isStill()) {
         return {
@@ -246,11 +250,6 @@ FramePreparation::ProviderMetadataAdmissionResult FramePreparation::admitProvide
         return providerMetadataRejection(
             Cause::InvalidMetadata, QStringLiteral("provider metadata is invalid"));
     }
-    if (durations.size() > ImageSequenceLimits::maximumFrameCount()) {
-        return providerMetadataRejection(Cause::FrameCountTooLarge,
-            QStringLiteral("provider metadata frame count exceeds maximumFrameCount"));
-    }
-
     qint64 totalDuration = 0;
     for (int duration : durations) {
         if (duration <= 0) {
@@ -289,12 +288,11 @@ FramePreparation::ProviderKnownFactsAdmissionResult FramePreparation::admitProvi
     if (!facts.isSpecified()) {
         return {};
     }
-    if (!facts.isValid()) {
+    const QSizeF size = facts.logicalSize();
+    if (!isPositiveFiniteInteger(size.width()) || !isPositiveFiniteInteger(size.height())) {
         return providerKnownFactsRejection(
             Cause::InvalidFacts, QStringLiteral("provider known facts are invalid"));
     }
-
-    const QSizeF size = facts.logicalSize();
     if (size.width() > ImageSequenceLimits::maximumSourceLogicalWidth()) {
         return providerKnownFactsRejection(Cause::LogicalWidthTooLarge,
             QStringLiteral("provider known facts logical width exceeds maximumSourceLogicalWidth"));
@@ -311,11 +309,14 @@ FramePreparation::ProviderKnownFactsAdmissionResult FramePreparation::admitProvi
         return providerKnownFactsRejection(Cause::PixelCountTooLarge,
             QStringLiteral("provider known facts logical size exceeds maximumSourceLogicalPixels"));
     }
-
     const int frameCount = facts.frameCount();
     if (frameCount > ImageSequenceLimits::maximumFrameCount()) {
         return providerKnownFactsRejection(Cause::FrameCountTooLarge,
             QStringLiteral("provider known facts frame count exceeds maximumFrameCount"));
+    }
+    if (!facts.isValid()) {
+        return providerKnownFactsRejection(
+            Cause::InvalidFacts, QStringLiteral("provider known facts are invalid"));
     }
 
     if (!facts.isTimedFrameList()) {

@@ -209,10 +209,6 @@ class ImageSequenceFactoryResult : public QObject
     Q_PROPERTY(QString errorString READ errorString CONSTANT)
 
 public:
-    explicit ImageSequenceFactoryResult(ImageSequence* sequence,
-        ImageSequenceFactoryOutcome outcome, ImageSequenceFactoryReason reason,
-        QObject* parent = nullptr);
-
     [[nodiscard]] ImageSequence* sequence() const;
     [[nodiscard]] ImageSequenceFactoryOutcome outcome() const;
     [[nodiscard]] ImageSequenceFactoryReason reason() const;

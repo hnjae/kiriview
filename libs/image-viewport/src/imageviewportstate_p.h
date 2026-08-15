@@ -504,10 +504,37 @@ enum class AuthoredAutoplayArbitrationState {
 
 struct RolePlaybackState
 {
+    void deferAuthoredLoopIteration(TargetSpreadIdentity identity)
+    {
+        pendingAuthoredLoopIteration = identity;
+    }
+
+    void discardPendingAuthoredLoopIteration() { pendingAuthoredLoopIteration = {}; }
+
+    void rebindPendingAuthoredLoopIteration(TargetSpreadIdentity identity)
+    {
+        if (pendingAuthoredLoopIteration.isValid() && identity.isValid()) {
+            pendingAuthoredLoopIteration = identity;
+        }
+    }
+
+    [[nodiscard]] bool commitPendingAuthoredLoopIteration(TargetSpreadIdentity identity)
+    {
+        if (!pendingAuthoredLoopIteration.isValid()
+            || pendingAuthoredLoopIteration.generation != identity.generation
+            || pendingAuthoredLoopIteration.requestId != identity.requestId) {
+            return false;
+        }
+        pendingAuthoredLoopIteration = {};
+        ++loopIterationsCompleted;
+        return true;
+    }
+
     void resetRequestIdentity()
     {
         position = -1;
         loopIterationsCompleted = 0;
+        pendingAuthoredLoopIteration = {};
         activeScheduleIdentity = 0;
         authoredAutoplayArbitration = AuthoredAutoplayArbitrationState::Pending;
     }
@@ -517,6 +544,7 @@ struct RolePlaybackState
     bool providerStartPending = false;
     int position = -1;
     int loopIterationsCompleted = 0;
+    TargetSpreadIdentity pendingAuthoredLoopIteration;
     quint64 nextScheduleIdentity = 0;
     quint64 activeScheduleIdentity = 0;
     AuthoredAutoplayArbitrationState authoredAutoplayArbitration
@@ -533,6 +561,27 @@ struct PlaybackState
     [[nodiscard]] const RolePlaybackState& forRole(ImageViewportPageRole role) const
     {
         return roles[role == ImageViewportPageRole::Secondary ? 1U : 0U];
+    }
+
+    void reconcilePendingAuthoredLoopIterationsAfterRoleRequest(ImageViewportPageRole changedRole,
+        TargetSpreadIdentity identity, bool siblingIdentityChanged = true)
+    {
+        for (const auto role :
+            { ImageViewportPageRole::Primary, ImageViewportPageRole::Secondary }) {
+            auto& rolePlayback = forRole(role);
+            if (role == changedRole) {
+                rolePlayback.discardPendingAuthoredLoopIteration();
+            } else if (siblingIdentityChanged) {
+                rolePlayback.rebindPendingAuthoredLoopIteration(identity);
+            }
+        }
+    }
+
+    void discardPendingAuthoredLoopIterations()
+    {
+        for (auto& role : roles) {
+            role.discardPendingAuthoredLoopIteration();
+        }
     }
 
     void resetRequestIdentity()
@@ -818,6 +867,45 @@ struct ProviderRequestLedger
     }
 
     std::optional<ProviderRequestRecord> retireFrame() { return retire(frameToken()); }
+
+    void rebindCarriedTargetWork(ImageViewportPageRole role, quint64 generation,
+        const DisplayRequest& previous, const DisplayRequest& current)
+    {
+        const auto sameTarget
+            = [](const DisplayRequestTarget& lhs, const DisplayRequestTarget& rhs) {
+                  return lhs.frame == rhs.frame && lhs.position == rhs.position
+                      && lhs.providerTargetKind == rhs.providerTargetKind;
+              };
+        const auto sameResolved
+            = [](const ResolvedFrameIdentity& lhs, const ResolvedFrameIdentity& rhs) {
+                  return lhs.frame == rhs.frame && lhs.position == rhs.position;
+              };
+        if (previous.identity.id == 0 || current.identity.id == 0
+            || !sameTarget(previous.target, current.target)
+            || !sameResolved(previous.resolvedFrame, current.resolvedFrame)) {
+            return;
+        }
+        const bool sameDemandRevision = previous.demandRevision.isValid()
+            && current.demandRevision == previous.demandRevision;
+        for (auto& record : active) {
+            const bool carriedFrameWork = record.isFrameWork()
+                && (record.ownership == ProviderRequestOwnership::DisplayRequest
+                    || record.ownership == ProviderRequestOwnership::Refinement);
+            if (carriedFrameWork && sameDemandRevision && record.demand
+                && record.demand->demandRevision() == previous.demandRevision && record.role == role
+                && record.generation == generation && record.requestId == previous.identity.id
+                && sameTarget(record.target, previous.target)
+                && sameResolved(record.resolvedFrame, previous.resolvedFrame)) {
+                record.requestId = current.identity.id;
+            }
+        }
+        if (queuedFrame && queuedFrame->generation == generation
+            && queuedFrame->requestId == previous.identity.id
+            && sameTarget(queuedFrame->target, previous.target)
+            && sameResolved(queuedFrame->resolvedFrame, previous.resolvedFrame)) {
+            queuedFrame->requestId = current.identity.id;
+        }
+    }
 
     void queue(QueuedProviderFrameRequest request) { queuedFrame = request; }
 

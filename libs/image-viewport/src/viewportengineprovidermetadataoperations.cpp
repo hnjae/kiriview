@@ -194,6 +194,7 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
         result.changes = access.recordGenerationTerminal(
             { role, ImageViewportRequestStatus::Error, ImageViewportRequestReason::PayloadRejection,
                 PublicDiagnosticText::fromTrusted(diagnostic), result.changes });
+        access.m_playback.discardPendingAuthoredLoopIterations();
         updatePlaybackPhase(access.m_playback, ImageViewportPlaybackPhase::Stopped, result.changes);
         result.providerFrameTransport = access.closeSession(role);
     };
@@ -280,6 +281,7 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
         }
         result.changes = access.recordDisplayRequestTerminal(
             { role, rejection.status, rejection.reason, {}, result.changes });
+        access.m_playback.discardPendingAuthoredLoopIterations();
         updatePlaybackPhase(access.m_playback, ImageViewportPlaybackPhase::Stopped, result.changes);
         result.changes.diagnostics = result.changes.diagnostics || diagnosticsChanged;
     };
@@ -333,6 +335,7 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
             && access.m_request.roles[1].provider
             && access.m_request.roles[1].activeRequest.identity.id == request.identity.id
             && unknownMetadataInitialRequest(request);
+        const DisplayRequest previousSecondary = access.m_request.roles[1].activeRequest;
         if (terminalContinuation) {
             auto& active = access.m_request.roles[0].activeRequest;
             active.target = target;
@@ -344,11 +347,18 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
             access.m_request.beginDisplayRequest(DisplayRequestOrigin::MetadataBoundSelection,
                 target, { target.frame, resolvedPosition },
                 target.providerTargetKind != ProviderRequestTargetKind::Playback);
+            access.m_playback.reconcilePendingAuthoredLoopIterationsAfterRoleRequest(input.role,
+                { access.m_request.sequenceGeneration,
+                    access.m_request.roles[0].activeRequest.identity.id },
+                carrySecondary);
         }
         if (carrySecondary) {
             auto& secondary = access.m_request.roles[1].activeRequest;
             secondary.identity = access.m_request.roles[0].activeRequest.identity;
             secondary.preparedPayloadId = access.m_request.roles[0].activeRequest.preparedPayloadId;
+            access.m_roles[1].provider.requests.rebindCarriedTargetWork(
+                ImageViewportPageRole::Secondary, access.m_request.sequenceGeneration,
+                previousSecondary, secondary);
             if (secondary.target.providerTargetKind != ProviderRequestTargetKind::Playback) {
                 access.m_request.roles[1].latestNonPlaybackRequest = secondary;
             }

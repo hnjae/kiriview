@@ -20,40 +20,27 @@ FramePayload framePayload(const ImageFrame& frame)
             frame.formatIdentifier() } };
 }
 
-QString factoryReasonDiagnostic(
-    ImageSequenceFactoryOutcome outcome, ImageSequenceFactoryReason reason)
+ImageSequenceFactoryReason providerMetadataFactoryReason(
+    FramePreparation::ProviderMetadataAdmissionResult::Cause cause)
 {
-    if (outcome != ImageSequenceFactoryOutcome::Rejected) {
-        return {};
+    using Cause = FramePreparation::ProviderMetadataAdmissionResult::Cause;
+    switch (cause) {
+    case Cause::Accepted:
+        return ImageSequenceFactoryReason::NoError;
+    case Cause::InvalidMetadata:
+    case Cause::InvalidFrameDuration:
+        return ImageSequenceFactoryReason::InvalidProviderDescriptor;
+    case Cause::LogicalWidthTooLarge:
+    case Cause::LogicalHeightTooLarge:
+    case Cause::PixelCountTooLarge:
+    case Cause::FrameCountTooLarge:
+    case Cause::FrameDurationTooLarge:
+    case Cause::TotalDurationTooLarge:
+        return ImageSequenceFactoryReason::LimitExceeded;
     }
-    switch (reason) {
-    case ImageSequenceFactoryReason::InvalidFrame:
-        return QStringLiteral("invalid image frame");
-    case ImageSequenceFactoryReason::InvalidTiming:
-        return QStringLiteral("invalid image sequence timing");
-    case ImageSequenceFactoryReason::InvalidAnimationMetadata:
-        return QStringLiteral("invalid animation metadata");
-    case ImageSequenceFactoryReason::InvalidProviderDescriptor:
-        return QStringLiteral("invalid provider descriptor");
-    case ImageSequenceFactoryReason::LimitExceeded:
-        return QStringLiteral("image sequence limit exceeded");
-    case ImageSequenceFactoryReason::NoError:
-        return {};
-    }
-    return {};
-}
+    return ImageSequenceFactoryReason::InvalidProviderDescriptor;
 }
 
-ImageSequenceFactoryResult::ImageSequenceFactoryResult(ImageSequence* sequence,
-    ImageSequenceFactoryOutcome outcome, ImageSequenceFactoryReason reason, QObject* parent)
-    : QObject(parent)
-    , m_sequence(sequence)
-    , m_outcome(outcome)
-    , m_reason(reason)
-    , m_errorString(ImageViewportInternal::PublicDiagnosticText::fromTrusted(
-          factoryReasonDiagnostic(outcome, reason))
-              .text())
-{
 }
 
 ImageSequenceFactoryResult::ImageSequenceFactoryResult(std::shared_ptr<ImageSequence> sequence,
@@ -231,6 +218,19 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromProvider(
     }
 
     const ImageSequenceProviderMetadata knownMetadata = descriptor.constructionMetadata();
+    if (knownMetadata.isSpecified() && !knownMetadata.hasCompleteModel()
+        && !knownMetadata.isValid()) {
+        return rejected(ImageSequenceFactoryReason::InvalidProviderDescriptor,
+            QStringLiteral("provider construction metadata is invalid"));
+    }
+    if (knownMetadata.hasCompleteModel()) {
+        const auto metadataAdmission = FramePreparation::admitProviderMetadata(knownMetadata);
+        if (!metadataAdmission.accepted()) {
+            return rejected(providerMetadataFactoryReason(metadataAdmission.cause),
+                metadataAdmission.diagnostic);
+        }
+    }
+
     ImageSequenceProviderKnownFacts knownFacts;
     if (knownMetadata.hasCompleteModel()) {
         knownFacts = knownMetadata.isStill()
@@ -264,19 +264,6 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromProvider(
         = knownMetadata.hasAuthoredAnimationFacts() ? knownMetadata.authoredAnimationFacts()
                                                     : ImageSequenceAuthoredAnimationFacts {};
     const ImageSequenceProviderThreadingContract threadingContract = descriptor.threadingContract();
-    if (knownMetadata.isSpecified() && !knownMetadata.hasCompleteModel()
-        && !knownMetadata.isValid()) {
-        return rejected(ImageSequenceFactoryReason::InvalidProviderDescriptor,
-            QStringLiteral("provider construction metadata is invalid"));
-    }
-    if (knownMetadata.hasCompleteModel()) {
-        const auto metadataAdmission = FramePreparation::admitProviderMetadata(knownMetadata);
-        if (!metadataAdmission.accepted()) {
-            return rejected(ImageSequenceFactoryReason::InvalidProviderDescriptor,
-                metadataAdmission.diagnostic);
-        }
-    }
-
     const auto factsAdmission = FramePreparation::admitProviderKnownFacts(knownFacts);
     if (!factsAdmission.accepted()) {
         return rejected(factsAdmission.cause

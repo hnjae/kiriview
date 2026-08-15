@@ -64,6 +64,15 @@ quint64 allocateFailureReferenceValue()
     }
     return value;
 }
+
+QVector<int> boundedTimingRepresentative(const QVector<int>& frameDurations)
+{
+    const qsizetype maximumRetainedCount = qsizetype(ImageSequenceLimits::maximumFrameCount()) + 1;
+    const qsizetype retainedCount = qMin(frameDurations.size(), maximumRetainedCount);
+    QVector<int> retained(retainedCount);
+    std::copy_n(frameDurations.cbegin(), retainedCount, retained.begin());
+    return retained;
+}
 }
 
 ImageSequenceProviderAdapter::ImageSequenceProviderAdapter(QObject* parent)
@@ -209,8 +218,8 @@ ImageSequenceProviderKnownFacts ImageSequenceProviderKnownFacts::timedFrameList(
     ImageSequenceProviderKnownFacts facts;
     facts.m_kind = Kind::TimedFrameList;
     facts.m_logicalSize = logicalSize;
-    facts.m_frameCount = frameDurations.size();
-    facts.m_frameDurations = std::move(frameDurations);
+    facts.m_frameDurations = boundedTimingRepresentative(frameDurations);
+    facts.m_frameCount = static_cast<int>(facts.m_frameDurations.size());
     return facts;
 }
 
@@ -237,6 +246,9 @@ bool ImageSequenceProviderKnownFacts::isValid() const
     if (isTimedFrameList()) {
         if (m_frameCount <= 0 || m_frameDurations.isEmpty()
             || m_frameDurations.size() != m_frameCount) {
+            return false;
+        }
+        if (m_frameCount > ImageSequenceLimits::maximumFrameCount()) {
             return false;
         }
         for (int duration : m_frameDurations) {
@@ -312,7 +324,7 @@ ImageSequenceProviderMetadata ImageSequenceProviderMetadata::timedFrameList(
     ImageSequenceProviderMetadata metadata;
     metadata.m_kind = Kind::TimedFrameList;
     metadata.m_logicalSize = logicalSize;
-    metadata.m_frameDurations = std::move(frameDurations);
+    metadata.m_frameDurations = boundedTimingRepresentative(frameDurations);
     return metadata;
 }
 
@@ -362,6 +374,9 @@ bool ImageSequenceProviderMetadata::isValid() const
         if (m_frameDurations.isEmpty()) {
             return false;
         }
+        if (m_frameDurations.size() > ImageSequenceLimits::maximumFrameCount()) {
+            return false;
+        }
         for (int duration : m_frameDurations) {
             if (duration <= 0) {
                 return false;
@@ -402,6 +417,9 @@ int ImageSequenceProviderMetadata::frameCount() const
 int ImageSequenceProviderMetadata::totalDuration() const
 {
     if (!hasCompleteModel() || !isTimedFrameList()) {
+        return -1;
+    }
+    if (m_frameDurations.size() > ImageSequenceLimits::maximumFrameCount()) {
         return -1;
     }
     qint64 total = 0;

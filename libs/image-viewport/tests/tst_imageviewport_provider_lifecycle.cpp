@@ -143,6 +143,7 @@ private Q_SLOTS:
     void providerKnownMetadataTokenOverflowClosesSessionWithoutFrameRequest();
     void providerTokenOverflowDoesNotPoisonReplacementSession();
     void providerTokenOverflowDuringSeekFailsAcceptedRequest();
+    void providerTokenOverflowDuringEndOfSequenceKeepsPlaybackStopped();
     void providerAssignmentPublishesBeforeDispatchFailure();
     void providerMetadataDispatchFailureClosesSessionAndReportsProviderFailure();
     void providerFrameDispatchFailureClosesSessionAndReportsProviderFailure();
@@ -698,6 +699,59 @@ void ImageViewportProviderLifecycleTest::providerTokenOverflowDuringSeekFailsAcc
     QCOMPARE(item.clear().outcome(), ImageViewportCommandOutcome::Accepted);
     drainQueuedProviderResults();
     QCOMPARE(sessionFactory->lastSession(), nullptr);
+}
+
+void ImageViewportProviderLifecycleTest::
+    providerTokenOverflowDuringEndOfSequenceKeepsPlaybackStopped()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    const auto playbackRequestCount = std::make_shared<int>(0);
+    const auto lastPlaybackFrame = std::make_shared<int>(-1);
+    const auto lastPlaybackPosition = std::make_shared<int>(-1);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount,
+        playbackRequestCount, lastPlaybackFrame, lastPlaybackPosition);
+    CountingProviderAdapter adapter(sessionFactory);
+    adapter.setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts::finiteLoop(2));
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    useSynchronousProviderExecutorForTest(item);
+    useSynchronousProviderEventDeliveryForTest(item);
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+    CountingProviderSession* session = sessionFactory->lastSession();
+    QVERIFY(session);
+    emitProviderMetadataReady(session, session->lastMetadataToken(),
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 100 }));
+
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    emitTimedProviderFrameReady(session, &frame, 0, 0, 100);
+    acknowledgePendingRenderCommitForTest(item);
+    QCOMPARE(
+        item.play(ImageViewportPageRole::Primary).outcome(), ImageViewportCommandOutcome::Accepted);
+    advancePlaybackForTest(item, 100);
+    const ImageSequenceProviderRequestToken playbackToken = session->lastFrameToken();
+    QCOMPARE(*playbackRequestCount, 1);
+
+    setNextProviderRequestTokenForTest(item, std::numeric_limits<quint64>::max());
+    emitProviderEndOfSequence(session, playbackToken);
+
+    QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Error);
+    QCOMPARE(item.state().request().reason(), ImageViewportRequestReason::ProviderFailure);
+    QCOMPARE(item.state().primary().request().playbackPhase(), ImageViewportPlaybackPhase::Stopped);
+    QCOMPARE(item.state().display().status(), ImageViewportDisplayStatus::Retained);
+    QCOMPARE(*frameRequestCount, 2);
+    QCOMPARE(*closeCount, 1);
 }
 
 void ImageViewportProviderLifecycleTest::providerAssignmentPublishesBeforeDispatchFailure()

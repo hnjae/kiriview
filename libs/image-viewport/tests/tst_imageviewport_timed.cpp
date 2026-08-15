@@ -38,6 +38,10 @@ private Q_SLOTS:
     void timedFrameListAuthoredAutoplaySelectsEligibleRole();
     void timedFrameListAuthoredInfiniteLoopControlsDefaultPlayback();
     void timedFrameListAuthoredFiniteLoopStopsAfterFinalIteration();
+    void timedFrameListSupersededWrapDoesNotConsumeFiniteIteration();
+    void timedFrameListSiblingRequestRebindsPendingFiniteWrap();
+    void timedFrameListSiblingStopPreservesPendingFiniteWrap();
+    void timedFrameListSameTargetRefinementRebindsPendingFiniteWrap();
     void timedFrameListPauseWhileStoppedAndRenderWaitingPreservesRequest();
     void timedFrameListPlayCommandPreservesElapsedPosition();
     void timedFrameListSameTargetRefinementPreservesSchedulerElapsed();
@@ -1093,6 +1097,227 @@ void ImageViewportTimedTest::timedFrameListAuthoredFiniteLoopStopsAfterFinalIter
     QCOMPARE(primaryDisplayedFrame(item), 1);
     QCOMPARE(primaryRequestedPosition(item), 100);
     QCOMPARE(primaryDisplayedPosition(item), 100);
+}
+
+void ImageViewportTimedTest::timedFrameListSupersededWrapDoesNotConsumeFiniteIteration()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::transparent);
+    QImage secondImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(Qt::black);
+    ImageFrame firstFrame(firstImage);
+    ImageFrame secondFrame(secondImage);
+    TimedImageFrameList list;
+    QVERIFY(list.appendFrame(&firstFrame, 100));
+    QVERIFY(list.appendFrame(&secondFrame, 100));
+    list.setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts::finiteLoop(2));
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromTimedFrameList(&list));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+    acknowledgePendingRenderCommitForTest(item);
+
+    QCOMPARE(
+        item.play(ImageViewportPageRole::Primary).outcome(), ImageViewportCommandOutcome::Accepted);
+    advancePlaybackForTest(item, 200);
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(rolePlaybackPhase(item, ImageViewportPageRole::Primary),
+        ImageViewportPlaybackPhase::Waiting);
+
+    QCOMPARE(item.seek(ImageViewportPageRole::Primary, 1).outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    acknowledgePendingRenderCommitForTest(item);
+    QCOMPARE(primaryDisplayedFrame(item), 1);
+    QCOMPARE(rolePlaybackPhase(item, ImageViewportPageRole::Primary),
+        ImageViewportPlaybackPhase::Playing);
+
+    advancePlaybackForTest(item, 200);
+
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(rolePlaybackPhase(item, ImageViewportPageRole::Primary),
+        ImageViewportPlaybackPhase::Waiting);
+}
+
+void ImageViewportTimedTest::timedFrameListSiblingRequestRebindsPendingFiniteWrap()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::transparent);
+    QImage secondImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(Qt::black);
+    ImageFrame firstFrame(firstImage);
+    ImageFrame secondFrame(secondImage);
+    TimedImageFrameList primaryList;
+    QVERIFY(primaryList.appendFrame(&firstFrame, 100));
+    QVERIFY(primaryList.appendFrame(&secondFrame, 100));
+    primaryList.setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts::finiteLoop(2));
+    TimedImageFrameList secondaryList;
+    QVERIFY(secondaryList.appendFrame(&firstFrame, 100));
+    QVERIFY(secondaryList.appendFrame(&secondFrame, 100));
+    secondaryList.setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts::finiteLoop(2));
+    QScopedPointer<ImageSequenceFactoryResult> primary(factory.fromTimedFrameList(&primaryList));
+    QScopedPointer<ImageSequenceFactoryResult> secondary(
+        factory.fromTimedFrameList(&secondaryList));
+    QVERIFY(primary->sequence());
+    QVERIFY(secondary->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(primary->sequence(), secondary->sequence()),
+        PresentationTargetTransitionPolicy {});
+    acknowledgePendingRenderCommitForTest(item);
+    QCOMPARE(
+        item.play(ImageViewportPageRole::Primary).outcome(), ImageViewportCommandOutcome::Accepted);
+    advancePlaybackForTest(item, 200, ImageViewportPageRole::Primary);
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(rolePlaybackPhase(item, ImageViewportPageRole::Primary),
+        ImageViewportPlaybackPhase::Waiting);
+
+    QCOMPARE(item.seek(ImageViewportPageRole::Secondary, 1).outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    acknowledgePendingRenderCommitForTest(item);
+    QCOMPARE(primaryDisplayedFrame(item), 0);
+    QCOMPARE(secondaryDisplayedFrame(item), 1);
+    QCOMPARE(rolePlaybackPhase(item, ImageViewportPageRole::Primary),
+        ImageViewportPlaybackPhase::Playing);
+
+    advancePlaybackForTest(item, 200, ImageViewportPageRole::Primary);
+
+    QCOMPARE(primaryRequestedFrame(item), 1);
+    QCOMPARE(rolePlaybackPhase(item, ImageViewportPageRole::Primary),
+        ImageViewportPlaybackPhase::Waiting);
+}
+
+void ImageViewportTimedTest::timedFrameListSiblingStopPreservesPendingFiniteWrap()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::transparent);
+    QImage secondImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(Qt::black);
+    ImageFrame firstFrame(firstImage);
+    ImageFrame secondFrame(secondImage);
+    TimedImageFrameList primaryList;
+    QVERIFY(primaryList.appendFrame(&firstFrame, 100));
+    QVERIFY(primaryList.appendFrame(&secondFrame, 100));
+    primaryList.setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts::finiteLoop(2));
+    TimedImageFrameList secondaryList;
+    QVERIFY(secondaryList.appendFrame(&firstFrame, 100));
+    QVERIFY(secondaryList.appendFrame(&secondFrame, 100));
+    secondaryList.setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts::finiteLoop(2));
+    QScopedPointer<ImageSequenceFactoryResult> primary(factory.fromTimedFrameList(&primaryList));
+    QScopedPointer<ImageSequenceFactoryResult> secondary(
+        factory.fromTimedFrameList(&secondaryList));
+    QVERIFY(primary->sequence());
+    QVERIFY(secondary->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(primary->sequence(), secondary->sequence()),
+        PresentationTargetTransitionPolicy {});
+    acknowledgePendingRenderCommitForTest(item);
+    QCOMPARE(
+        item.play(ImageViewportPageRole::Primary).outcome(), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(item.play(ImageViewportPageRole::Secondary).outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    advancePlaybackForTest(item, 200, ImageViewportPageRole::Secondary);
+    acknowledgePendingRenderCommitForTest(item);
+    QCOMPARE(secondaryDisplayedFrame(item), 0);
+    QCOMPARE(rolePlaybackPhase(item, ImageViewportPageRole::Secondary),
+        ImageViewportPlaybackPhase::Playing);
+
+    advancePlaybackForTest(item, 100, ImageViewportPageRole::Primary);
+    acknowledgePendingRenderCommitForTest(item);
+    QCOMPARE(primaryDisplayedFrame(item), 1);
+
+    advancePlaybackForTest(item, 100, ImageViewportPageRole::Primary);
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryDisplayedFrame(item), 1);
+    QCOMPARE(rolePlaybackPhase(item, ImageViewportPageRole::Primary),
+        ImageViewportPlaybackPhase::Waiting);
+
+    QCOMPARE(item.stop(ImageViewportPageRole::Secondary).outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QVERIFY(hasPendingRenderCommitForTest(item));
+    acknowledgePendingRenderCommitForTest(item);
+    QCOMPARE(primaryDisplayedFrame(item), 0);
+    QCOMPARE(secondaryDisplayedFrame(item), 0);
+    QCOMPARE(rolePlaybackPhase(item, ImageViewportPageRole::Primary),
+        ImageViewportPlaybackPhase::Playing);
+    QCOMPARE(rolePlaybackPhase(item, ImageViewportPageRole::Secondary),
+        ImageViewportPlaybackPhase::Stopped);
+
+    advancePlaybackForTest(item, 200, ImageViewportPageRole::Primary);
+    QCOMPARE(primaryRequestedFrame(item), 1);
+    QCOMPARE(rolePlaybackPhase(item, ImageViewportPageRole::Primary),
+        ImageViewportPlaybackPhase::Waiting);
+    acknowledgePendingRenderCommitForTest(item);
+    QCOMPARE(rolePlaybackPhase(item, ImageViewportPageRole::Primary),
+        ImageViewportPlaybackPhase::Stopped);
+}
+
+void ImageViewportTimedTest::timedFrameListSameTargetRefinementRebindsPendingFiniteWrap()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::transparent);
+    QImage secondImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(Qt::black);
+    ImageFrame firstFrame(firstImage);
+    ImageFrame secondFrame(secondImage);
+    TimedImageFrameList originalList;
+    QVERIFY(originalList.appendFrame(&firstFrame, 100));
+    QVERIFY(originalList.appendFrame(&secondFrame, 100));
+    originalList.setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts::finiteLoop(2));
+    TimedImageFrameList refinementList;
+    QVERIFY(refinementList.appendFrame(&secondFrame, 100));
+    QVERIFY(refinementList.appendFrame(&firstFrame, 100));
+    refinementList.setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts::finiteLoop(2));
+    QScopedPointer<ImageSequenceFactoryResult> original(factory.fromTimedFrameList(&originalList));
+    QScopedPointer<ImageSequenceFactoryResult> refinement(
+        factory.fromTimedFrameList(&refinementList));
+    QVERIFY(original->sequence());
+    QVERIFY(refinement->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setPresentationTarget(ImageViewportPresentationTarget(original->sequence()),
+        PresentationTargetTransitionPolicy {});
+    acknowledgePendingRenderCommitForTest(item);
+    QCOMPARE(
+        item.play(ImageViewportPageRole::Primary).outcome(), ImageViewportCommandOutcome::Accepted);
+    advancePlaybackForTest(item, 200);
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(rolePlaybackPhase(item, ImageViewportPageRole::Primary),
+        ImageViewportPlaybackPhase::Waiting);
+
+    PresentationTargetTransitionPolicy refinementPolicy;
+    refinementPolicy.setReplacementIntent(
+        PresentationTargetTransitionPolicy::ReplacementIntent::SameTargetRefinement);
+    QCOMPARE(item.setPresentationTarget(
+                     ImageViewportPresentationTarget(refinement->sequence()), refinementPolicy)
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    acknowledgePendingRenderCommitForTest(item);
+    QCOMPARE(primaryDisplayedFrame(item), 0);
+    QCOMPARE(rolePlaybackPhase(item, ImageViewportPageRole::Primary),
+        ImageViewportPlaybackPhase::Playing);
+
+    advancePlaybackForTest(item, 200);
+
+    QCOMPARE(primaryRequestedFrame(item), 1);
+    QCOMPARE(rolePlaybackPhase(item, ImageViewportPageRole::Primary),
+        ImageViewportPlaybackPhase::Waiting);
+    acknowledgePendingRenderCommitForTest(item);
+    QCOMPARE(rolePlaybackPhase(item, ImageViewportPageRole::Primary),
+        ImageViewportPlaybackPhase::Stopped);
 }
 
 void ImageViewportTimedTest::timedFrameListPauseWhileStoppedAndRenderWaitingPreservesRequest()

@@ -72,7 +72,7 @@ private Q_SLOTS:
     void providerDeclaredNoPositionSeekRejectsPositionSeekBeforeMetadata();
     void providerMetadataRejectsNonFiniteLogicalSize();
     void providerMetadataRejectsHugeFiniteLogicalSize();
-    void providerMetadataRejectsPublishedFrameCountLimit();
+    void providerMetadataRejectsOversizedOfferAndAcceptsSameTokenCorrection();
     void providerMetadataRejectsPublishedDurationLimits();
     void providerStillMetadataSelectsInitialFrameRequest();
     void providerTimedMetadataSelectsInitialFrameRequest();
@@ -1573,7 +1573,8 @@ void ImageViewportProviderMetadataTest::providerMetadataRejectsHugeFiniteLogical
     QVERIFY(viewportErrorString(item).contains(QStringLiteral("maximumSourceLogicalWidth")));
 }
 
-void ImageViewportProviderMetadataTest::providerMetadataRejectsPublishedFrameCountLimit()
+void ImageViewportProviderMetadataTest::
+    providerMetadataRejectsOversizedOfferAndAcceptsSameTokenCorrection()
 {
     ImageSequenceFactory factory;
     const auto sessionCount = std::make_shared<int>(0);
@@ -1588,25 +1589,43 @@ void ImageViewportProviderMetadataTest::providerMetadataRejectsPublishedFrameCou
     QVERIFY(result->sequence());
 
     ImageViewport item;
+    useSynchronousProviderEventDeliveryForTest(item);
     item.setPresentationTarget(
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVector<int> durations(ImageSequenceLimits::maximumFrameCount() + 1, 1);
-    QVERIFY(sessionFactory->lastSession());
-    emitProviderMetadataReady(sessionFactory->lastSession(),
-        sessionFactory->lastSession()->lastMetadataToken(),
-        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), durations));
-    drainQueuedProviderResults();
+    CountingProviderSession* session = sessionFactory->lastSession();
+    QVERIFY(session);
+    const auto metadataToken = session->lastMetadataToken();
+    const auto oversizedMetadata
+        = ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), durations);
+    QCOMPARE(session->submitEvent(
+                 ImageSequenceProviderEvent::metadataReady(metadataToken, oversizedMetadata)),
+        ImageSequenceProviderEventSubmissionOutcome::Rejected);
 
     QCOMPARE(*frameRequestCount, 0);
-    QCOMPARE(*closeCount, 1);
-    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(*closeCount, 0);
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), -1);
     QCOMPARE(primaryDisplayedFrame(item), -1);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("maximumFrameCount")));
+
+    const auto correctedMetadata
+        = ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100 });
+    QCOMPARE(session->submitEvent(
+                 ImageSequenceProviderEvent::metadataReady(metadataToken, correctedMetadata)),
+        ImageSequenceProviderEventSubmissionOutcome::Accepted);
+
+    QCOMPARE(*frameRequestCount, 1);
+    QCOMPARE(*lastRequestedFrame, 0);
+    QCOMPARE(*closeCount, 0);
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryDisplayedFrame(item), -1);
 }
 
 void ImageViewportProviderMetadataTest::providerMetadataRejectsPublishedDurationLimits()

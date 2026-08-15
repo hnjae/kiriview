@@ -407,6 +407,13 @@ ViewportProviderEvent viewportProviderEventFromTyped(ImageViewportPageRole role,
     return event;
 }
 
+bool exceedsTimedMetadataIngressLimit(const ViewportProviderEvent& event)
+{
+    return event.kind == ImageSequenceProviderEventKind::MetadataReady
+        && event.metadata.isTimedFrameList()
+        && event.metadata.frameCount() > ImageSequenceLimits::maximumFrameCount();
+}
+
 ImageViewportInternal::ProviderTransportDiagnostic providerTransportDiagnostic(
     ImageViewportPageRole role, ImageViewportInternal::ProviderTransportOperation operation,
     ImageSequenceProviderRequestToken metadataToken, ImageSequenceProviderRequestToken frameToken,
@@ -485,6 +492,10 @@ public:
         QMutexLocker locker(&mutex);
         if (closed) {
             return { ImageSequenceProviderEventSubmissionOutcome::Closed, false };
+        }
+        if (exceedsTimedMetadataIngressLimit(event)
+            && activeMetadataOfferCanRetainTokenLocked(event)) {
+            return { ImageSequenceProviderEventSubmissionOutcome::Rejected, false };
         }
         const std::optional<DeliveryCredit> credit = admitCreditLocked(event);
         if (!credit) {
@@ -784,6 +795,16 @@ private:
             return representativeCreditLocked(DeliveryCredit::StaleRepresentative);
         }
         return representativeCreditLocked(DeliveryCredit::MismatchRepresentative);
+    }
+
+    [[nodiscard]] bool activeMetadataOfferCanRetainTokenLocked(
+        const ViewportProviderEvent& event) const
+    {
+        const qsizetype activeIndex = activeTokenIndexLocked(event.token);
+        return activeIndex >= 0
+            && activeTokens.at(activeIndex).requestKind
+            == ImageSequenceProviderRequestKind::Metadata
+            && !activeTokens.at(activeIndex).terminalAccepted;
     }
 
     [[nodiscard]] qsizetype activeTokenIndexLocked(ImageSequenceProviderRequestToken token) const

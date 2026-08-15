@@ -242,11 +242,9 @@ ViewportProviderFrameQueueFlushResult reduceViewportEngineProviderQueueFlush(
         ? access.m_request.roles[0].source.facts.provider
         : access.m_request.roles[1].sequence && access.m_request.roles[1].provider;
     const bool current = queued.has_value() && providerPresent && provider.session.sessionActive
+        && viewportEngineRoleCanRefineCurrentTerminal(access.m_request, input.role)
         && queued->generation == access.m_request.sequenceGeneration
-        && queued->requestId == active.identity.id
-        && access.m_request.status == ImageViewportRequestStatus::Loading
-        && access.m_request.reason == ImageViewportRequestReason::RequestQueued
-        && active.target.frame == queued->target.frame
+        && queued->requestId == active.identity.id && active.target.frame == queued->target.frame
         && active.target.position == queued->target.position
         && active.resolvedFrame.frame == queued->resolvedFrame.frame
         && active.resolvedFrame.position == queued->resolvedFrame.position

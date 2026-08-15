@@ -160,6 +160,7 @@ private Q_SLOTS:
     void refinementCommandDeliveryFailureIsGenerationTerminal();
     void refinementRenderFailureIsIsolatedFromTheDisplayRequest();
     void spreadRefinementsCommitAsOneCompleteCandidateSet();
+    void refinementCarriesAcrossSiblingDisplayRequest();
 };
 
 void ImageViewportProviderRefinementTest::largeLogicalSourceAcceptsBoundedPreviewAndRefinement()
@@ -479,6 +480,56 @@ void ImageViewportProviderRefinementTest::spreadRefinementsCommitAsOneCompleteCa
         primaryRefinement.demand().demandRevision());
     QCOMPARE(viewport.state().secondary().display().demandRevision(),
         secondaryRefinement.demand().demandRevision());
+    QCOMPARE(viewport.state().primary().display().currentForDemand(), true);
+    QCOMPARE(viewport.state().secondary().display().currentForDemand(), true);
+}
+
+void ImageViewportProviderRefinementTest::refinementCarriesAcrossSiblingDisplayRequest()
+{
+    ImageSequenceFactory factory;
+    RefinementProviderAdapter primaryAdapter;
+    RefinementProviderAdapter secondaryAdapter;
+    QScopedPointer<ImageSequenceFactoryResult> primary(factory.fromProvider(&primaryAdapter));
+    QScopedPointer<ImageSequenceFactoryResult> secondary(factory.fromProvider(&secondaryAdapter));
+    QVERIFY(primary->sequence());
+    QVERIFY(secondary->sequence());
+
+    ImageViewport viewport;
+    viewport.setSize(QSizeF(100.0, 50.0));
+    useSynchronousProviderEventDeliveryForTest(viewport);
+    QCOMPARE(viewport
+                 .setPresentationTarget(
+                     ImageViewportPresentationTarget(primary->sequence(), secondary->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QVERIFY(primaryAdapter.session);
+    QVERIFY(secondaryAdapter.session);
+    primaryAdapter.session->emitReady(
+        primaryAdapter.session->frameRequests().constFirst(), Qt::red);
+    secondaryAdapter.session->emitReady(
+        secondaryAdapter.session->frameRequests().constFirst(), Qt::green);
+    acknowledgePendingRenderCommitForTest(viewport);
+
+    setQualityPreference(viewport, ImageViewportQualityPreference::BalancedDetail);
+    QCOMPARE(primaryAdapter.session->frameRequests().size(), 2);
+    QCOMPARE(secondaryAdapter.session->frameRequests().size(), 2);
+    const auto primaryRefinement = primaryAdapter.session->frameRequests().constLast();
+
+    QCOMPARE(viewport.seek(ImageViewportPageRole::Secondary, 0).outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(secondaryAdapter.session->frameRequests().size(), 3);
+    const auto secondaryDisplayRequest = secondaryAdapter.session->frameRequests().constLast();
+
+    primaryAdapter.session->emitReady(primaryRefinement, Qt::blue);
+    secondaryAdapter.session->emitReady(secondaryDisplayRequest, Qt::yellow);
+    QVERIFY(hasPendingRenderCommitForTest(viewport));
+    acknowledgePendingRenderCommitForTest(viewport);
+
+    QCOMPARE(viewport.state().primary().display().demandRevision(),
+        primaryRefinement.demand().demandRevision());
+    QCOMPARE(viewport.state().secondary().display().demandRevision(),
+        secondaryDisplayRequest.demand().demandRevision());
     QCOMPARE(viewport.state().primary().display().currentForDemand(), true);
     QCOMPARE(viewport.state().secondary().display().currentForDemand(), true);
 }

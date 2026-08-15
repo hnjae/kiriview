@@ -402,12 +402,13 @@ ViewportEngineTransition ViewportEngine::handleViewportChanged(ViewportEngineVie
         const ViewportEngineGeometryChangeInput operationInput { viewport.itemBounds,
             oldContentRect, oldVisibleImageRect, geometryState(),
             m_state->presentationState.presentation.exactnessPreference };
-        ViewportEngineGeometryChangeAccess access(
-            m_state->requestState.request, m_state->displayState.display);
+        ViewportEngineGeometryChangeAccess access(m_state->requestState.request,
+            m_state->displayState.display, m_state->playbackState.playback);
         auto reduction = reduceViewportEngineGeometryChange(operationInput, access);
         auto mutation = access.takeMutation();
         m_state->requestState.request = std::move(mutation.request);
         m_state->displayState.display = std::move(mutation.display);
+        m_state->playbackState.playback = mutation.playback;
         result.changes = reduction.changes;
         mergeChanges(result.changes, transitionChanges);
         if (reduction.providerDemandGeometry) {

@@ -20,4 +20,4 @@ struct ViewportEngineBuiltInFrameStageResult
 ViewportEngineBuiltInFrameStageResult stageViewportEngineBuiltInTargetSpread(
     ImageViewportInternal::RequestState& request, ImageViewportInternal::DisplayState& display,
     ImageViewportExactnessPreference exactnessPreference,
-    ImageViewportInternal::PlaybackState* playback = nullptr);
+    ImageViewportInternal::PlaybackState& playback);

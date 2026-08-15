@@ -43,6 +43,7 @@ ViewportProviderRequestTokenAllocationResult allocateViewportProviderRequestToke
             result.changes },
         request);
     auto& playback = access.playback();
+    playback.discardPendingAuthoredLoopIterations();
     for (auto& rolePlayback : playback.roles) {
         rolePlayback.providerStartPending = false;
         rolePlayback.stopWhenRequestReady = false;

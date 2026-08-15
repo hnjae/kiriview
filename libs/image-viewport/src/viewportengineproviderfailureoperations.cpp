@@ -37,6 +37,9 @@ bool providerPresent(const RequestState& request, ImageViewportPageRole role)
 void updatePlaybackPhase(
     PlaybackState& playback, ImageViewportPlaybackPhase phase, ViewportChangeSet& changes)
 {
+    if (phase == ImageViewportPlaybackPhase::Stopped) {
+        playback.discardPendingAuthoredLoopIterations();
+    }
     for (auto& rolePlayback : playback.roles) {
         if (rolePlayback.phase == phase) {
             continue;
@@ -333,6 +336,7 @@ ViewportEngineProviderQueueFailureReduction reduceViewportEngineProviderQueueFai
         PublicDiagnosticText::fromTrusted(
             QStringLiteral("provider queued request scheduling failed")),
         result.changes });
+    access.m_playback.discardPendingAuthoredLoopIterations();
     if (playbackOwned) {
         updatePlaybackPhase(access.m_playback, ImageViewportPlaybackPhase::Stopped, result.changes);
     }

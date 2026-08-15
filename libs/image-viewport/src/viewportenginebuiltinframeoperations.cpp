@@ -16,7 +16,7 @@ bool displayedPayloadAvailable(const DisplayState& display)
         && display.roles[0].displayedPayload.hasPresentableContent();
 }
 
-void projectFailure(RequestState& request, DisplayState& display, PlaybackState* playback,
+void projectFailure(RequestState& request, DisplayState& display, PlaybackState& playback,
     ImageViewportPageRole role, const FramePreparation::BuiltInFrameAdmissionResult& admission,
     ViewportEngineBuiltInFrameStageResult& result)
 {
@@ -32,13 +32,12 @@ void projectFailure(RequestState& request, DisplayState& display, PlaybackState*
     request.roles[1].activeRequest.preparedPayloadId = 0;
     display.status
         = retainDisplay ? ImageViewportDisplayStatus::Retained : ImageViewportDisplayStatus::Empty;
-    if (playback) {
-        for (auto& rolePlayback : playback->roles) {
-            if (rolePlayback.phase != ImageViewportPlaybackPhase::Stopped) {
-                rolePlayback.phase = ImageViewportPlaybackPhase::Stopped;
-                rolePlayback.stopWhenRequestReady = false;
-                result.playbackStopped = true;
-            }
+    playback.discardPendingAuthoredLoopIterations();
+    for (auto& rolePlayback : playback.roles) {
+        if (rolePlayback.phase != ImageViewportPlaybackPhase::Stopped) {
+            rolePlayback.phase = ImageViewportPlaybackPhase::Stopped;
+            rolePlayback.stopWhenRequestReady = false;
+            result.playbackStopped = true;
         }
     }
 
@@ -74,7 +73,7 @@ FramePreparation::BuiltInFrameAdmissionResult stageRole(RequestState& request,
 ViewportEngineBuiltInFrameStageResult stageViewportEngineBuiltInTargetSpread(
     ImageViewportInternal::RequestState& request, ImageViewportInternal::DisplayState& display,
     ImageViewportExactnessPreference exactnessPreference,
-    ImageViewportInternal::PlaybackState* playback)
+    ImageViewportInternal::PlaybackState& playback)
 {
     ViewportEngineBuiltInFrameStageResult result;
     request.targetSpreadTerminal.clear();

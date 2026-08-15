@@ -218,7 +218,7 @@ ViewportEngineBuiltInFrameStageResult materializeViewportEngineBuiltInTargetSpre
     const ViewportEngineGeometryInput& geometry)
 {
     const auto admission = stageViewportEngineBuiltInTargetSpread(
-        request, display, presentation.exactnessPreference, &playback);
+        request, display, presentation.exactnessPreference, playback);
     if (!admission.accepted) {
         return admission;
     }

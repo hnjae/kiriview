@@ -64,6 +64,26 @@ bool hasDisplayedPayload(const ImageViewportInternal::DisplayState& display)
 {
     return display.roles[0].displayedPayload.hasPresentableContent();
 }
+
+void beginRolePlaybackSpreadRequest(ImageViewportInternal::RequestState& request,
+    ImageViewportInternal::PlaybackState& playback, std::array<ViewportEngineRoleState, 2>& roles,
+    ImageViewportPageRole changedRole, ImageViewportInternal::DisplayRequestOrigin origin,
+    ImageViewportInternal::DisplayRequestTarget target,
+    ImageViewportInternal::ResolvedFrameIdentity resolvedFrame, bool rememberAsLatestNonPlayback)
+{
+    const ImageViewportPageRole siblingRole = changedRole == ImageViewportPageRole::Primary
+        ? ImageViewportPageRole::Secondary
+        : ImageViewportPageRole::Primary;
+    const std::size_t siblingIndex = siblingRole == ImageViewportPageRole::Secondary ? 1U : 0U;
+    const ImageViewportInternal::DisplayRequest previousSibling
+        = request.roles[siblingIndex].activeRequest;
+    request.beginRoleDisplayRequest(
+        changedRole, origin, target, resolvedFrame, rememberAsLatestNonPlayback);
+    const auto identity = request.activeTargetSpreadIdentity();
+    playback.reconcilePendingAuthoredLoopIterationsAfterRoleRequest(changedRole, identity);
+    roles[siblingIndex].provider.requests.rebindCarriedTargetWork(siblingRole,
+        request.sequenceGeneration, previousSibling, request.roles[siblingIndex].activeRequest);
+}
 }
 
 bool validateViewportPlaybackCommand(ViewportPlaybackCommand command)
@@ -112,6 +132,7 @@ ViewportEnginePlaybackStopReduction reduceViewportEnginePlaybackStop(
     const std::size_t index = input.role == ImageViewportPageRole::Secondary ? 1U : 0U;
 
     rolePlayback.stopWhenRequestReady = false;
+    rolePlayback.discardPendingAuthoredLoopIteration();
     auto& roleState = requestRole(request, input.role);
     const bool providerSource = roleState.source.facts.provider;
     auto& provider = access.m_roles[index].provider;
@@ -186,7 +207,7 @@ ViewportEnginePlaybackStopReduction reduceViewportEnginePlaybackStop(
                 == ImageViewportInternal::DisplayRequestOrigin::Playback
             || roleState.activeRequest.target.providerTargetKind
                 == ImageViewportInternal::ProviderRequestTargetKind::Playback)) {
-        request.beginRoleDisplayRequest(input.role,
+        beginRolePlaybackSpreadRequest(request, playback, access.m_roles, input.role,
             ImageViewportInternal::DisplayRequestOrigin::StopRestore, restore.target,
             restore.resolvedFrame, true);
         rolePlayback.position = restore.target.position;
@@ -196,6 +217,10 @@ ViewportEnginePlaybackStopReduction reduceViewportEnginePlaybackStop(
             && displayed.request.resolvedFrame.frame == restore.resolvedFrame.frame
             && displayed.request.resolvedFrame.position == restore.resolvedFrame.position
             && displayedSize.isValid() && (!providerSource || restore.resolvedFrame.isValid())) {
+            if (display.roles[1U - index].pendingRenderPayload.hasPresentableContent()) {
+                coalesceViewportEngineTargetSpreadCandidates(request, display);
+                result.changes.scheduleUpdate = true;
+            }
             request.status = ImageViewportRequestStatus::Ready;
             request.reason = ImageViewportRequestReason::Ready;
             display.status = ImageViewportDisplayStatus::Ready;
@@ -345,8 +370,8 @@ ViewportEnginePlaybackSeekReduction reduceViewportEnginePlaybackSeek(
         mergeChanges(result.changes, materialized.changes);
     };
 
-    request.beginRoleDisplayRequest(input.role, DisplayRequestOrigin::ExplicitSeek,
-        { frame, position, targetKind }, resolved, true);
+    beginRolePlaybackSpreadRequest(request, playback, access.m_roles, input.role,
+        DisplayRequestOrigin::ExplicitSeek, { frame, position, targetKind }, resolved, true);
     result.changes.diagnostics = request.clearError();
     if (source.facts.provider && !provider.facts.metadataReady) {
         markRequest();
@@ -432,8 +457,9 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
             result.providerFrameTransport[index].cancelToken = activeFrame->token;
             provider.requests.retire(activeFrame->token);
         }
-        request.beginRoleDisplayRequest(input.role, DisplayRequestOrigin::Playback,
-            { -1, -1, ProviderRequestTargetKind::Playback }, { -1, -1 }, false);
+        beginRolePlaybackSpreadRequest(request, playback, access.m_roles, input.role,
+            DisplayRequestOrigin::Playback, { -1, -1, ProviderRequestTargetKind::Playback },
+            { -1, -1 }, false);
         rolePlayback.providerStartPending = true;
         rolePlayback.position = -1;
         rolePlayback.phase = ImageViewportPlaybackPhase::Waiting;
@@ -468,6 +494,7 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
             = source.facts.provider ? provider.facts.timingIntervals : source.facts.timingIntervals;
         rolePlayback.position = intervals.frameStartPosition(frame);
         rolePlayback.loopIterationsCompleted = 0;
+        rolePlayback.discardPendingAuthoredLoopIteration();
     }
     if (source.facts.provider
         && (request.status == ImageViewportRequestStatus::Unsupported
@@ -542,6 +569,8 @@ ViewportEnginePlaybackTickReduction reduceViewportEnginePlaybackTick(
     }
 
     rolePlayback.position = target.playbackPosition;
+    const bool authoredFiniteWrap = target.looped && !playback.looping
+        && authoredFacts.loopMode() == ImageSequenceAuthoredAnimationLoopMode::Finite;
     const bool sameReadyProviderFrame = providerTiming && target.displayTarget.frame == currentFrame
         && request.status == ImageViewportRequestStatus::Ready;
     if (sameReadyProviderFrame) {
@@ -549,7 +578,7 @@ ViewportEnginePlaybackTickReduction reduceViewportEnginePlaybackTick(
             rolePlayback.stopWhenRequestReady = false;
             rolePlayback.phase = ImageViewportPlaybackPhase::Stopped;
             result.changes.playbackPhase = true;
-        } else if (target.looped && !playback.looping) {
+        } else if (authoredFiniteWrap) {
             ++rolePlayback.loopIterationsCompleted;
         }
         return result;
@@ -562,11 +591,11 @@ ViewportEnginePlaybackTickReduction reduceViewportEnginePlaybackTick(
     if (providerTiming) {
         displayTarget.providerTargetKind = ProviderRequestTargetKind::Playback;
     }
-    request.beginRoleDisplayRequest(role, DisplayRequestOrigin::Playback, displayTarget,
+    beginRolePlaybackSpreadRequest(request, playback, access.m_roles, role,
+        DisplayRequestOrigin::Playback, displayTarget,
         { displayTarget.frame, intervals.frameStartPosition(displayTarget.frame) }, false);
-    if (target.looped && !playback.looping) {
-        ++rolePlayback.loopIterationsCompleted;
-    }
+    const TargetSpreadIdentity authoredLoopIteration { request.sequenceGeneration,
+        requestRole(request, role).activeRequest.identity.id };
 
     if (providerTiming) {
         ViewportEngineProviderRoleMaterializationMutation mutation { request, playback, display,
@@ -583,6 +612,9 @@ ViewportEnginePlaybackTickReduction reduceViewportEnginePlaybackTick(
         mergeChanges(result.changes, materialized.changes);
         if (materialized.accepted) {
             auto& mutatedRolePlayback = playback.forRole(role);
+            if (authoredFiniteWrap) {
+                mutatedRolePlayback.deferAuthoredLoopIteration(authoredLoopIteration);
+            }
             mutatedRolePlayback.stopWhenRequestReady = target.reachedEnd;
             mutatedRolePlayback.phase = ImageViewportPlaybackPhase::Waiting;
         }
@@ -590,6 +622,9 @@ ViewportEnginePlaybackTickReduction reduceViewportEnginePlaybackTick(
         const auto admission = materializeViewportEngineBuiltInTargetSpread(
             request, playback, display, access.m_presentation, input.geometry);
         if (admission.accepted) {
+            if (authoredFiniteWrap) {
+                rolePlayback.deferAuthoredLoopIteration(authoredLoopIteration);
+            }
             rolePlayback.stopWhenRequestReady = target.reachedEnd;
             rolePlayback.phase = ImageViewportPlaybackPhase::Waiting;
         } else {
@@ -691,6 +726,7 @@ ViewportEngineAuthoredAutoplayReduction reduceViewportEngineAuthoredAutoplay(
         rolePlayback.stopWhenRequestReady = false;
         rolePlayback.providerStartPending = false;
         rolePlayback.loopIterationsCompleted = 0;
+        rolePlayback.discardPendingAuthoredLoopIteration();
         rolePlayback.phase = access.requestStatus() == ImageViewportRequestStatus::Ready
             ? ImageViewportPlaybackPhase::Playing
             : ImageViewportPlaybackPhase::Waiting;

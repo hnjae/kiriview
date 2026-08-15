@@ -35,9 +35,9 @@ bool pendingSpreadReady(const DisplayState& display, const RequestState& request
         && (!hasSecondary(request) || !display.roles[1].pendingRenderPayload.image.isNull());
 }
 ViewportEngineBuiltInFrameStageResult stageBuiltIn(RequestState& request, DisplayState& display,
-    ImageViewportExactnessPreference exactnessPreference)
+    ImageViewportExactnessPreference exactnessPreference, PlaybackState& playback)
 {
-    return stageViewportEngineBuiltInTargetSpread(request, display, exactnessPreference);
+    return stageViewportEngineBuiltInTargetSpread(request, display, exactnessPreference, playback);
 }
 const ProviderFactsState& providerFor(
     ViewportEngineProviderFactsView facts, ImageViewportPageRole role)
@@ -164,7 +164,7 @@ ViewportEngineRenderCoordinationState::AttemptContext synchronizeViewportEngineR
         payload.providerFrameLeaseId = 0;
     TargetSpreadIdentity targetSpread;
     if (requiredRoles.primary()) {
-        if (result.pendingTargetCommit) {
+        if (result.pendingTargetCommit || result.pendingRefinementCommit) {
             targetSpread = access.request().activeTargetSpreadIdentity();
         } else {
             const auto& displayed = access.display().roles[0].displayedRequest;
@@ -230,12 +230,21 @@ ViewportEngineRenderCommitReduction reduceViewportEngineRenderCommit(
             shown.displayedPayload = shown.pendingRenderPayload;
             shown.displayedRequest.generation = access.request().sequenceGeneration;
             shown.displayedRequest.request = access.request().roles[index].activeRequest;
+            (void)access.playback().forRole(role).commitPendingAuthoredLoopIteration(
+                { shown.displayedRequest.generation, shown.displayedRequest.request.identity.id });
         }
     }
     if (input.pendingTargetCommit) {
         access.display().commitDisplayedRequestSnapshot(access.request().sequenceGeneration,
             access.request().roles[0].activeRequest,
             access.display().roles[0].pendingRenderPayload.payloadId);
+        for (const auto role :
+            { ImageViewportPageRole::Primary, ImageViewportPageRole::Secondary }) {
+            const auto index = role == ImageViewportPageRole::Secondary ? 1U : 0U;
+            const auto& displayed = access.display().roles[index].displayedRequest;
+            (void)access.playback().forRole(role).commitPendingAuthoredLoopIteration(
+                { displayed.generation, displayed.request.identity.id });
+        }
     }
     access.display().clearPendingRenderPayload();
     if (access.request().status == ImageViewportRequestStatus::Ready) {
@@ -362,6 +371,7 @@ ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
             ImageViewportRequestReason::RenderFailure,
             PublicDiagnosticText::fromTrusted(QStringLiteral("render commit failed")), changes },
         access.request());
+    access.playback().discardPendingAuthoredLoopIterations();
     markPlayback(changes, access.playback(), ImageViewportPageRole::Primary,
         ImageViewportPlaybackPhase::Stopped);
     markPlayback(changes, access.playback(), ImageViewportPageRole::Secondary,
@@ -393,8 +403,8 @@ ViewportEngineGeometryChangeReduction reduceViewportEngineGeometryChange(
             return result;
         }
         if (!access.request().roles[0].source.facts.provider) {
-            const auto admission
-                = stageBuiltIn(access.request(), access.display(), input.exactnessPreference);
+            const auto admission = stageBuiltIn(
+                access.request(), access.display(), input.exactnessPreference, access.playback());
             if (!admission.accepted) {
                 changes.requestState = true;
                 changes.requestRevision = true;
