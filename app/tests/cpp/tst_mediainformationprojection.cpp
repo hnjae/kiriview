@@ -50,6 +50,8 @@ private Q_SLOTS:
     void directVideoProjectsVideoSectionFromSessionSource();
     void unsupportedOpenedCollectionVideoProjectsVideoIdentityWithoutMetadata();
     void archiveCollectionImagePathDisplaysRelativeEntryPath();
+    void archiveCollectionContainingFolderOpensFormatSpecificRoot_data();
+    void archiveCollectionContainingFolderOpensFormatSpecificRoot();
     void directoryCollectionImagePathDisplaysRelativeEntryPath();
     void unsupportedArchiveImageTargetClearsInformation();
 };
@@ -99,6 +101,10 @@ void TestMediaInformationProjection::readyImageProjectsTargetMetadataAndFileActi
     QCOMPARE(snapshot.mediaSectionTitle, QStringLiteral("Image"));
     QVERIFY(snapshot.canCopyFilePath);
     QVERIFY(snapshot.canOpenContainingFolder);
+    QVERIFY(snapshot.openContainingFolderRequest.has_value());
+    QCOMPARE(snapshot.openContainingFolderRequest->kind,
+        kiriview::MediaInformationOpenContainingFolderKind::RevealTarget);
+    QCOMPARE(snapshot.openContainingFolderRequest->targetUrl, input.imageDisplayedUrl);
     QCOMPARE(valueForLabel(snapshot.generalRows, QStringLiteral("Type")), QStringLiteral("Image"));
     QCOMPARE(valueForLabel(snapshot.generalRows, QStringLiteral("Path")),
         QStringLiteral("/media/photo.png"));
@@ -138,6 +144,10 @@ void TestMediaInformationProjection::directVideoProjectsVideoSectionFromSessionS
         QStringLiteral("1920×1080 px"));
     QVERIFY(snapshot.canCopyFilePath);
     QVERIFY(snapshot.canOpenContainingFolder);
+    QVERIFY(snapshot.openContainingFolderRequest.has_value());
+    QCOMPARE(snapshot.openContainingFolderRequest->kind,
+        kiriview::MediaInformationOpenContainingFolderKind::RevealTarget);
+    QCOMPARE(snapshot.openContainingFolderRequest->targetUrl, input.videoSourceUrl);
 }
 
 void TestMediaInformationProjection::
@@ -196,6 +206,57 @@ void TestMediaInformationProjection::archiveCollectionImagePathDisplaysRelativeE
         QStringLiteral("chapter/01 [2880p].jxl"));
 }
 
+void TestMediaInformationProjection::archiveCollectionContainingFolderOpensFormatSpecificRoot_data()
+{
+    QTest::addColumn<QString>("scheme");
+    QTest::addColumn<QString>("extension");
+    QTest::addColumn<bool>("comicBook");
+
+    QTest::newRow("cbz") << QStringLiteral("zip") << QStringLiteral("cbz") << true;
+    QTest::newRow("zip") << QStringLiteral("zip") << QStringLiteral("zip") << false;
+    QTest::newRow("cbt") << QStringLiteral("tar") << QStringLiteral("cbt") << true;
+    QTest::newRow("tar") << QStringLiteral("tar") << QStringLiteral("tar") << false;
+    QTest::newRow("cb7") << QStringLiteral("sevenz") << QStringLiteral("cb7") << true;
+    QTest::newRow("7z") << QStringLiteral("sevenz") << QStringLiteral("7z") << false;
+}
+
+void TestMediaInformationProjection::archiveCollectionContainingFolderOpensFormatSpecificRoot()
+{
+    QFETCH(QString, scheme);
+    QFETCH(QString, extension);
+    QFETCH(bool, comicBook);
+
+    const QString archivePath = QStringLiteral("/books/[Kiri] book.%1").arg(extension);
+    QUrl rootUrl;
+    rootUrl.setScheme(scheme);
+    rootUrl.setPath(archivePath + u'/');
+    QUrl entryUrl = rootUrl;
+    entryUrl.setPath(rootUrl.path() + QStringLiteral("chapter/[page].png"));
+
+    kiriview::MediaInformationProjectionInput input;
+    input.documentKind = kiriview::DocumentSessionKind::Image;
+    input.imageReady = true;
+    input.imageDisplayedUrl = entryUrl;
+    input.imageDisplayedOpenedCollectionScope = kiriview::OpenedCollectionScopeLocation::fromUrls(
+        QUrl::fromLocalFile(archivePath), rootUrl,
+        comicBook ? kiriview::OpenedCollectionScopeKind::ComicBookArchive
+                  : kiriview::OpenedCollectionScopeKind::GeneralArchive);
+
+    const kiriview::MediaInformationProjectionSnapshot snapshot
+        = kiriview::projectMediaInformation(input, 15);
+
+    QVERIFY(snapshot.available);
+    QVERIFY(snapshot.canOpenContainingFolder);
+    QVERIFY(snapshot.openContainingFolderRequest.has_value());
+    QCOMPARE(snapshot.openContainingFolderRequest->kind,
+        kiriview::MediaInformationOpenContainingFolderKind::OpenLocation);
+    QCOMPARE(snapshot.openContainingFolderRequest->targetUrl, rootUrl);
+    QCOMPARE(snapshot.openContainingFolderRequest->targetUrl.scheme(), scheme);
+    QCOMPARE(snapshot.openContainingFolderRequest->targetUrl.path(), archivePath + u'/');
+    QVERIFY(!snapshot.openContainingFolderRequest->targetUrl.path().contains(
+        QStringLiteral("%5B"), Qt::CaseInsensitive));
+}
+
 void TestMediaInformationProjection::directoryCollectionImagePathDisplaysRelativeEntryPath()
 {
     kiriview::MediaInformationProjectionInput input;
@@ -215,6 +276,10 @@ void TestMediaInformationProjection::directoryCollectionImagePathDisplaysRelativ
     QCOMPARE(snapshot.title, QStringLiteral("01.png"));
     QCOMPARE(valueForLabel(snapshot.generalRows, QStringLiteral("Path")),
         QStringLiteral("chapter/01.png"));
+    QVERIFY(snapshot.openContainingFolderRequest.has_value());
+    QCOMPARE(snapshot.openContainingFolderRequest->kind,
+        kiriview::MediaInformationOpenContainingFolderKind::RevealTarget);
+    QCOMPARE(snapshot.openContainingFolderRequest->targetUrl, input.imageDisplayedUrl);
 }
 
 void TestMediaInformationProjection::unsupportedArchiveImageTargetClearsInformation()
@@ -236,6 +301,7 @@ void TestMediaInformationProjection::unsupportedArchiveImageTargetClearsInformat
     QVERIFY(!snapshot.canCopyFilePath);
     QVERIFY(!snapshot.canOpenContainingFolder);
     QVERIFY(snapshot.targetUrl.isEmpty());
+    QVERIFY(!snapshot.openContainingFolderRequest.has_value());
     QCOMPARE(snapshot.summary, QStringLiteral("No media selected"));
     QVERIFY(snapshot.generalRows.empty());
 }

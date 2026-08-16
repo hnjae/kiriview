@@ -92,7 +92,28 @@ QUrl informationTargetUrl(const kiriview::MediaInformationProjectionInput& input
     return {};
 }
 
-bool canOpenContainingLocation(const QUrl& url) { return !url.isEmpty() && !url.path().isEmpty(); }
+std::optional<kiriview::MediaInformationOpenContainingFolderRequest> openContainingFolderRequest(
+    const QUrl& targetUrl, const kiriview::OpenedCollectionScopeLocation& openedCollectionScope)
+{
+    if (targetUrl.isEmpty() || targetUrl.path().isEmpty()) {
+        return std::nullopt;
+    }
+
+    const QUrl& rootUrl = openedCollectionScope.rootUrl();
+    if (!openedCollectionScope.isEmpty() && !openedCollectionScope.isDirectory()
+        && openedCollectionScope.fileUrl().isLocalFile()
+        && kiriview::archiveRootSchemeUsesKioFuse(rootUrl.scheme()) && !rootUrl.path().isEmpty()) {
+        return kiriview::MediaInformationOpenContainingFolderRequest {
+            kiriview::MediaInformationOpenContainingFolderKind::OpenLocation,
+            rootUrl,
+        };
+    }
+
+    return kiriview::MediaInformationOpenContainingFolderRequest {
+        kiriview::MediaInformationOpenContainingFolderKind::RevealTarget,
+        targetUrl,
+    };
+}
 
 QString generalPathValue(
     const QUrl& targetUrl, const kiriview::OpenedCollectionScopeLocation& openedCollectionScope)
@@ -220,7 +241,20 @@ MediaInformationProjectionSnapshot projectMediaInformation(
     snapshot.available = true;
     snapshot.title = fileNameForUrl(snapshot.targetUrl);
     snapshot.canCopyFilePath = true;
-    snapshot.canOpenContainingFolder = canOpenContainingLocation(snapshot.targetUrl);
+
+    switch (input.documentKind) {
+    case DocumentSessionKind::Image:
+        snapshot.openContainingFolderRequest = openContainingFolderRequest(
+            snapshot.targetUrl, input.imageDisplayedOpenedCollectionScope);
+        break;
+    case DocumentSessionKind::Video:
+        snapshot.openContainingFolderRequest
+            = openContainingFolderRequest(snapshot.targetUrl, input.videoOpenedCollectionScope);
+        break;
+    case DocumentSessionKind::Empty:
+        break;
+    }
+    snapshot.canOpenContainingFolder = snapshot.openContainingFolderRequest.has_value();
 
     switch (input.documentKind) {
     case DocumentSessionKind::Image:
@@ -269,8 +303,10 @@ bool sameMediaInformationProjectionSnapshot(
     const MediaInformationProjectionSnapshot& left, const MediaInformationProjectionSnapshot& right)
 {
     return left.available == right.available && left.kind == right.kind
-        && left.targetUrl == right.targetUrl && left.title == right.title
-        && left.summary == right.summary && left.mediaSectionTitle == right.mediaSectionTitle
+        && left.targetUrl == right.targetUrl
+        && left.openContainingFolderRequest == right.openContainingFolderRequest
+        && left.title == right.title && left.summary == right.summary
+        && left.mediaSectionTitle == right.mediaSectionTitle
         && left.canCopyFilePath == right.canCopyFilePath
         && left.canOpenContainingFolder == right.canOpenContainingFolder
         && left.generalRows == right.generalRows && left.mediaRows == right.mediaRows

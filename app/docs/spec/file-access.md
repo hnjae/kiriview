@@ -166,6 +166,8 @@ For local file URLs, Copy File Path copies the local file path. For non-local KD
 
 Copy File Path is disabled when the current media target is unavailable.
 
-The Info Panel's Open Containing Folder action opens the current media target's parent location in the file manager and selects or highlights the target when the desktop environment supports it.
+For media inside a directly opened local CBZ, CBT, CB7, ZIP, TAR, or 7Z archive collection, the Info Panel's Open Containing Folder action opens the archive root as a browsable location in the file manager so the complete archive contents are visible.
+
+For other supported current media targets, Open Containing Folder opens the target's parent location in the file manager and selects or highlights the target when the desktop environment supports it.
 
 Open Containing Folder is available for local file targets and KDE-supported URLs with a parent location. It is disabled when no media target is available or when KiriView cannot derive a containing location.

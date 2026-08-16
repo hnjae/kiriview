@@ -4,6 +4,7 @@
 #include "session/mediainformationeffectruntime.h"
 
 #include <KIO/OpenFileManagerWindowJob>
+#include <KIO/OpenUrlJob>
 #include <QClipboard>
 #include <QCoreApplication>
 #include <QGuiApplication>
@@ -25,9 +26,16 @@ kiriview::MediaInformationEffects effectsWithDefaults(kiriview::MediaInformation
             }
         };
     }
-    if (!effects.openContainingFolder) {
-        effects.openContainingFolder = [](const QUrl& targetUrl) -> QObject* {
+    if (!effects.revealInFileManager) {
+        effects.revealInFileManager = [](const QUrl& targetUrl) -> QObject* {
             return KIO::highlightInFileManager(QList<QUrl> { targetUrl });
+        };
+    }
+    if (!effects.openLocation) {
+        effects.openLocation = [](const QUrl& locationUrl) -> QObject* {
+            auto* job = new KIO::OpenUrlJob(locationUrl, QStringLiteral("inode/directory"));
+            job->start();
+            return job;
         };
     }
     return effects;
@@ -77,14 +85,29 @@ void MediaInformationEffectRuntime::openContainingFolder()
 {
     const MediaInformationProjectionSnapshot snapshot
         = m_snapshotProvider ? m_snapshotProvider() : MediaInformationProjectionSnapshot {};
-    if (!snapshot.available || !snapshot.canOpenContainingFolder) {
+    if (!snapshot.available || !snapshot.canOpenContainingFolder
+        || !snapshot.openContainingFolderRequest.has_value()) {
         return;
     }
 
-    const std::function<QObject*(QUrl)> effect = m_effects.openContainingFolder;
-    const QUrl targetUrl = snapshot.targetUrl;
+    const MediaInformationOpenContainingFolderRequest request
+        = *snapshot.openContainingFolderRequest;
+    if (request.targetUrl.isEmpty()) {
+        return;
+    }
+
+    std::function<QObject*(QUrl)> effect;
+    switch (request.kind) {
+    case MediaInformationOpenContainingFolderKind::RevealTarget:
+        effect = m_effects.revealInFileManager;
+        break;
+    case MediaInformationOpenContainingFolderKind::OpenLocation:
+        effect = m_effects.openLocation;
+        break;
+    }
+
     const QPointer<QObject> owner(this);
-    QObject* const job = effect(targetUrl);
+    QObject* const job = effect(request.targetUrl);
     if (job == nullptr) {
         return;
     }

@@ -8,13 +8,17 @@ struct MediaInformationEffectsRecorder
     {
         return {
             [this](const QString& text) { copiedTexts.push_back(text); },
-            [this](const QUrl& targetUrl) -> QObject* {
-                openedTargets.push_back(targetUrl);
-                auto* job = new QObject();
-                jobs.push_back(job);
-                return job;
-            },
+            [this](const QUrl& targetUrl) -> QObject* { return recordOpenedTarget(targetUrl); },
+            [this](const QUrl& targetUrl) -> QObject* { return recordOpenedTarget(targetUrl); },
         };
+    }
+
+    QObject* recordOpenedTarget(const QUrl& targetUrl)
+    {
+        openedTargets.push_back(targetUrl);
+        auto* job = new QObject();
+        jobs.push_back(job);
+        return job;
     }
 
     std::vector<QString> copiedTexts;
@@ -350,7 +354,7 @@ void TestKiriDocumentSessionMediaInformation::
     QPointer<QObject> returnedJob;
     QUrl openedTarget;
     kiriview::MediaInformationEffects effects;
-    effects.openContainingFolder = [&](const QUrl& effectTarget) -> QObject* {
+    effects.revealInFileManager = [&](const QUrl& effectTarget) -> QObject* {
         openedTarget = effectTarget;
         auto* job = new QObject();
         returnedJob = job;

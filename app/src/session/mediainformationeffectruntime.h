@@ -15,7 +15,8 @@ namespace kiriview {
 struct MediaInformationEffects
 {
     std::function<void(QString)> copyText;
-    std::function<QObject*(QUrl)> openContainingFolder;
+    std::function<QObject*(QUrl)> revealInFileManager;
+    std::function<QObject*(QUrl)> openLocation;
 };
 
 struct MediaInformationEffectCommandPort

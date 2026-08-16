@@ -19,6 +19,10 @@ kiriview::MediaInformationProjectionSnapshot availableSnapshot(const QUrl& targe
     snapshot.targetUrl = targetUrl;
     snapshot.canCopyFilePath = true;
     snapshot.canOpenContainingFolder = true;
+    snapshot.openContainingFolderRequest = kiriview::MediaInformationOpenContainingFolderRequest {
+        kiriview::MediaInformationOpenContainingFolderKind::RevealTarget,
+        targetUrl,
+    };
     return snapshot;
 }
 }
@@ -30,6 +34,7 @@ class TestMediaInformationEffectRuntime : public QObject
 private Q_SLOTS:
     void unavailableProjectionRejectsEffects();
     void commandsResolveTheLatestCommittedTarget();
+    void openLocationRequestUsesLocationEffect();
     void admittedJobIsOwnedUntilRuntimeTeardown();
     void commandPortAndReturnedJobSurviveSynchronousRuntimeTeardown();
 };
@@ -38,12 +43,17 @@ void TestMediaInformationEffectRuntime::unavailableProjectionRejectsEffects()
 {
     kiriview::MediaInformationProjectionSnapshot snapshot;
     int copiedCount = 0;
-    int openedCount = 0;
+    int revealedCount = 0;
+    int openedLocationCount = 0;
     kiriview::MediaInformationEffectRuntime runtime([&snapshot]() { return snapshot; },
         {
             [&copiedCount](const QString&) { ++copiedCount; },
-            [&openedCount](const QUrl&) -> QObject* {
-                ++openedCount;
+            [&revealedCount](const QUrl&) -> QObject* {
+                ++revealedCount;
+                return new QObject();
+            },
+            [&openedLocationCount](const QUrl&) -> QObject* {
+                ++openedLocationCount;
                 return new QObject();
             },
         });
@@ -53,7 +63,8 @@ void TestMediaInformationEffectRuntime::unavailableProjectionRejectsEffects()
     commands.openContainingFolder();
 
     QCOMPARE(copiedCount, 0);
-    QCOMPARE(openedCount, 0);
+    QCOMPARE(revealedCount, 0);
+    QCOMPARE(openedLocationCount, 0);
 }
 
 void TestMediaInformationEffectRuntime::commandsResolveTheLatestCommittedTarget()
@@ -94,6 +105,45 @@ void TestMediaInformationEffectRuntime::commandsResolveTheLatestCommittedTarget(
     }
 }
 
+void TestMediaInformationEffectRuntime::openLocationRequestUsesLocationEffect()
+{
+    QUrl archiveRoot;
+    archiveRoot.setScheme(QStringLiteral("zip"));
+    archiveRoot.setPath(QStringLiteral("/books/[Kiri] book.cbz/"));
+    QUrl archiveEntry = archiveRoot;
+    archiveEntry.setPath(archiveRoot.path() + QStringLiteral("001.png"));
+    kiriview::MediaInformationProjectionSnapshot snapshot = availableSnapshot(archiveEntry);
+    snapshot.openContainingFolderRequest = kiriview::MediaInformationOpenContainingFolderRequest {
+        kiriview::MediaInformationOpenContainingFolderKind::OpenLocation,
+        archiveRoot,
+    };
+    int revealedCount = 0;
+    QUrl openedLocation;
+    QPointer<QObject> job;
+    kiriview::MediaInformationEffectRuntime runtime([snapshot]() { return snapshot; },
+        {
+            {},
+            [&revealedCount](const QUrl&) -> QObject* {
+                ++revealedCount;
+                return new QObject();
+            },
+            [&openedLocation, &job](const QUrl& locationUrl) -> QObject* {
+                openedLocation = locationUrl;
+                auto* createdJob = new QObject();
+                job = createdJob;
+                return createdJob;
+            },
+        });
+
+    runtime.commandPort().openContainingFolder();
+
+    QCOMPARE(revealedCount, 0);
+    QCOMPARE(openedLocation, archiveRoot);
+    QCOMPARE(openedLocation.path(), QStringLiteral("/books/[Kiri] book.cbz/"));
+    QVERIFY(!job.isNull());
+    QCOMPARE(job->parent(), &runtime);
+}
+
 void TestMediaInformationEffectRuntime::admittedJobIsOwnedUntilRuntimeTeardown()
 {
     const QUrl targetUrl = QUrl::fromLocalFile(QStringLiteral("/media/current.png"));
@@ -125,7 +175,7 @@ void TestMediaInformationEffectRuntime::commandPortAndReturnedJobSurviveSynchron
     QPointer<QObject> returnedJob;
     std::unique_ptr<kiriview::MediaInformationEffectRuntime> runtime;
     kiriview::MediaInformationEffects effects;
-    effects.openContainingFolder = [&runtime, &returnedJob](const QUrl&) -> QObject* {
+    effects.revealInFileManager = [&runtime, &returnedJob](const QUrl&) -> QObject* {
         auto* job = new QObject();
         returnedJob = job;
         runtime.reset();

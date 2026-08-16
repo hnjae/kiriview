@@ -11,6 +11,7 @@
 #include <QString>
 #include <QUrl>
 #include <QtGlobal>
+#include <optional>
 #include <vector>
 
 namespace kiriview {
@@ -20,6 +21,24 @@ enum class MediaInformationKind {
     Empty,
     Image,
     Video,
+};
+
+enum class MediaInformationOpenContainingFolderKind {
+    RevealTarget,
+    OpenLocation,
+};
+
+struct MediaInformationOpenContainingFolderRequest
+{
+    MediaInformationOpenContainingFolderKind kind
+        = MediaInformationOpenContainingFolderKind::RevealTarget;
+    QUrl targetUrl;
+
+    friend bool operator==(const MediaInformationOpenContainingFolderRequest& left,
+        const MediaInformationOpenContainingFolderRequest& right)
+    {
+        return left.kind == right.kind && left.targetUrl == right.targetUrl;
+    }
 };
 
 struct MediaInformationProjectionRow
@@ -41,6 +60,7 @@ struct MediaInformationProjectionSnapshot
     bool available = false;
     MediaInformationKind kind = MediaInformationKind::Empty;
     QUrl targetUrl;
+    std::optional<MediaInformationOpenContainingFolderRequest> openContainingFolderRequest;
     QString title;
     QString summary;
     QString mediaSectionTitle;
