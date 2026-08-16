@@ -84,6 +84,7 @@ private Q_SLOTS:
     void commandFixedShortcutsUseApplicationActions();
     void configureShortcutActionOpensApplicationOwnedDialog();
     void viewerRightClickOpensContextMenuOnlyFromMediaViewport();
+    void toolbarZoomWheelAppliesFineManualStep_data();
     void toolbarZoomWheelAppliesFineManualStep();
     void rightButtonWheelSuppressesContextMenuTap();
     void nativeTouchpadPinchFromFitModes_data();
@@ -1840,8 +1841,19 @@ void TestMainWindowToolBar::viewerRightClickOpensContextMenuOnlyFromMediaViewpor
     QTRY_VERIFY(popupOpen(contextMenu));
 }
 
+void TestMainWindowToolBar::toolbarZoomWheelAppliesFineManualStep_data()
+{
+    QTest::addColumn<int>("zoomMode");
+
+    QTest::newRow("fit") << static_cast<int>(KiriImageDocument::ZoomMode::Fit);
+    QTest::newRow("fit width") << static_cast<int>(KiriImageDocument::ZoomMode::FitWidth);
+    QTest::newRow("fit height") << static_cast<int>(KiriImageDocument::ZoomMode::FitHeight);
+}
+
 void TestMainWindowToolBar::toolbarZoomWheelAppliesFineManualStep()
 {
+    QFETCH(int, zoomMode);
+    const auto requestedZoomMode = static_cast<KiriImageDocument::ZoomMode>(zoomMode);
     QString imageSourcePath;
     QString videoSourcePath;
     QString errorString;
@@ -1865,13 +1877,18 @@ void TestMainWindowToolBar::toolbarZoomWheelAppliesFineManualStep()
 
     QVERIFY(imageDocument->requestManualZoomPercent(100.0));
     QTRY_VERIFY(zoomApproximatelyEqual(imageDocument->zoomPercent(), 100.0));
+    QVERIFY(imageDocument->requestFitMode(requestedZoomMode));
+    QTRY_COMPARE(imageDocument->zoomMode(), requestedZoomMode);
+    const double fitZoomPercent = imageDocument->zoomPercent();
+    QVERIFY(!zoomApproximatelyEqual(fitZoomPercent, 100.0));
     const double zoomedInPercent = imageDocument->steppedManualZoomPercent(0.5);
 
     wheelItem(fixture.window, zoomSpinBox, 120);
+    QTRY_COMPARE(imageDocument->zoomMode(), KiriImageDocument::ZoomMode::Manual);
     QTRY_VERIFY(zoomApproximatelyEqual(imageDocument->zoomPercent(), zoomedInPercent));
 
     wheelItem(fixture.window, zoomSpinBox, -120);
-    QTRY_VERIFY(zoomApproximatelyEqual(imageDocument->zoomPercent(), 100.0));
+    QTRY_VERIFY(zoomApproximatelyEqual(imageDocument->zoomPercent(), fitZoomPercent));
 }
 
 void TestMainWindowToolBar::rightButtonWheelSuppressesContextMenuTap()

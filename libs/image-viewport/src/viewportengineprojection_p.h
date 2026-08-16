@@ -9,6 +9,7 @@
 
 PresentationGeometry::State projectViewportGeometryState(
     const ViewportEngineGeometryInput&, const ImageViewportInternal::PresentationState&);
+double projectViewportEffectiveZoomPercent(const PresentationGeometry::State&);
 double projectViewportMaximumManualZoomPercent(
     const ViewportEngineGeometryInput&, const ImageViewportInternal::PresentationState&);
 

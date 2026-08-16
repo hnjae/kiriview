@@ -254,6 +254,11 @@ PresentationGeometry::State projectViewportGeometryState(const ViewportEngineGeo
     return viewportGeometryState(input, presentation, effectivePercent / 100.0);
 }
 
+double projectViewportEffectiveZoomPercent(const PresentationGeometry::State& geometry)
+{
+    return effectiveZoomPercent(geometry);
+}
+
 double projectViewportMaximumManualZoomPercent(const ViewportEngineGeometryInput& input,
     const ImageViewportInternal::PresentationState& presentation)
 {
@@ -368,7 +373,8 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
         PresentationGeometry::horizontalPannable(displayedGeometry),
         PresentationGeometry::verticalPannable(displayedGeometry));
     const ImageViewportPresentationSnapshot presentationSnapshot(access.presentation().fitMode,
-        effectiveZoomPercent(acceptedGeometry), access.presentation().preferredManualZoom * 100.0,
+        projectViewportEffectiveZoomPercent(acceptedGeometry),
+        access.presentation().preferredManualZoom * 100.0,
         ViewportDisplayLimits::minimumManualZoomPercent(),
         projectViewportMaximumManualZoomPercent(input.acceptedGeometry, access.presentation()),
         ViewportDisplayLimits::manualZoomStepFactor(), access.presentation().rotationDegrees,

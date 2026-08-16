@@ -117,17 +117,19 @@ void preserveAnchoredContentPosition(PresentationState& presentation,
         nextGeometry, QPointF(anchoredSpreadPoint.x(), anchoredSpreadPoint.y()), anchor);
 }
 
-double steppedZoomPercent(double stepCount, double preferredManualZoomPercent, double maximum)
+double steppedZoomPercent(double stepCount, double currentZoomPercent, double maximum)
 {
     const double minimum = ViewportDisplayLimits::minimumManualZoomPercent();
-    const double base = std::clamp(preferredManualZoomPercent, minimum, maximum);
-    const double targetLog
-        = std::log(base) + stepCount * std::log(ViewportDisplayLimits::manualZoomStepFactor());
-    if (!std::isfinite(targetLog) || targetLog >= std::log(maximum)) {
+    const double targetLog = std::log(currentZoomPercent)
+        + stepCount * std::log(ViewportDisplayLimits::manualZoomStepFactor());
+    if (targetLog >= std::log(maximum)) {
         return maximum;
     }
     if (targetLog <= std::log(minimum)) {
         return minimum;
+    }
+    if (!std::isfinite(targetLog)) {
+        return std::clamp(currentZoomPercent, minimum, maximum);
     }
     return std::clamp(std::exp(targetLog), minimum, maximum);
 }
@@ -327,6 +329,11 @@ ViewportEnginePresentationCommandReduction reduceViewportEnginePresentationComma
     const ViewportEnginePresentationCommand& command = input.command;
     const double maximumManualZoomPercent = projectViewportMaximumManualZoomPercent(
         input.geometry, presentationForZoomRange(input, previousPresentation));
+    const double currentEffectiveZoomPercent
+        = command.hasZoomStepDelta() && command.zoomStepDelta() != 0.0
+        ? projectViewportEffectiveZoomPercent(
+              projectViewportGeometryState(input.geometry, previousPresentation))
+        : previousPresentation.preferredManualZoom * 100.0;
 
     if (command.resetView()) {
         next.fitMode = ImageViewportFitMode::Contain;
@@ -350,8 +357,8 @@ ViewportEnginePresentationCommandReduction reduceViewportEnginePresentationComma
     if (command.hasZoomStepDelta()) {
         const double preferredManualZoom = command.zoomStepDelta() == 0.0
             ? next.preferredManualZoom
-            : steppedZoomPercent(command.zoomStepDelta(), next.preferredManualZoom * 100.0,
-                  maximumManualZoomPercent)
+            : steppedZoomPercent(
+                  command.zoomStepDelta(), currentEffectiveZoomPercent, maximumManualZoomPercent)
                 / 100.0;
         if (next.preferredManualZoom != preferredManualZoom) {
             if (next.fitMode == ImageViewportFitMode::Manual) {

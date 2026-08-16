@@ -5,6 +5,8 @@
 
 #include <QtCore/QElapsedTimer>
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 
@@ -48,7 +50,7 @@ private Q_SLOTS:
     void manualZoomMaximumTracksVirtualSpreadAndDisplayCaps();
     void maximumDecreaseClampsZoomAndContentAtomically();
     void manualZoomAbovePublishedLimitIsInvalid();
-    void presentationCommandZoomStepDeltaUsesSharedSetZoomPath();
+    void presentationCommandZoomStepDeltaUsesCurrentEffectiveZoom();
     void explicitZoomAnchorPreservesSpreadPoint();
     void invalidZoomAnchorsDoNotPartiallyMutatePresentation();
     void geometryToleranceIsSharedByPanAndContentAnchor();
@@ -1546,7 +1548,7 @@ void ImageViewportPresentationStateTest::manualZoomAbovePublishedLimitIsInvalid(
     QCOMPARE(stateSpy.count(), 1);
 }
 
-void ImageViewportPresentationStateTest::presentationCommandZoomStepDeltaUsesSharedSetZoomPath()
+void ImageViewportPresentationStateTest::presentationCommandZoomStepDeltaUsesCurrentEffectiveZoom()
 {
     ImageSequenceFactory factory;
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -1560,39 +1562,137 @@ void ImageViewportPresentationStateTest::presentationCommandZoomStepDeltaUsesSha
             qPrintable(QStringLiteral("actual %1 expected %2").arg(actual).arg(expected)));
     };
 
+    const std::array fitModes {
+        ImageViewportFitMode::Contain,
+        ImageViewportFitMode::FitWidth,
+        ImageViewportFitMode::FitHeight,
+    };
+    for (const ImageViewportFitMode fitMode : fitModes) {
+        ImageViewport item;
+        item.setSize(QSizeF(100.0, 100.0));
+        item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()),
+            PresentationTargetTransitionPolicy {});
+        acknowledgePendingRenderCommitForTest(item);
+
+        ImageViewportPresentationCommand command;
+        command.setPreferredManualZoomPercent(200.0);
+        QCOMPARE(item.setPresentation(command).outcome(), ImageViewportCommandOutcome::Accepted);
+        command = {};
+        command.setFitMode(fitMode);
+        QCOMPARE(item.setPresentation(command).outcome(), ImageViewportCommandOutcome::Accepted);
+
+        const auto fitPresentation = item.state().presentation();
+        QCOMPARE(fitPresentation.fitMode(), fitMode);
+        QVERIFY(fitPresentation.zoomPercent() != fitPresentation.preferredManualZoomPercent());
+        const double fitZoomPercent = fitPresentation.zoomPercent();
+        const double minimum = fitPresentation.minimumManualZoomPercent();
+        const double maximum = fitPresentation.maximumManualZoomPercent();
+        const double stepFactor = fitPresentation.manualZoomStepFactor();
+
+        command = {};
+        command.setZoomStepDelta(1.0);
+        QCOMPARE(item.setPresentation(command).outcome(), ImageViewportCommandOutcome::Accepted);
+        QCOMPARE(item.state().presentation().fitMode(), fitMode);
+        verifyClose(item.state().presentation().zoomPercent(), fitZoomPercent);
+        verifyClose(item.state().presentation().preferredManualZoomPercent(),
+            std::clamp(fitZoomPercent * stepFactor, minimum, maximum));
+
+        command = {};
+        command.setZoomStepDelta(-1.0);
+        QCOMPARE(item.setPresentation(command).outcome(), ImageViewportCommandOutcome::Accepted);
+        QCOMPARE(item.state().presentation().fitMode(), fitMode);
+        verifyClose(item.state().presentation().zoomPercent(), fitZoomPercent);
+        verifyClose(item.state().presentation().preferredManualZoomPercent(),
+            std::clamp(fitZoomPercent / stepFactor, minimum, maximum));
+
+        command = {};
+        command.setPreferredManualZoomPercent(200.0);
+        QCOMPARE(item.setPresentation(command).outcome(), ImageViewportCommandOutcome::Accepted);
+        const QPointF zoomAnchor(50.0, 50.0);
+        const ImageViewportCoordinateResult anchoredPointBefore
+            = mapItemToSpread(item, zoomAnchor.x(), zoomAnchor.y());
+        QVERIFY(anchoredPointBefore.isValid());
+        command = {};
+        command.setFitMode(ImageViewportFitMode::Manual);
+        command.setZoomStepDelta(0.5);
+        command.setZoomAnchor(zoomAnchor);
+        QCOMPARE(item.setPresentation(command).outcome(), ImageViewportCommandOutcome::Accepted);
+        QCOMPARE(item.state().presentation().fitMode(), ImageViewportFitMode::Manual);
+        verifyClose(item.state().presentation().zoomPercent(),
+            std::clamp(fitZoomPercent * std::sqrt(stepFactor), minimum, maximum));
+        verifyClose(item.state().presentation().preferredManualZoomPercent(),
+            item.state().presentation().zoomPercent());
+        const ImageViewportCoordinateResult anchoredPointAfter
+            = mapItemToSpread(item, zoomAnchor.x(), zoomAnchor.y());
+        QVERIFY(anchoredPointAfter.isValid());
+        verifyClose(anchoredPointAfter.point().x(), anchoredPointBefore.point().x());
+        verifyClose(anchoredPointAfter.point().y(), anchoredPointBefore.point().y());
+
+        const double manualZoomPercent = item.state().presentation().zoomPercent();
+        command = {};
+        command.setZoomStepDelta(-0.5);
+        QCOMPARE(item.setPresentation(command).outcome(), ImageViewportCommandOutcome::Accepted);
+        verifyClose(item.state().presentation().zoomPercent(),
+            std::clamp(manualZoomPercent / std::sqrt(stepFactor), minimum, maximum));
+    }
+
+    QImage wideImage(8192, 1, QImage::Format_ARGB32_Premultiplied);
+    wideImage.fill(Qt::transparent);
+    ImageFrame wideFrame(wideImage);
+    QScopedPointer<ImageSequenceFactoryResult> wideResult(factory.fromFrame(&wideFrame));
+    QVERIFY(wideResult->sequence());
+    struct FitRangeCase
+    {
+        ImageViewportFitMode fitMode;
+        double stepCount;
+        bool startsAboveMaximum;
+    };
+    const std::array fitRangeCases {
+        FitRangeCase { ImageViewportFitMode::Contain, 1.0, false },
+        FitRangeCase { ImageViewportFitMode::FitHeight, -1.0, true },
+    };
+    for (const FitRangeCase rangeCase : fitRangeCases) {
+        ImageViewport rangeItem;
+        rangeItem.setSize(QSizeF(100.0, 100.0));
+        rangeItem.setPresentationTarget(ImageViewportPresentationTarget(wideResult->sequence()),
+            PresentationTargetTransitionPolicy {});
+        acknowledgePendingRenderCommitForTest(rangeItem);
+        ImageViewportPresentationCommand rangeCommand;
+        rangeCommand.setFitMode(rangeCase.fitMode);
+        QCOMPARE(rangeItem.setPresentation(rangeCommand).outcome(),
+            ImageViewportCommandOutcome::Accepted);
+
+        const auto fitPresentation = rangeItem.state().presentation();
+        if (rangeCase.startsAboveMaximum) {
+            QVERIFY(fitPresentation.zoomPercent() > fitPresentation.maximumManualZoomPercent());
+        } else {
+            QVERIFY(fitPresentation.zoomPercent() < fitPresentation.minimumManualZoomPercent());
+        }
+        rangeCommand = {};
+        rangeCommand.setFitMode(ImageViewportFitMode::Manual);
+        rangeCommand.setZoomStepDelta(rangeCase.stepCount);
+        QCOMPARE(rangeItem.setPresentation(rangeCommand).outcome(),
+            ImageViewportCommandOutcome::Accepted);
+        const double expectedZoomPercent = rangeCase.startsAboveMaximum
+            ? fitPresentation.maximumManualZoomPercent()
+            : fitPresentation.minimumManualZoomPercent();
+        QCOMPARE(rangeItem.state().presentation().fitMode(), ImageViewportFitMode::Manual);
+        verifyClose(rangeItem.state().presentation().zoomPercent(), expectedZoomPercent);
+        verifyClose(
+            rangeItem.state().presentation().preferredManualZoomPercent(), expectedZoomPercent);
+    }
+
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setPresentationTarget(
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
 
-    QCOMPARE(item.state().presentation().fitMode(), ImageViewportFitMode::Contain);
-    verifyClose(item.state().presentation().zoomPercent(), 625.0);
-
     ImageViewportPresentationCommand command;
-    command.setZoomStepDelta(0);
+    command.setZoomStepDelta(0.0);
+    const auto beforeNoop = item.state();
     QCOMPARE(item.setPresentation(command).outcome(), ImageViewportCommandOutcome::Accepted);
-    QCOMPARE(item.state().presentation().fitMode(), ImageViewportFitMode::Contain);
-    verifyClose(item.state().presentation().preferredManualZoomPercent(), 100.0);
-    verifyClose(item.state().presentation().zoomPercent(), 625.0);
-
-    command = {};
-    command.setZoomStepDelta(1);
-    QCOMPARE(item.setPresentation(command).outcome(), ImageViewportCommandOutcome::Accepted);
-    QCOMPARE(item.state().presentation().fitMode(), ImageViewportFitMode::Contain);
-    verifyClose(item.state().presentation().preferredManualZoomPercent(), 109.05077326652577);
-    verifyClose(item.state().presentation().zoomPercent(), 625.0);
-
-    command = {};
-    command.setZoomStepDelta(-1);
-    QCOMPARE(item.setPresentation(command).outcome(), ImageViewportCommandOutcome::Accepted);
-    verifyClose(item.state().presentation().preferredManualZoomPercent(), 100.0);
-    verifyClose(item.state().presentation().zoomPercent(), 625.0);
-
-    command = {};
-    command.setZoomStepDelta(0.5);
-    QCOMPARE(item.setPresentation(command).outcome(), ImageViewportCommandOutcome::Accepted);
-    verifyClose(item.state().presentation().preferredManualZoomPercent(), 104.42737824274138);
+    QCOMPARE(item.state(), beforeNoop);
 
     command = {};
     command.setZoomStepDelta(std::numeric_limits<double>::max());
