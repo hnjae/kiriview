@@ -66,6 +66,7 @@ public:
         GoNextArchiveAction,
         GoPreviousImageAction,
         GoNextImageAction,
+        GoToPageAction,
         GoFirstImageAction,
         GoLastImageAction,
         ViewZoomInAction,
@@ -199,6 +200,7 @@ Q_SIGNALS:
     void shortcutHelpRequested();
     void shortcutConfigurationRequested();
     void cancelToolbarTextInputEditingRequested();
+    void focusPageNumberInputRequested();
     void closeInfoPanelRequested();
     void toggleInfoPanelRequested();
     void toggleThumbnailPanelRequested();

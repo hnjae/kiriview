@@ -21,6 +21,7 @@ enum class ActionId {
     GoNextArchiveAction,
     GoPreviousImageAction,
     GoNextImageAction,
+    GoToPageAction,
     GoFirstImageAction,
     GoLastImageAction,
     ViewZoomInAction,

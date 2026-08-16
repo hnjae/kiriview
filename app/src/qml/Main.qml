@@ -59,6 +59,15 @@ StatefulApp.StatefulWindow {
         return activeImageToolBar().textInputFocused();
     }
 
+    function focusPageNumberInput() {
+        if (root.fullscreen) {
+            root.windowShell.requestToolbarReveal();
+        }
+        Qt.callLater(function () {
+            root.activeImageToolBar().focusPageNumberInput();
+        });
+    }
+
     function publishActionUiState() {
         kiriApplication.updateActionUiGateSnapshot(root.helpDialogOpen, root.toolbarTextInputFocused(), mediaWorkspaceHost.infoPanelVisible, mediaWorkspaceHost.thumbnailPanelVisible, root.fullscreen, root.applicationMenuShortcutEnabled, !root.helpDialogOpen);
     }
@@ -80,6 +89,10 @@ StatefulApp.StatefulWindow {
 
         function onCancelToolbarTextInputEditingRequested() {
             root.activeImageToolBar().cancelTextInputEditing(true);
+        }
+
+        function onFocusPageNumberInputRequested() {
+            root.focusPageNumberInput();
         }
 
         function onCloseInfoPanelRequested() {

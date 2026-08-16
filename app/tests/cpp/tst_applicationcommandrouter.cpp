@@ -97,6 +97,8 @@ ApplicationCommandRouterPorts commandPorts(CommandLog& log)
         log.actionCalls.push_back(QStringLiteral("next-navigation"));
         ++log.nextNavigationCount;
     };
+    ports.toolbar.focusPageNumberInput
+        = [&log]() { log.actionCalls.push_back(QStringLiteral("focus-page-number")); };
     ports.session.openFirstActiveNavigation
         = [&log]() { log.actionCalls.push_back(QStringLiteral("first-navigation")); };
     ports.session.openLastActiveNavigation
@@ -241,6 +243,7 @@ void TestApplicationCommandRouter::actionDispatchRoutesToPorts()
     router.handleActionTriggered(ActionId::GoNextArchiveAction, input, ports);
     router.handleActionTriggered(ActionId::GoPreviousImageAction, input, ports);
     router.handleActionTriggered(ActionId::GoNextImageAction, input, ports);
+    router.handleActionTriggered(ActionId::GoToPageAction, input, ports);
     router.handleActionTriggered(ActionId::GoFirstImageAction, input, ports);
     router.handleActionTriggered(ActionId::GoLastImageAction, input, ports);
     router.handleActionTriggered(ActionId::ViewZoomInAction, input, ports);
@@ -278,6 +281,7 @@ void TestApplicationCommandRouter::actionDispatchRoutesToPorts()
         QStringLiteral("next-container"),
         QStringLiteral("previous-navigation"),
         QStringLiteral("next-navigation"),
+        QStringLiteral("focus-page-number"),
         QStringLiteral("first-navigation"),
         QStringLiteral("last-navigation"),
         QStringLiteral("zoom-step:1"),

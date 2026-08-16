@@ -190,6 +190,8 @@ void KiriWindowShell::requestToggleFullscreen() { m_chromeRuntime.requestToggleF
 
 void KiriWindowShell::requestLeaveFullscreen() { m_chromeRuntime.requestLeaveFullscreen(); }
 
+void KiriWindowShell::requestToolbarReveal() { m_chromeRuntime.requestToolbarReveal(); }
+
 void KiriWindowShell::reportPointerMoved(bool inTopRevealArea)
 {
     m_chromeRuntime.reportPointerMoved(inTopRevealArea);

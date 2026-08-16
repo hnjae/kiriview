@@ -119,6 +119,7 @@ constexpr std::array actionIdMappings {
         KiriViewApplication::GoPreviousImageAction, Actions::ActionId::GoPreviousImageAction },
     ActionIdMapping {
         KiriViewApplication::GoNextImageAction, Actions::ActionId::GoNextImageAction },
+    ActionIdMapping { KiriViewApplication::GoToPageAction, Actions::ActionId::GoToPageAction },
     ActionIdMapping {
         KiriViewApplication::GoFirstImageAction, Actions::ActionId::GoFirstImageAction },
     ActionIdMapping {
@@ -718,6 +719,7 @@ Actions::KiriViewApplicationCommandPortSource::commandRouterToolbarPorts()
     Actions::ApplicationCommandRouterToolbarPorts ports;
     ports.cancelToolbarTextInputEditing
         = [this]() { Q_EMIT m_application.cancelToolbarTextInputEditingRequested(); };
+    ports.focusPageNumberInput = [this]() { Q_EMIT m_application.focusPageNumberInputRequested(); };
     return ports;
 }
 

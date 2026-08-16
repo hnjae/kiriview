@@ -51,6 +51,7 @@ public:
     void observeVisibility(WindowVisibility visibility);
     void requestToggleFullscreen();
     void requestLeaveFullscreen();
+    void requestToolbarReveal();
     void reportPointerMoved(bool inTopRevealArea);
     void reportTopRevealEntered();
     void reportToolbarInteractionActive(bool active);

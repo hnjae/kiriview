@@ -71,6 +71,8 @@ ApplicationActionState applicationActionState(
             = actionState.actionEnabled && input.canOpenNextActiveNavigation;
         return actionState;
     }
+    case ActionId::GoToPageAction:
+        return state(activeNavigationActionEnabled(input) && input.activeNavigationEditable);
     case ActionId::GoFirstImageAction:
         return state(activeNavigationActionEnabled(input) && !input.atKnownFirstActiveNavigation);
     case ActionId::GoLastImageAction:
@@ -147,6 +149,8 @@ QString applicationActionMenuText(ActionId actionId, const ApplicationActionStat
         return i18nc("@action:inmenu", "&Previous");
     case ActionId::GoNextImageAction:
         return i18nc("@action:inmenu", "&Next");
+    case ActionId::GoToPageAction:
+        return i18nc("@action:inmenu", "&Go to Page...");
     case ActionId::GoFirstImageAction:
         return input.directMediaNavigationBoundaryActive
             ? i18nc("@action:inmenu", "&First Media Item")

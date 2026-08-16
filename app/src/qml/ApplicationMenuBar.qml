@@ -86,6 +86,11 @@ Controls.MenuBar {
         }
 
         MenuActionItem {
+            action: root.actions.goToPageMenuAction
+            visible: root.mediaMode
+        }
+
+        MenuActionItem {
             action: navigationPresentationOrder.firstImageMenuAction
             icon.name: root.firstImageMenuIconName
             visible: root.mediaMode

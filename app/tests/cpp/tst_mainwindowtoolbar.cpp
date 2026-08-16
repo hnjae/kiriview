@@ -65,6 +65,7 @@ private Q_SLOTS:
     void dropOpensFirstUrlOnly();
     void fileDialogUsesSingleSelectionMode();
     void directImageShowsMediaPositionAfterSiblingListing();
+    void goToPageShortcutFocusesPageNumberInput();
     void directoryImageDocumentShowsPagePosition();
     void mediaViewportHostLoadsOnlyActiveDelegate();
     void panelActionsToggleResizablePanels();
@@ -1222,6 +1223,30 @@ void TestMainWindowToolBar::directImageShowsMediaPositionAfterSiblingListing()
     openSourceUrl(fixture, imageSourcePath);
 
     compareToolbarPageReadout(fixture, QStringLiteral("3"), QStringLiteral("3"), true);
+}
+
+void TestMainWindowToolBar::goToPageShortcutFocusesPageNumberInput()
+{
+    QString imageSourcePath;
+    QString videoSourcePath;
+    QString errorString;
+    std::unique_ptr<QTemporaryDir> mediaDirectory
+        = createMediaDirectory(&imageSourcePath, &videoSourcePath, &errorString);
+    QVERIFY2(mediaDirectory != nullptr, qPrintable(errorString));
+
+    MainWindowFixture fixture = createMainWindowFixture();
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    openSourceUrl(fixture, imageSourcePath);
+    compareToolbarPageReadout(fixture, QStringLiteral("3"), QStringLiteral("3"), true);
+
+    QQuickItem* pageNumberField = findQuickItem(fixture.window, QStringLiteral("pageNumberField"));
+    QVERIFY(pageNumberField != nullptr);
+    QVERIFY(!pageNumberField->hasActiveFocus());
+
+    QTest::keyClick(fixture.window, Qt::Key_G, Qt::ControlModifier);
+
+    QTRY_VERIFY(pageNumberField->hasActiveFocus());
+    QCOMPARE(pageNumberField->property("selectedText").toString(), QStringLiteral("3"));
 }
 
 void TestMainWindowToolBar::directoryImageDocumentShowsPagePosition()

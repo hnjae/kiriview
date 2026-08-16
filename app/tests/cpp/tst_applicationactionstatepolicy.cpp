@@ -23,6 +23,7 @@ kiriview::ApplicationActions::ApplicationActionStateInput readyImageInput()
     input.activeNavigationAvailable = true;
     input.activeNavigationKnown = true;
     input.activeNavigationHasTargets = true;
+    input.activeNavigationEditable = true;
     input.canOpenPreviousActiveNavigation = true;
     input.canOpenNextActiveNavigation = true;
     return input;
@@ -42,6 +43,7 @@ class TestApplicationActionStatePolicy : public QObject
 private Q_SLOTS:
     void visiblePreviousNextPlacementsDisableAtBoundaries();
     void firstLastActionsDisableAtKnownBoundaries();
+    void goToPageRequiresEditableActiveNavigation();
     void sharedActionEnabledStateUsesRuntimeGates();
     void videoPlaybackActionUsesVideoModeGates();
     void contentBoundaryActionsUseImageAndVideoGates();
@@ -105,6 +107,20 @@ void TestApplicationActionStatePolicy::firstLastActionsDisableAtKnownBoundaries(
     input.atKnownLastActiveNavigation = false;
     QVERIFY(!stateFor(ActionId::GoFirstImageAction, input).actionEnabled);
     QVERIFY(!stateFor(ActionId::GoLastImageAction, input).actionEnabled);
+}
+
+void TestApplicationActionStatePolicy::goToPageRequiresEditableActiveNavigation()
+{
+    auto input = readyImageInput();
+
+    QVERIFY(stateFor(ActionId::GoToPageAction, input).actionEnabled);
+
+    input.activeNavigationEditable = false;
+    QVERIFY(!stateFor(ActionId::GoToPageAction, input).actionEnabled);
+
+    input.activeNavigationEditable = true;
+    input.activeNavigationKnown = false;
+    QVERIFY(!stateFor(ActionId::GoToPageAction, input).actionEnabled);
 }
 
 void TestApplicationActionStatePolicy::sharedActionEnabledStateUsesRuntimeGates()

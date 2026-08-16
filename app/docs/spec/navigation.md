@@ -48,6 +48,10 @@ Activating a thumbnail strip item opens the item at that active navigation numbe
 
 ### Page Number Editing
 
+Go to Page is available from the application navigation menus and through its configured program-wide shortcut. Activating it while page-number entry is available focuses the toolbar page-number entry and selects its complete current text so the user can replace it immediately.
+
+In fullscreen, activating Go to Page reveals the overlay toolbar before focusing the page-number entry and keeps the toolbar visible while that entry remains focused.
+
 Entering a whole-number page and pressing Enter or clicking the image viewing area opens that page after clamping values outside `1..total` to the nearest valid page, returns focus to the image viewing area, and restores viewer keyboard shortcuts.
 
 If the entered text is not a whole number, KiriView leaves the current item open and restores the displayed page number.

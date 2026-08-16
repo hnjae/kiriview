@@ -96,6 +96,10 @@ Controls.ToolBar {
         textInputCoordinator.resetPageNumber();
     }
 
+    function focusPageNumberInput() {
+        return pageNavigation.focusPageNumberInput();
+    }
+
     function textInputFocused() {
         return textInputCoordinator.active;
     }

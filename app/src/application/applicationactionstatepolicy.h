@@ -25,6 +25,7 @@ struct ApplicationActionStateInput
     bool activeNavigationAvailable = false;
     bool activeNavigationKnown = false;
     bool activeNavigationHasTargets = false;
+    bool activeNavigationEditable = false;
     bool canOpenPreviousActiveNavigation = false;
     bool canOpenNextActiveNavigation = false;
     bool atKnownFirstActiveNavigation = false;

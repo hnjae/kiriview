@@ -18,6 +18,7 @@ class TestWindowChromeRuntime : public QObject
 private Q_SLOTS:
     void fullscreenRestoresPriorVisibility();
     void pointerAndToolbarLifecycleUsesAcceptedFacts();
+    void explicitRevealRestoresHiddenFullscreenToolbar();
     void supersededTimeoutsCannotMutateCurrentState();
 };
 
@@ -142,6 +143,18 @@ void TestWindowChromeRuntime::pointerAndToolbarLifecycleUsesAcceptedFacts()
     const std::size_t lastTimer = fixture.timers.count() - 1;
     fixture.timers.fireEvenIfStopped(lastTimer);
     QVERIFY(!fixture.runtime.snapshot().toolbarRevealed);
+}
+
+void TestWindowChromeRuntime::explicitRevealRestoresHiddenFullscreenToolbar()
+{
+    ChromeFixture fixture;
+    fixture.runtime.observeVisibility(kiriview::WindowVisibility::Fullscreen);
+
+    fixture.timers.fireEvenIfStopped(fixture.timers.count() - 1);
+    QVERIFY(!fixture.runtime.snapshot().toolbarRevealed);
+
+    fixture.runtime.requestToolbarReveal();
+    QVERIFY(fixture.runtime.snapshot().toolbarRevealed);
 }
 
 void TestWindowChromeRuntime::supersededTimeoutsCannotMutateCurrentState()

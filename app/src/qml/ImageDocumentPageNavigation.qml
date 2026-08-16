@@ -53,6 +53,20 @@ RowLayout {
         }
     }
 
+    function focusPageNumberInput() {
+        if (!pageNumberField.enabled) {
+            return false;
+        }
+
+        pageNumberField.forceActiveFocus(Qt.ShortcutFocusReason);
+        if (!pageNumberField.activeFocus) {
+            return false;
+        }
+
+        pageNumberField.selectAll();
+        return true;
+    }
+
     function pageNumberText() {
         if (!root.pageNavigationAvailable) {
             return root.unknownNavigationText;

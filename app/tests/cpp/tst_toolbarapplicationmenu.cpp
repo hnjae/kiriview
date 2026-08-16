@@ -1029,6 +1029,7 @@ Item {
     Kirigami.Action { id: stubQuitMenuAction; text: "Quit" }
     Kirigami.Action { id: stubPreviousImageMenuAction; icon.name: "go-previous"; text: "Previous" }
     Kirigami.Action { id: stubNextImageMenuAction; icon.name: "go-next"; text: "Next" }
+    Kirigami.Action { id: stubGoToPageMenuAction; text: "Go to Page..." }
     Kirigami.Action { id: stubFirstImageMenuAction; icon.name: "go-first-symbolic"; text: "First Image" }
     Kirigami.Action { id: stubLastImageMenuAction; icon.name: "go-last-symbolic"; text: "Last Image" }
     Kirigami.Action { id: stubPreviousContainerMenuAction; icon.name: "go-previous-use"; text: "Previous Archive" }
@@ -1062,6 +1063,7 @@ Item {
         readonly property var quitMenuAction: stubQuitMenuAction
         readonly property var previousImageMenuAction: stubPreviousImageMenuAction
         readonly property var nextImageMenuAction: stubNextImageMenuAction
+        readonly property var goToPageMenuAction: stubGoToPageMenuAction
         readonly property var firstImageMenuAction: stubFirstImageMenuAction
         readonly property var lastImageMenuAction: stubLastImageMenuAction
         readonly property var previousContainerMenuAction: stubPreviousContainerMenuAction
@@ -2260,6 +2262,7 @@ void TestToolBarApplicationMenu::menubarGoMenuOrderFollowsReadingDirection()
     const QStringList leftToRightOrder({
         QStringLiteral("Previous"),
         QStringLiteral("Next"),
+        QStringLiteral("Go to Page..."),
         QStringLiteral("First Image"),
         QStringLiteral("Last Image"),
         QStringLiteral("Previous Archive"),
@@ -2268,6 +2271,7 @@ void TestToolBarApplicationMenu::menubarGoMenuOrderFollowsReadingDirection()
     const QStringList rightToLeftOrder({
         QStringLiteral("Next"),
         QStringLiteral("Previous"),
+        QStringLiteral("Go to Page..."),
         QStringLiteral("First Image"),
         QStringLiteral("Last Image"),
         QStringLiteral("Next Archive"),
@@ -2292,6 +2296,7 @@ void TestToolBarApplicationMenu::menubarGoMenuIconsFollowReadingDirection()
     const QStringList leftToRightIcons({
         QStringLiteral("go-previous"),
         QStringLiteral("go-next"),
+        QString(),
         QStringLiteral("go-first-symbolic"),
         QStringLiteral("go-last-symbolic"),
         QStringLiteral("go-previous-use"),
@@ -2300,6 +2305,7 @@ void TestToolBarApplicationMenu::menubarGoMenuIconsFollowReadingDirection()
     const QStringList rightToLeftIcons({
         QStringLiteral("go-previous"),
         QStringLiteral("go-next"),
+        QString(),
         QStringLiteral("go-last-symbolic"),
         QStringLiteral("go-first-symbolic"),
         QStringLiteral("go-previous-use"),
@@ -2388,6 +2394,14 @@ void TestToolBarApplicationMenu::imageActionsApplicationMenuArchiveOrderFollowsR
     QTRY_VERIFY(invokeBool(fixture.root, "rightToLeftReadingAvailable"));
 
     QStringList texts = invokeStringList(fixture.root, "applicationMenuActionTexts");
+    const int previousImage = texts.indexOf(QStringLiteral("Previous"));
+    const int nextImage = texts.indexOf(QStringLiteral("Next"));
+    const int goToPage = texts.indexOf(QStringLiteral("Go to Page..."));
+    const int firstImage = texts.indexOf(QStringLiteral("First Image"));
+    QVERIFY(previousImage >= 0);
+    QCOMPARE(nextImage, previousImage + 1);
+    QCOMPARE(goToPage, nextImage + 1);
+    QCOMPARE(firstImage, goToPage + 1);
     const int clockwise = texts.indexOf(QStringLiteral("Rotate Clockwise"));
     const int counterclockwise = texts.indexOf(QStringLiteral("Rotate Counterclockwise"));
     const int horizontal = texts.indexOf(QStringLiteral("Flip Horizontally"));

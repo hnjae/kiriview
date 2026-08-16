@@ -68,6 +68,8 @@ void WindowChromeRuntime::requestLeaveFullscreen()
     }
 }
 
+void WindowChromeRuntime::requestToolbarReveal() { revealToolbar(); }
+
 void WindowChromeRuntime::reportPointerMoved(bool inTopRevealArea)
 {
     if (!m_snapshot.fullscreen) {

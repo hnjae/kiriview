@@ -216,6 +216,8 @@ void TestApplicationShortcutPolicy::actionDefinitionsOwnApplicationShortcutRoute
         Scope::MediaStartEndViewerShortcutScope));
     QVERIFY(hasRouteSpec(ActionId::GoPreviousImageAction, ActivationScope::ViewerLocal,
         Scope::ImageSelectionViewerShortcutScope));
+    QVERIFY(hasRouteSpec(
+        ActionId::GoToPageAction, ActivationScope::ProgramWide, Scope::PageShortcutScope));
     QVERIFY(hasRouteSpec(ActionId::GoFirstImageAction, ActivationScope::ViewerLocal,
         Scope::PageViewerShortcutScope));
     QVERIFY(hasRouteSpec(ActionId::GoPreviousArchiveAction, ActivationScope::ViewerLocal,
@@ -244,6 +246,7 @@ void TestApplicationShortcutPolicy::actionDefinitionsOwnShortcutHelpCategories()
     QCOMPARE(categoryFor(ActionId::FileOpenAction), Category::File);
     QCOMPARE(categoryFor(ActionId::FileQuitAction), Category::File);
     QCOMPARE(categoryFor(ActionId::GoPreviousImageAction), Category::Navigation);
+    QCOMPARE(categoryFor(ActionId::GoToPageAction), Category::Navigation);
     QCOMPARE(categoryFor(ActionId::ViewZoomInAction), Category::View);
     QCOMPARE(categoryFor(ActionId::ViewToggleInfoPanelAction), Category::Panels);
     QCOMPARE(categoryFor(ActionId::WindowFullscreenAction), Category::Window);

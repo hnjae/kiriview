@@ -82,6 +82,7 @@ struct ApplicationCommandRouterPanelPorts
 struct ApplicationCommandRouterToolbarPorts
 {
     std::function<void()> cancelToolbarTextInputEditing;
+    std::function<void()> focusPageNumberInput;
 };
 
 struct ApplicationCommandRouterWindowPorts

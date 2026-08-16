@@ -20,6 +20,8 @@ The Open With action is labeled `Open With...` in menus and is placed immediatel
 
 Adjacent navigation actions are projected in reading progression order. When Right-to-Left Reading is active, the adjacent page navigation pair is displayed as Next before Previous, and the adjacent archive navigation pair is displayed as Next Archive before Previous Archive. First and Last keep their normal order because their page-index meaning does not change with reading direction.
 
+Go to Page is placed after the adjacent Previous and Next actions and before First and Last in the menubar Go menu and toolbar application menu. It remains disabled when page-number entry is unavailable.
+
 The menubar Go menu projects directional navigation icons to match the displayed reading progression meaning without changing the underlying action identity. When Right-to-Left Reading is active, Next uses the previous-direction icon, Previous uses the next-direction icon, First uses the last-boundary icon, and Last uses the first-boundary icon.
 
 The toolbar application menu is a single popup menu surface. When Hamburger Menu presentation is active outside fullscreen, activating the toolbar application menu button or pressing F10 opens that surface with the same width, actions, access keys, and shortcut column.

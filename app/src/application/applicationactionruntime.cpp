@@ -65,6 +65,7 @@ Actions::ApplicationActionStateInput actionStateInput(
     input.activeNavigationAvailable = activeNavigation.available;
     input.activeNavigationKnown = activeNavigation.known;
     input.activeNavigationHasTargets = activeNavigation.count > 0;
+    input.activeNavigationEditable = activeNavigation.editable;
     input.canOpenPreviousActiveNavigation = activeNavigation.canOpenPrevious;
     input.canOpenNextActiveNavigation = activeNavigation.canOpenNext;
     input.atKnownFirstActiveNavigation = activeNavigation.atKnownFirst;

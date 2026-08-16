@@ -72,6 +72,9 @@ void ApplicationCommandRouter::handleActionTriggered(ActionId actionId,
     case ActionId::GoNextImageAction:
         callVoid(ports.session.requestNextActiveNavigationWithBoundary);
         return;
+    case ActionId::GoToPageAction:
+        callVoid(ports.toolbar.focusPageNumberInput);
+        return;
     case ActionId::GoFirstImageAction:
         callVoid(ports.session.openFirstActiveNavigation);
         return;

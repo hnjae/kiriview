@@ -10,6 +10,8 @@ Known Previous and Next navigation boundaries are dispatch outcomes rather than 
 
 Configurable shortcuts have a declared activation scope. Program-wide shortcuts are active throughout the KiriView window subject to the action's normal enabled state. Viewer-local shortcuts are active only in viewer context after the viewer shortcut gates for the action are enabled.
 
+Ctrl+G is the default program-wide configurable shortcut for Go to Page. Go to Page is enabled whenever the toolbar page-number entry is editable and focuses that entry for direct navigation.
+
 Users may edit a shortcut slot's key sequence but may not change that slot's activation scope.
 
 Program-wide configurable shortcuts appear as ordinary action shortcuts in menus, Keyboard Shortcuts configuration, and Keyboard Shortcuts help.

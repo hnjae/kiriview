@@ -182,6 +182,10 @@ constexpr std::array actionDefinitions {
         standardShortcutSpec(QKeySequence::MoveToNextPage),
         shortcutRouteSpecs(
             route(ActivationScope::ViewerLocal, Scope::ImageSelectionViewerShortcutScope))),
+    standardAction(Actions::ActionId::GoToPageAction, "go_goto_page", Category::Navigation,
+        KStandardActions::GotoPage, kli18nc("@action", "Go to Page..."),
+        portableShortcutSpec("Ctrl+G"), noDefaultShortcuts(),
+        shortcutRouteSpecs(route(ActivationScope::ProgramWide, Scope::PageShortcutScope))),
     registeredAction(Actions::ActionId::GoFirstImageAction, "go_first_image", Category::Navigation,
         kli18nc("@action", "First Image"), "go-first-symbolic", noDefaultShortcuts(),
         portableShortcutSpec("Home"),

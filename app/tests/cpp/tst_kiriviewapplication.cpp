@@ -60,6 +60,7 @@ constexpr std::array actionIdMappings {
     ActionIdMapping {
         KiriViewApplication::GoPreviousImageAction, DomainActionId::GoPreviousImageAction },
     ActionIdMapping { KiriViewApplication::GoNextImageAction, DomainActionId::GoNextImageAction },
+    ActionIdMapping { KiriViewApplication::GoToPageAction, DomainActionId::GoToPageAction },
     ActionIdMapping { KiriViewApplication::GoFirstImageAction, DomainActionId::GoFirstImageAction },
     ActionIdMapping { KiriViewApplication::GoLastImageAction, DomainActionId::GoLastImageAction },
     ActionIdMapping { KiriViewApplication::ViewZoomInAction, DomainActionId::ViewZoomInAction },
@@ -457,6 +458,10 @@ void TestKiriViewApplication::typedShortcutApisReturnCurrentShortcuts()
 {
     KiriViewApplication application;
 
+    QCOMPARE(application.programWideShortcutsForId(KiriViewApplication::GoToPageAction),
+        QList<QKeySequence>({ shortcut(QStringLiteral("Ctrl+G")) }));
+    QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::GoToPageAction),
+        QList<QKeySequence>());
     QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::ViewZoomInAction),
         QList<QKeySequence>({ shortcut(QStringLiteral("=")), shortcut(QStringLiteral("+")) }));
     QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::ViewZoomOutAction),
