@@ -407,6 +407,13 @@ bool KiriImageDocument::requestZoomByStepAtCenter(double stepCount)
     return m_runtime->requestZoomByStepAtCenter(stepCount);
 }
 
+bool KiriImageDocument::requestViewportPinchUpdate(
+    double scaleFactor, QPointF previousViewportCentroid, QPointF currentViewportCentroid)
+{
+    return m_runtime->requestViewportPinchUpdate(
+        scaleFactor, previousViewportCentroid, currentViewportCentroid);
+}
+
 bool KiriImageDocument::requestFitMode(ZoomMode zoomMode)
 {
     if (status() != Status::Ready) {

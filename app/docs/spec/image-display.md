@@ -180,6 +180,8 @@ Keyboard zoom uses the same dynamic manual zoom range as the toolbar zoom input.
 
 Holding Ctrl and using the mouse wheel, or holding the right mouse button and using the mouse wheel, over the image viewport zooms around the cursor when the cursor is over the image, or around the nearest displayed image point when the cursor is in the viewport outside the image. Wheel up zooms in by the same multiplicative step and wheel down zooms out by its reciprocal.
 
+When an image is ready, KiriView accepts two-finger touchscreen pinch gestures and native touchpad pinch gestures provided by the Qt platform backend. Zoom follows the gesture continuously around its viewport centroid, or the nearest displayed image point when the centroid is outside the image, and stays within the existing dynamic manual zoom range. Fit, Fit Width, and Fit Height use their current effective zoom as the gesture's starting value, and a scale update that changes zoom switches to Manual mode. Touchscreen centroid movement simultaneously moves the image with the fingers. Gesture rotation is ignored.
+
 Double-clicking the image viewport toggles between Fit mode and 100% manual zoom. If the current zoom mode is Fit, double-clicking switches to 100% manual zoom around the clicked viewport point when it is over the image, or around the nearest displayed image point when the click is inside the viewport outside the image. If the current zoom mode is Manual, Fit Height, or Fit Width, double-clicking switches to Fit mode.
 
 When an image is ready, `` ` `` switches to 50% manual zoom, `1` switches to 100% manual zoom, `2` switches to 200% manual zoom, `8` selects Fit Height mode, `9` selects Fit Width mode, and `0` selects Fit to Window mode.

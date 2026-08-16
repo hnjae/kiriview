@@ -27,7 +27,9 @@
 #include <QImage>
 #include <QMetaEnum>
 #include <QMetaProperty>
+#include <QNativeGestureEvent>
 #include <QObject>
+#include <QPointingDevice>
 #include <QQmlApplicationEngine>
 #include <QQuickItem>
 #include <QQuickStyle>
@@ -36,6 +38,7 @@
 #include <QSignalSpy>
 #include <QStandardPaths>
 #include <QStringList>
+#include <QStyleHints>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QUrl>
@@ -45,6 +48,7 @@
 #include <QtQml/qqml.h>
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <memory>
 #include <optional>
 
@@ -82,6 +86,11 @@ private Q_SLOTS:
     void viewerRightClickOpensContextMenuOnlyFromMediaViewport();
     void toolbarZoomWheelAppliesFineManualStep();
     void rightButtonWheelSuppressesContextMenuTap();
+    void nativeTouchpadPinchFromFitModes_data();
+    void nativeTouchpadPinchFromFitModes();
+    void touchscreenPinchZoomsAndTranslates();
+    void viewportPinchRuntimeBoundaryBehavior();
+    void staleTouchscreenPinchCannotMutateReplacementImage();
     void fullscreenChromeProjectionRendersImmediately();
     void fullscreenReusesSingleToolbarAndHidesApplicationMenuButton();
 };
@@ -756,6 +765,45 @@ void rightButtonWheelItem(QQuickWindow* window, QQuickItem* item, int angleDelta
     QCoreApplication::processEvents();
 }
 
+ImageViewportCoordinateResult mapViewportPointToDisplayedSpread(
+    const ImageViewport& viewport, QPointF viewportPoint)
+{
+    ImageViewportCoordinateInput input;
+    input.setSourceSpace(ImageViewportCoordinateSpace::Item);
+    input.setTargetSpace(ImageViewportCoordinateSpace::DisplayedSpread);
+    input.setPoint(viewportPoint);
+    return viewport.mapPoint(input);
+}
+
+bool pointsApproximatelyEqual(QPointF left, QPointF right, qreal tolerance = 0.001)
+{
+    return std::abs(left.x() - right.x()) <= tolerance
+        && std::abs(left.y() - right.y()) <= tolerance;
+}
+
+bool valuesApproximatelyEqual(double left, double right, double relativeTolerance = 0.000001)
+{
+    const double scale = std::max({ 1.0, std::abs(left), std::abs(right) });
+    return std::abs(left - right) <= relativeTolerance * scale;
+}
+
+void sendNativeGesture(QQuickWindow* window, const QPointingDevice* device,
+    Qt::NativeGestureType type, QPointF scenePosition, qreal value, quint64 sequenceId)
+{
+    const QPointF globalPosition(window->mapToGlobal(scenePosition.toPoint()));
+    QNativeGestureEvent event(type, device, 2, scenePosition, scenePosition, globalPosition, value,
+        QPointF(), sequenceId);
+    QCoreApplication::sendEvent(window, &event);
+    QCoreApplication::processEvents();
+}
+
+void flushTouchEvents(QQuickWindow& window)
+{
+    window.update();
+    static_cast<void>(window.grabWindow());
+    QCoreApplication::processEvents();
+}
+
 void moveMouse(QQuickWindow* window, const QPoint& point)
 {
     QTest::mouseMove(window, point);
@@ -1006,6 +1054,14 @@ void TestMainWindowToolBar::comicPageReplacementKeepsRightToolbarPresentationSta
 
     QVERIFY(!documentSession->activeZoomEditable());
     KiriImageDocument* imageDocument = documentSession->imageDocument();
+    const KiriImageDocument::ZoomMode replacementZoomModeBefore = imageDocument->zoomMode();
+    const double replacementZoomPercentBefore = imageDocument->zoomPercent();
+    QVERIFY(
+        !imageDocument->requestViewportPinchUpdate(1.25, QPointF(10.0, 10.0), QPointF(10.0, 10.0)));
+    QCOMPARE(imageDocument->status(), KiriImageDocument::Status::Loading);
+    QVERIFY(documentSession->activeImageReplacementFallbackAvailable());
+    QCOMPARE(imageDocument->zoomMode(), replacementZoomModeBefore);
+    QCOMPARE(imageDocument->zoomPercent(), replacementZoomPercentBefore);
     const bool rightToLeftBefore = imageDocument->rightToLeftReadingEnabled();
     const bool twoPageBefore = imageDocument->twoPageModeEnabled();
     const KiriImageDocument::ZoomMode fitModeBefore = imageDocument->fitModeSelection();
@@ -1851,6 +1907,526 @@ void TestMainWindowToolBar::rightButtonWheelSuppressesContextMenuTap()
 
     clickItem(fixture.window, mediaViewportSlot, Qt::RightButton);
     QTRY_VERIFY(popupOpen(contextMenu));
+}
+
+void TestMainWindowToolBar::nativeTouchpadPinchFromFitModes_data()
+{
+    QTest::addColumn<int>("zoomMode");
+
+    QTest::newRow("fit") << static_cast<int>(KiriImageDocument::ZoomMode::Fit);
+    QTest::newRow("fit width") << static_cast<int>(KiriImageDocument::ZoomMode::FitWidth);
+    QTest::newRow("fit height") << static_cast<int>(KiriImageDocument::ZoomMode::FitHeight);
+}
+
+void TestMainWindowToolBar::nativeTouchpadPinchFromFitModes()
+{
+    QFETCH(int, zoomMode);
+    const auto requestedZoomMode = static_cast<KiriImageDocument::ZoomMode>(zoomMode);
+    auto touchpad = std::unique_ptr<QPointingDevice>(
+        QTest::createTouchDevice(QInputDevice::DeviceType::TouchPad));
+    QVERIFY(touchpad != nullptr);
+
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString imagePath = directory.filePath(QStringLiteral("native-pinch.png"));
+    QVERIFY(writeTestPng(imagePath));
+
+    MainWindowFixture fixture = createMainWindowFixture(QUrl::fromLocalFile(imagePath));
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    resizeWindow(fixture, QSize(1200, 800));
+
+    KiriDocumentSession* documentSession = findDocumentSession(fixture.window);
+    QVERIFY(documentSession != nullptr);
+    KiriImageDocument* imageDocument = documentSession->imageDocument();
+    QVERIFY(imageDocument != nullptr);
+    QTRY_COMPARE(imageDocument->status(), KiriImageDocument::Status::Ready);
+
+    KiriImageViewportSurface* viewportSurface = nullptr;
+    QTRY_VERIFY2((viewportSurface = readyImageViewportSurface(fixture.window)) != nullptr,
+        qPrintable(imageViewportStateReport(fixture.window)));
+    ImageViewport* viewport = viewportSurface->viewport();
+    QVERIFY(viewport != nullptr);
+
+    QVERIFY(imageDocument->requestFitMode(requestedZoomMode));
+    QTRY_COMPARE(imageDocument->zoomMode(), requestedZoomMode);
+    const double initialZoomPercent = imageDocument->zoomPercent();
+    QVERIFY(initialZoomPercent > 0.0);
+
+    const QRectF contentRect = viewport->state().display().contentRect();
+    QVERIFY(!contentRect.isEmpty());
+    const QPointF sceneCentroid = viewport->mapToScene(contentRect.center().toPoint());
+    const QPointF viewportCentroid = viewport->mapFromScene(sceneCentroid);
+    const ImageViewportCoordinateResult anchoredSpreadPoint
+        = mapViewportPointToDisplayedSpread(*viewport, viewportCentroid);
+    QVERIFY(anchoredSpreadPoint.isValid());
+
+    constexpr qreal nativeZoomValue = 0.25;
+    constexpr double expectedScaleFactor = 1.0 + nativeZoomValue;
+    const double expectedZoomPercent = initialZoomPercent * expectedScaleFactor;
+    QVERIFY(expectedZoomPercent < imageDocument->maximumManualZoomPercent());
+
+    constexpr quint64 gestureSequence = 17;
+    sendNativeGesture(fixture.window, touchpad.get(), Qt::BeginNativeGesture, sceneCentroid, 0.0,
+        gestureSequence);
+    sendNativeGesture(fixture.window, touchpad.get(), Qt::RotateNativeGesture, sceneCentroid, 30.0,
+        gestureSequence);
+    QCOMPARE(imageDocument->zoomMode(), requestedZoomMode);
+    QVERIFY(valuesApproximatelyEqual(imageDocument->zoomPercent(), initialZoomPercent));
+    QCOMPARE(viewport->state().presentation().rotationDegrees(), 0);
+
+    sendNativeGesture(fixture.window, touchpad.get(), Qt::ZoomNativeGesture, sceneCentroid,
+        nativeZoomValue, gestureSequence);
+
+    QTRY_COMPARE(imageDocument->zoomMode(), KiriImageDocument::ZoomMode::Manual);
+    QTRY_VERIFY(valuesApproximatelyEqual(imageDocument->zoomPercent(), expectedZoomPercent));
+    const ImageViewportCoordinateResult spreadPointAfterZoom
+        = mapViewportPointToDisplayedSpread(*viewport, viewport->mapFromScene(sceneCentroid));
+    QVERIFY(spreadPointAfterZoom.isValid());
+    QVERIFY(pointsApproximatelyEqual(spreadPointAfterZoom.point(), anchoredSpreadPoint.point()));
+
+    constexpr qreal secondNativeZoomValue = -0.1;
+    const double expectedSecondZoomPercent = expectedZoomPercent * (1.0 + secondNativeZoomValue);
+    sendNativeGesture(fixture.window, touchpad.get(), Qt::ZoomNativeGesture, sceneCentroid,
+        secondNativeZoomValue, gestureSequence);
+    QTRY_VERIFY(valuesApproximatelyEqual(imageDocument->zoomPercent(), expectedSecondZoomPercent));
+    const ImageViewportCoordinateResult spreadPointAfterSecondZoom
+        = mapViewportPointToDisplayedSpread(*viewport, viewport->mapFromScene(sceneCentroid));
+    QVERIFY(spreadPointAfterSecondZoom.isValid());
+    QVERIFY(
+        pointsApproximatelyEqual(spreadPointAfterSecondZoom.point(), anchoredSpreadPoint.point()));
+
+    sendNativeGesture(
+        fixture.window, touchpad.get(), Qt::EndNativeGesture, sceneCentroid, 0.0, gestureSequence);
+}
+
+void TestMainWindowToolBar::touchscreenPinchZoomsAndTranslates()
+{
+    auto touchscreen = std::unique_ptr<QPointingDevice>(QTest::createTouchDevice());
+    QVERIFY(touchscreen != nullptr);
+
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString imagePath = directory.filePath(QStringLiteral("touchscreen-pinch.png"));
+    QVERIFY(writeTestPng(imagePath));
+
+    MainWindowFixture fixture = createMainWindowFixture(QUrl::fromLocalFile(imagePath));
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    resizeWindow(fixture, QSize(1200, 800));
+
+    KiriDocumentSession* documentSession = findDocumentSession(fixture.window);
+    QVERIFY(documentSession != nullptr);
+    KiriImageDocument* imageDocument = documentSession->imageDocument();
+    QVERIFY(imageDocument != nullptr);
+    QTRY_COMPARE(imageDocument->status(), KiriImageDocument::Status::Ready);
+
+    KiriImageViewportSurface* viewportSurface = nullptr;
+    QTRY_VERIFY2((viewportSurface = readyImageViewportSurface(fixture.window)) != nullptr,
+        qPrintable(imageViewportStateReport(fixture.window)));
+    ImageViewport* viewport = viewportSurface->viewport();
+    QVERIFY(viewport != nullptr);
+
+    QVERIFY(imageDocument->requestFitMode(KiriImageDocument::ZoomMode::FitWidth));
+    QTRY_COMPARE(imageDocument->zoomMode(), KiriImageDocument::ZoomMode::FitWidth);
+    const double initialZoomPercent = imageDocument->zoomPercent();
+    QVERIFY(initialZoomPercent > 0.0);
+
+    const QPoint sceneCenter
+        = viewport->mapToScene(QPointF(viewport->width() / 2.0, viewport->height() / 2.0))
+              .toPoint();
+    QPoint firstPoint = sceneCenter - QPoint(80, 0);
+    QPoint secondPoint = sceneCenter + QPoint(80, 0);
+    QTest::QTouchEventSequence sequence
+        = QTest::touchEvent(fixture.window, touchscreen.get(), false);
+    QVERIFY(sequence.press(0, firstPoint, fixture.window)
+            .press(1, secondPoint, fixture.window)
+            .commit());
+    flushTouchEvents(*fixture.window);
+
+    const int activationExpansion
+        = std::max(48, QGuiApplication::styleHints()->startDragDistance() * 4 + 8);
+    firstPoint -= QPoint(activationExpansion, 0);
+    secondPoint += QPoint(activationExpansion, 0);
+    QVERIFY(sequence.stationary(0)
+            .stationary(1)
+            .move(0, firstPoint, fixture.window)
+            .move(1, secondPoint, fixture.window)
+            .commit());
+    flushTouchEvents(*fixture.window);
+    QCOMPARE(imageDocument->zoomMode(), KiriImageDocument::ZoomMode::FitWidth);
+    QVERIFY(valuesApproximatelyEqual(imageDocument->zoomPercent(), initialZoomPercent));
+
+    const QPoint previousSceneCentroid = (firstPoint + secondPoint) / 2;
+    const ImageViewportCoordinateResult anchoredSpreadPoint = mapViewportPointToDisplayedSpread(
+        *viewport, viewport->mapFromScene(QPointF(previousSceneCentroid)));
+    QVERIFY(anchoredSpreadPoint.isValid());
+    const int gestureBaselineSeparation = secondPoint.x() - firstPoint.x();
+
+    const QPoint translation(30, 24);
+    constexpr int expansion = 20;
+    firstPoint += translation - QPoint(expansion, 0);
+    secondPoint += translation + QPoint(expansion, 0);
+    const QPoint currentSceneCentroid = (firstPoint + secondPoint) / 2;
+    const int currentSeparation = secondPoint.x() - firstPoint.x();
+    const double expectedScaleFactor
+        = static_cast<double>(currentSeparation) / static_cast<double>(gestureBaselineSeparation);
+    QVERIFY(sequence.stationary(0)
+            .stationary(1)
+            .move(0, firstPoint, fixture.window)
+            .move(1, secondPoint, fixture.window)
+            .commit());
+    flushTouchEvents(*fixture.window);
+
+    QTRY_COMPARE(imageDocument->zoomMode(), KiriImageDocument::ZoomMode::Manual);
+    QTRY_VERIFY(valuesApproximatelyEqual(
+        imageDocument->zoomPercent(), initialZoomPercent * expectedScaleFactor));
+    const ImageViewportCoordinateResult spreadPointAfterUpdate = mapViewportPointToDisplayedSpread(
+        *viewport, viewport->mapFromScene(QPointF(currentSceneCentroid)));
+    QVERIFY(spreadPointAfterUpdate.isValid());
+    QVERIFY2(
+        pointsApproximatelyEqual(spreadPointAfterUpdate.point(), anchoredSpreadPoint.point(), 0.01),
+        qPrintable(QStringLiteral("expected anchored spread point %1,%2; got %3,%4")
+                .arg(anchoredSpreadPoint.point().x())
+                .arg(anchoredSpreadPoint.point().y())
+                .arg(spreadPointAfterUpdate.point().x())
+                .arg(spreadPointAfterUpdate.point().y())));
+
+    const QPoint secondTranslation(-18, 12);
+    constexpr int secondExpansion = 16;
+    firstPoint += secondTranslation - QPoint(secondExpansion, 0);
+    secondPoint += secondTranslation + QPoint(secondExpansion, 0);
+    const QPoint secondSceneCentroid = (firstPoint + secondPoint) / 2;
+    const int secondSeparation = secondPoint.x() - firstPoint.x();
+    const double expectedTotalScaleFactor
+        = static_cast<double>(secondSeparation) / static_cast<double>(gestureBaselineSeparation);
+    QVERIFY(sequence.stationary(0)
+            .stationary(1)
+            .move(0, firstPoint, fixture.window)
+            .move(1, secondPoint, fixture.window)
+            .commit());
+    flushTouchEvents(*fixture.window);
+
+    QTRY_VERIFY(valuesApproximatelyEqual(
+        imageDocument->zoomPercent(), initialZoomPercent * expectedTotalScaleFactor));
+    const ImageViewportCoordinateResult spreadPointAfterSecondUpdate
+        = mapViewportPointToDisplayedSpread(
+            *viewport, viewport->mapFromScene(QPointF(secondSceneCentroid)));
+    QVERIFY(spreadPointAfterSecondUpdate.isValid());
+    QVERIFY2(pointsApproximatelyEqual(
+                 spreadPointAfterSecondUpdate.point(), anchoredSpreadPoint.point(), 0.01),
+        qPrintable(QStringLiteral("expected anchored spread point %1,%2; got %3,%4")
+                .arg(anchoredSpreadPoint.point().x())
+                .arg(anchoredSpreadPoint.point().y())
+                .arg(spreadPointAfterSecondUpdate.point().x())
+                .arg(spreadPointAfterSecondUpdate.point().y())));
+
+    QVERIFY(sequence.stationary(0)
+            .stationary(1)
+            .release(0, firstPoint, fixture.window)
+            .release(1, secondPoint, fixture.window)
+            .commit());
+    flushTouchEvents(*fixture.window);
+}
+
+void TestMainWindowToolBar::viewportPinchRuntimeBoundaryBehavior()
+{
+    MainWindowFixture emptyFixture = createMainWindowFixture();
+    QVERIFY2(emptyFixture.isValid(), qPrintable(emptyFixture.errorString));
+    KiriDocumentSession* emptySession = findDocumentSession(emptyFixture.window);
+    QVERIFY(emptySession != nullptr);
+    KiriImageDocument* emptyDocument = emptySession->imageDocument();
+    QVERIFY(emptyDocument != nullptr);
+    QCOMPARE(emptyDocument->status(), KiriImageDocument::Status::Null);
+    const double emptyZoomPercent = emptyDocument->zoomPercent();
+    const KiriImageDocument::ZoomMode emptyZoomMode = emptyDocument->zoomMode();
+    QVERIFY(
+        !emptyDocument->requestViewportPinchUpdate(1.25, QPointF(10.0, 10.0), QPointF(10.0, 10.0)));
+    QCOMPARE(emptyDocument->zoomPercent(), emptyZoomPercent);
+    QCOMPARE(emptyDocument->zoomMode(), emptyZoomMode);
+
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString imagePath = directory.filePath(QStringLiteral("runtime-pinch.png"));
+    QVERIFY(writeTestPng(imagePath));
+
+    MainWindowFixture fixture = createMainWindowFixture(QUrl::fromLocalFile(imagePath));
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    resizeWindow(fixture, QSize(1200, 800));
+    KiriDocumentSession* documentSession = findDocumentSession(fixture.window);
+    QVERIFY(documentSession != nullptr);
+    KiriImageDocument* imageDocument = documentSession->imageDocument();
+    QVERIFY(imageDocument != nullptr);
+    QTRY_COMPARE(imageDocument->status(), KiriImageDocument::Status::Ready);
+
+    KiriImageViewportSurface* viewportSurface = nullptr;
+    QTRY_VERIFY2((viewportSurface = readyImageViewportSurface(fixture.window)) != nullptr,
+        qPrintable(imageViewportStateReport(fixture.window)));
+    ImageViewport* viewport = viewportSurface->viewport();
+    QVERIFY(viewport != nullptr);
+
+    QVERIFY(imageDocument->requestFitMode(KiriImageDocument::ZoomMode::FitWidth));
+    QTRY_COMPARE(imageDocument->zoomMode(), KiriImageDocument::ZoomMode::FitWidth);
+    QTRY_VERIFY(imageDocument->viewportVerticallyPannable());
+    const double fitZoomPercent = imageDocument->zoomPercent();
+    const QPointF previousCentroid(viewport->width() / 2.0, viewport->height() / 2.0);
+    const QPointF currentCentroid = previousCentroid - QPointF(0.0, 40.0);
+    const QPointF contentPositionBeforeTranslation = viewport->state().display().contentPosition();
+    QVERIFY(imageDocument->requestViewportPinchUpdate(1.0, previousCentroid, currentCentroid));
+    QCOMPARE(imageDocument->zoomMode(), KiriImageDocument::ZoomMode::FitWidth);
+    QVERIFY(valuesApproximatelyEqual(imageDocument->zoomPercent(), fitZoomPercent));
+    QVERIFY(viewport->state().display().contentPosition() != contentPositionBeforeTranslation);
+
+    for (int margin = 0; margin < 4; ++margin) {
+        QVERIFY(imageDocument->requestManualZoomPercent(imageDocument->minimumManualZoomPercent()));
+        QTRY_COMPARE(imageDocument->zoomMode(), KiriImageDocument::ZoomMode::Manual);
+        QTRY_VERIFY(valuesApproximatelyEqual(
+            imageDocument->zoomPercent(), imageDocument->minimumManualZoomPercent()));
+        const QRectF contentRect = viewport->state().display().contentRect();
+        QVERIFY(!contentRect.isEmpty());
+        QPointF outsideCentroid = contentRect.center();
+        switch (margin) {
+        case 0:
+            outsideCentroid.setX(contentRect.left() - 50.0);
+            break;
+        case 1:
+            outsideCentroid.setX(contentRect.right() + 50.0);
+            break;
+        case 2:
+            outsideCentroid.setY(contentRect.top() - 50.0);
+            break;
+        case 3:
+            outsideCentroid.setY(contentRect.bottom() + 50.0);
+            break;
+        }
+
+        const QPointF nearestViewportAnchor
+            = imageDocument->nearestImageViewportPoint(outsideCentroid);
+        QVERIFY(std::isfinite(nearestViewportAnchor.x()));
+        QVERIFY(std::isfinite(nearestViewportAnchor.y()));
+        const ImageViewportCoordinateResult nearestAnchoredSpreadPoint
+            = mapViewportPointToDisplayedSpread(*viewport, nearestViewportAnchor);
+        QVERIFY(nearestAnchoredSpreadPoint.isValid());
+        const double zoomBeforeOutsideAnchoredUpdate = imageDocument->zoomPercent();
+        QVERIFY(imageDocument->requestViewportPinchUpdate(1.1, outsideCentroid, outsideCentroid));
+        QVERIFY(valuesApproximatelyEqual(
+            imageDocument->zoomPercent(), zoomBeforeOutsideAnchoredUpdate * 1.1));
+    }
+
+    QVERIFY(imageDocument->requestFitMode(KiriImageDocument::ZoomMode::FitWidth));
+    QTRY_COMPARE(imageDocument->zoomMode(), KiriImageDocument::ZoomMode::FitWidth);
+    const QPointF batchedPreviousCentroid(viewport->width() / 2.0, viewport->height() / 2.0);
+    const QPointF batchedCurrentCentroid = batchedPreviousCentroid - QPointF(20.0, 20.0);
+    const ImageViewportCoordinateResult batchedAnchoredSpreadPoint
+        = mapViewportPointToDisplayedSpread(*viewport, batchedPreviousCentroid);
+    QVERIFY(batchedAnchoredSpreadPoint.isValid());
+    const double zoomBeforeBatchedUpdate = imageDocument->zoomPercent();
+    int zoomPublicationCount = 0;
+    KiriImageDocument::ZoomMode observedZoomMode = imageDocument->zoomMode();
+    double observedZoomPercent = 0.0;
+    ImageViewportCoordinateResult observedSpreadPoint;
+    const QMetaObject::Connection zoomPublicationConnection
+        = connect(imageDocument, &KiriImageDocument::zoomPercentChanged, this, [&]() {
+              ++zoomPublicationCount;
+              observedZoomMode = imageDocument->zoomMode();
+              observedZoomPercent = imageDocument->zoomPercent();
+              observedSpreadPoint
+                  = mapViewportPointToDisplayedSpread(*viewport, batchedCurrentCentroid);
+          });
+    QVERIFY(imageDocument->requestViewportPinchUpdate(
+        1.1, batchedPreviousCentroid, batchedCurrentCentroid));
+    disconnect(zoomPublicationConnection);
+    QCOMPARE(zoomPublicationCount, 1);
+    QCOMPARE(observedZoomMode, KiriImageDocument::ZoomMode::Manual);
+    QVERIFY(valuesApproximatelyEqual(observedZoomPercent, zoomBeforeBatchedUpdate * 1.1));
+    QVERIFY(observedSpreadPoint.isValid());
+    QVERIFY(pointsApproximatelyEqual(
+        observedSpreadPoint.point(), batchedAnchoredSpreadPoint.point(), 0.01));
+
+    const double maximumZoomPercent = imageDocument->maximumManualZoomPercent();
+    const double minimumZoomPercent = imageDocument->minimumManualZoomPercent();
+    QVERIFY(maximumZoomPercent >= minimumZoomPercent);
+    QVERIFY(imageDocument->requestViewportPinchUpdate(
+        std::numeric_limits<double>::max(), previousCentroid, previousCentroid));
+    QCOMPARE(imageDocument->zoomMode(), KiriImageDocument::ZoomMode::Manual);
+    QVERIFY(valuesApproximatelyEqual(imageDocument->zoomPercent(), maximumZoomPercent));
+
+    QVERIFY(imageDocument->requestViewportPinchUpdate(
+        std::numeric_limits<double>::min(), previousCentroid, previousCentroid));
+    QCOMPARE(imageDocument->zoomMode(), KiriImageDocument::ZoomMode::Manual);
+    QVERIFY(valuesApproximatelyEqual(imageDocument->zoomPercent(), minimumZoomPercent));
+
+    const auto verifyRejected = [&](double scaleFactor, QPointF previous, QPointF current) {
+        const KiriImageDocument::ZoomMode zoomModeBefore = imageDocument->zoomMode();
+        const double zoomPercentBefore = imageDocument->zoomPercent();
+        const QPointF contentPositionBefore = viewport->state().display().contentPosition();
+
+        QVERIFY(!imageDocument->requestViewportPinchUpdate(scaleFactor, previous, current));
+        QCOMPARE(imageDocument->zoomMode(), zoomModeBefore);
+        QCOMPARE(imageDocument->zoomPercent(), zoomPercentBefore);
+        QCOMPARE(viewport->state().display().contentPosition(), contentPositionBefore);
+    };
+
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const double infinity = std::numeric_limits<double>::infinity();
+    verifyRejected(nan, previousCentroid, previousCentroid);
+    verifyRejected(infinity, previousCentroid, previousCentroid);
+    verifyRejected(0.0, previousCentroid, previousCentroid);
+    verifyRejected(-1.0, previousCentroid, previousCentroid);
+    verifyRejected(1.25, QPointF(nan, previousCentroid.y()), previousCentroid);
+    verifyRejected(1.25, previousCentroid, QPointF(previousCentroid.x(), infinity));
+}
+
+void TestMainWindowToolBar::staleTouchscreenPinchCannotMutateReplacementImage()
+{
+    auto touchscreen = std::unique_ptr<QPointingDevice>(QTest::createTouchDevice());
+    QVERIFY(touchscreen != nullptr);
+
+    QString archivePath;
+    QString errorString;
+    std::unique_ptr<QTemporaryDir> archiveDirectory
+        = createComicBookArchive(&archivePath, &errorString);
+    QVERIFY2(archiveDirectory != nullptr, qPrintable(errorString));
+
+    MainWindowFixture fixture = createMainWindowFixture(QUrl::fromLocalFile(archivePath));
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    resizeWindow(fixture, QSize(1200, 800));
+    KiriDocumentSession* documentSession = findDocumentSession(fixture.window);
+    QVERIFY(documentSession != nullptr);
+    KiriImageDocument* imageDocument = documentSession->imageDocument();
+    QVERIFY(imageDocument != nullptr);
+    QTRY_COMPARE(imageDocument->status(), KiriImageDocument::Status::Ready);
+
+    KiriImageViewportSurface* viewportSurface = nullptr;
+    QTRY_VERIFY2((viewportSurface = readyImageViewportSurface(fixture.window)) != nullptr,
+        qPrintable(imageViewportStateReport(fixture.window)));
+    ImageViewport* viewport = viewportSurface->viewport();
+    QVERIFY(viewport != nullptr);
+    QVERIFY(imageDocument->requestFitMode(KiriImageDocument::ZoomMode::FitWidth));
+    QTRY_COMPARE(imageDocument->zoomMode(), KiriImageDocument::ZoomMode::FitWidth);
+
+    const QPoint sceneCenter
+        = viewport->mapToScene(QPointF(viewport->width() / 2.0, viewport->height() / 2.0))
+              .toPoint();
+    QPoint firstPoint = sceneCenter - QPoint(80, 0);
+    QPoint secondPoint = sceneCenter + QPoint(80, 0);
+    QTest::QTouchEventSequence sequence
+        = QTest::touchEvent(fixture.window, touchscreen.get(), false);
+    QVERIFY(sequence.press(0, firstPoint, fixture.window)
+            .press(1, secondPoint, fixture.window)
+            .commit());
+    flushTouchEvents(*fixture.window);
+
+    const QPointF contentPositionBeforeActivation = viewport->state().display().contentPosition();
+    const int activationDistance
+        = std::max(48, QGuiApplication::styleHints()->startDragDistance() * 4 + 8);
+    const QPoint activationTranslation(0, activationDistance);
+    firstPoint += activationTranslation;
+    secondPoint += activationTranslation;
+    QVERIFY(sequence.stationary(0)
+            .stationary(1)
+            .move(0, firstPoint, fixture.window)
+            .move(1, secondPoint, fixture.window)
+            .commit());
+    flushTouchEvents(*fixture.window);
+    QCOMPARE(imageDocument->zoomMode(), KiriImageDocument::ZoomMode::FitWidth);
+    QCOMPARE(viewport->state().display().contentPosition(), contentPositionBeforeActivation);
+    firstPoint -= QPoint(20, 0);
+    secondPoint += QPoint(20, 0);
+    QVERIFY(sequence.stationary(0)
+            .stationary(1)
+            .move(0, firstPoint, fixture.window)
+            .move(1, secondPoint, fixture.window)
+            .commit());
+    flushTouchEvents(*fixture.window);
+    QTRY_COMPARE(imageDocument->zoomMode(), KiriImageDocument::ZoomMode::Manual);
+
+    const QUrl firstPageUrl = imageDocument->displayedUrl();
+    imageDocument->openNextPage();
+    QTRY_VERIFY2(imageDocument->status() == KiriImageDocument::Status::Ready
+            && imageDocument->displayedUrl() != firstPageUrl,
+        qPrintable(imageViewportStateReport(fixture.window)));
+    QTRY_VERIFY2((viewportSurface = readyImageViewportSurface(fixture.window)) != nullptr,
+        qPrintable(imageViewportStateReport(fixture.window)));
+    viewport = viewportSurface->viewport();
+    QVERIFY(viewport != nullptr);
+
+    const QUrl replacementUrl = imageDocument->displayedUrl();
+    const KiriImageDocument::ZoomMode replacementZoomMode = imageDocument->zoomMode();
+    const double replacementZoomPercent = imageDocument->zoomPercent();
+    const QPointF replacementContentPosition = viewport->state().display().contentPosition();
+
+    firstPoint -= QPoint(30, 10);
+    secondPoint += QPoint(50, 10);
+    QVERIFY(sequence.stationary(0)
+            .stationary(1)
+            .move(0, firstPoint, fixture.window)
+            .move(1, secondPoint, fixture.window)
+            .commit());
+    flushTouchEvents(*fixture.window);
+
+    QCOMPARE(imageDocument->displayedUrl(), replacementUrl);
+    QCOMPARE(imageDocument->zoomMode(), replacementZoomMode);
+    QCOMPARE(imageDocument->zoomPercent(), replacementZoomPercent);
+    QCOMPARE(viewport->state().display().contentPosition(), replacementContentPosition);
+
+    firstPoint -= QPoint(15, 5);
+    secondPoint += QPoint(25, 5);
+    QVERIFY(sequence.stationary(0)
+            .stationary(1)
+            .move(0, firstPoint, fixture.window)
+            .move(1, secondPoint, fixture.window)
+            .commit());
+    flushTouchEvents(*fixture.window);
+
+    QCOMPARE(imageDocument->displayedUrl(), replacementUrl);
+    QCOMPARE(imageDocument->zoomMode(), replacementZoomMode);
+    QCOMPARE(imageDocument->zoomPercent(), replacementZoomPercent);
+    QCOMPARE(viewport->state().display().contentPosition(), replacementContentPosition);
+
+    QVERIFY(sequence.stationary(0)
+            .stationary(1)
+            .release(0, firstPoint, fixture.window)
+            .release(1, secondPoint, fixture.window)
+            .commit());
+    flushTouchEvents(*fixture.window);
+
+    firstPoint = sceneCenter - QPoint(80, 0);
+    secondPoint = sceneCenter + QPoint(80, 0);
+    QTest::QTouchEventSequence freshSequence
+        = QTest::touchEvent(fixture.window, touchscreen.get(), false);
+    QVERIFY(freshSequence.press(0, firstPoint, fixture.window)
+            .press(1, secondPoint, fixture.window)
+            .commit());
+    flushTouchEvents(*fixture.window);
+
+    firstPoint -= QPoint(activationDistance, 0);
+    secondPoint += QPoint(activationDistance, 0);
+    QVERIFY(freshSequence.stationary(0)
+            .stationary(1)
+            .move(0, firstPoint, fixture.window)
+            .move(1, secondPoint, fixture.window)
+            .commit());
+    flushTouchEvents(*fixture.window);
+
+    const double replacementZoomPercentBeforeFreshUpdate = imageDocument->zoomPercent();
+    firstPoint -= QPoint(20, 0);
+    secondPoint += QPoint(20, 0);
+    QVERIFY(freshSequence.stationary(0)
+            .stationary(1)
+            .move(0, firstPoint, fixture.window)
+            .move(1, secondPoint, fixture.window)
+            .commit());
+    flushTouchEvents(*fixture.window);
+
+    QVERIFY(!valuesApproximatelyEqual(
+        imageDocument->zoomPercent(), replacementZoomPercentBeforeFreshUpdate));
+    QCOMPARE(imageDocument->zoomMode(), KiriImageDocument::ZoomMode::Manual);
+
+    QVERIFY(freshSequence.stationary(0)
+            .stationary(1)
+            .release(0, firstPoint, fixture.window)
+            .release(1, secondPoint, fixture.window)
+            .commit());
+    flushTouchEvents(*fixture.window);
 }
 
 void TestMainWindowToolBar::fullscreenChromeProjectionRendersImmediately()

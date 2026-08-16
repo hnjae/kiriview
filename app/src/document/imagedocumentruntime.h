@@ -80,6 +80,8 @@ public:
     bool requestManualZoomPercentAtCenter(qreal zoomPercent);
     bool requestZoomByStep(qreal stepCount, QPointF viewportAnchorPoint);
     bool requestZoomByStepAtCenter(qreal stepCount);
+    bool requestViewportPinchUpdate(
+        qreal scaleFactor, QPointF previousViewportCentroid, QPointF currentViewportCentroid);
     bool requestToggleFitOrActualSize(QPointF viewportPoint);
     [[nodiscard]] ImageZoomMode zoomMode() const;
     [[nodiscard]] ImageZoomMode fitModeSelection() const;

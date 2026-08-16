@@ -320,6 +320,58 @@ bool ImageDocumentRuntime::requestZoomByStepAtCenter(qreal stepCount)
         stepCount, QPointF(viewportSize.width() / 2.0, viewportSize.height() / 2.0));
 }
 
+bool ImageDocumentRuntime::requestViewportPinchUpdate(
+    qreal scaleFactor, QPointF previousViewportCentroid, QPointF currentViewportCentroid)
+{
+    const ImageViewportIntegrationProjection& projection = viewportProjection();
+    if (!projectionMatchesReadyImage(state, projection) || !std::isfinite(scaleFactor)
+        || scaleFactor <= 0.0 || !pointIsFinite(previousViewportCentroid)
+        || !pointIsFinite(currentViewportCentroid)) {
+        return false;
+    }
+
+    std::optional<qreal> requestedZoomPercent;
+    QPointF zoomAnchor;
+    if (scaleFactor != 1.0) {
+        const qreal currentZoomPercent = projection.zoomPercent;
+        const qreal minimumZoomPercent = projection.minimumManualZoomPercent;
+        const qreal maximumZoomPercent = projection.maximumManualZoomPercent;
+        if (!std::isfinite(currentZoomPercent) || currentZoomPercent <= 0.0
+            || !std::isfinite(minimumZoomPercent) || minimumZoomPercent <= 0.0
+            || !std::isfinite(maximumZoomPercent) || maximumZoomPercent < minimumZoomPercent) {
+            return false;
+        }
+
+        qreal targetZoomPercent = 0.0;
+        if (scaleFactor <= minimumZoomPercent / currentZoomPercent) {
+            targetZoomPercent = minimumZoomPercent;
+        } else if (scaleFactor >= maximumZoomPercent / currentZoomPercent) {
+            targetZoomPercent = maximumZoomPercent;
+        } else {
+            targetZoomPercent = currentZoomPercent * scaleFactor;
+        }
+        if (targetZoomPercent != currentZoomPercent) {
+            zoomAnchor = nearestImageViewportPoint(previousViewportCentroid);
+            if (!pointIsFinite(zoomAnchor)) {
+                return false;
+            }
+            requestedZoomPercent = targetZoomPercent;
+        }
+    }
+
+    [[maybe_unused]] auto batch = state.beginChangeBatch();
+    if (requestedZoomPercent.has_value()
+        && !requestAnchoredManualZoom(*requestedZoomPercent, zoomAnchor)) {
+        return false;
+    }
+
+    const QPointF panDelta = previousViewportCentroid - currentViewportCentroid;
+    if (!panDelta.isNull()) {
+        static_cast<void>(requestViewportPanBy(panDelta));
+    }
+    return true;
+}
+
 bool ImageDocumentRuntime::requestToggleFitOrActualSize(QPointF viewportPoint)
 {
     if (status() != ImageDocumentStatus::Ready || !pointIsFinite(viewportPoint)) {
@@ -503,9 +555,10 @@ QPointF ImageDocumentRuntime::nearestImageViewportPoint(QPointF viewportPoint) c
     if (contentRect.isEmpty() || !pointIsFinite(viewportPoint)) {
         return invalidPoint();
     }
-    const QPointF clampedPoint(
-        std::clamp(viewportPoint.x(), contentRect.left(), contentRect.right()),
-        std::clamp(viewportPoint.y(), contentRect.top(), contentRect.bottom()));
+    const qreal maximumX = std::nextafter(contentRect.right(), contentRect.left());
+    const qreal maximumY = std::nextafter(contentRect.bottom(), contentRect.top());
+    const QPointF clampedPoint(std::clamp(viewportPoint.x(), contentRect.left(), maximumX),
+        std::clamp(viewportPoint.y(), contentRect.top(), maximumY));
     ImageViewportCoordinateInput input;
     input.setSourceSpace(ImageViewportCoordinateSpace::Item);
     input.setTargetSpace(ImageViewportCoordinateSpace::DisplayedSpread);

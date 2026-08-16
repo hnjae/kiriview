@@ -58,6 +58,59 @@ MediaViewportDelegate {
         objectName: "imageViewportSurface"
     }
 
+    PinchHandler {
+        id: pinchZoomHandler
+
+        property string activePresentationLifecycleToken: ""
+        property real previousActiveScale: 1
+        property point previousViewportCentroid: Qt.point(0, 0)
+
+        acceptedDevices: PointerDevice.TouchPad | PointerDevice.TouchScreen
+        enabled: root.imageReady
+        maximumPointCount: 2
+        minimumPointCount: 2
+        rotationAxis.enabled: false
+        target: null
+
+        onActiveChanged: {
+            if (active) {
+                if (activePresentationLifecycleToken === "") {
+                    activePresentationLifecycleToken = root.imageDocument.presentationLifecycleToken;
+                }
+                previousActiveScale = activeScale;
+                previousViewportCentroid = Qt.point(centroid.position.x, centroid.position.y);
+            } else {
+                if (root.imageReady && activePresentationLifecycleToken === root.imageDocument.presentationLifecycleToken) {
+                    activePresentationLifecycleToken = "";
+                }
+                previousActiveScale = 1;
+                previousViewportCentroid = Qt.point(0, 0);
+            }
+        }
+        onGrabChanged: (transition, point) => {
+            if (point.state === EventPoint.Released) {
+                activePresentationLifecycleToken = "";
+            }
+        }
+        onUpdated: {
+            if (!active) {
+                activePresentationLifecycleToken = "";
+                return;
+            }
+            if (!root.imageReady || activePresentationLifecycleToken !== root.imageDocument.presentationLifecycleToken) {
+                return;
+            }
+
+            const currentActiveScale = activeScale;
+            const currentViewportCentroid = Qt.point(centroid.position.x, centroid.position.y);
+            const scaleFactor = currentActiveScale / previousActiveScale;
+            const previousCentroid = Qt.point(previousViewportCentroid.x, previousViewportCentroid.y);
+            previousActiveScale = currentActiveScale;
+            previousViewportCentroid = currentViewportCentroid;
+            root.imageDocument.requestViewportPinchUpdate(scaleFactor, previousCentroid, currentViewportCentroid);
+        }
+    }
+
     WheelHandler {
         acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
         acceptedModifiers: Qt.ControlModifier

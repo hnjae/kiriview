@@ -192,6 +192,8 @@ public:
     Q_INVOKABLE bool requestManualZoomPercent(double zoomPercent);
     Q_INVOKABLE bool requestZoomByStep(double stepCount, QPointF viewportAnchorPoint);
     Q_INVOKABLE bool requestZoomByStepAtCenter(double stepCount);
+    Q_INVOKABLE bool requestViewportPinchUpdate(
+        double scaleFactor, QPointF previousViewportCentroid, QPointF currentViewportCentroid);
     Q_INVOKABLE bool requestFitMode(KiriImageDocument::ZoomMode zoomMode);
     Q_INVOKABLE bool requestToggleFitOrActualSize(QPointF viewportPoint);
     Q_INVOKABLE bool requestViewportPanBy(double deltaX, double deltaY);
