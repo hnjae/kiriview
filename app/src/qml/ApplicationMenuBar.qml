@@ -129,6 +129,11 @@ Controls.MenuBar {
         }
 
         MenuActionItem {
+            action: root.actions.zoomMenuAction
+            visible: root.imageMode
+        }
+
+        MenuActionItem {
             action: root.actions.zoomInMenuAction
             visible: root.imageMode
         }

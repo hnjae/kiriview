@@ -77,6 +77,8 @@ ApplicationActionState applicationActionState(
         return state(activeNavigationActionEnabled(input) && !input.atKnownFirstActiveNavigation);
     case ActionId::GoLastImageAction:
         return state(activeNavigationActionEnabled(input) && !input.atKnownLastActiveNavigation);
+    case ActionId::ViewZoomAction:
+        return state(input.readyActionsEnabled && input.zoomInputEditable);
     case ActionId::ViewZoomInAction:
     case ActionId::ViewZoomOutAction:
     case ActionId::ViewZoom50PercentAction:
@@ -159,6 +161,8 @@ QString applicationActionMenuText(ActionId actionId, const ApplicationActionStat
         return input.directMediaNavigationBoundaryActive
             ? i18nc("@action:inmenu", "&Last Media Item")
             : i18nc("@action:inmenu", "&Last Image");
+    case ActionId::ViewZoomAction:
+        return i18nc("@action:inmenu", "&Zoom...");
     case ActionId::ViewZoomInAction:
         return i18nc("@action:inmenu", "&Zoom In");
     case ActionId::ViewZoomOutAction:

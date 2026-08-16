@@ -99,6 +99,8 @@ ApplicationCommandRouterPorts commandPorts(CommandLog& log)
     };
     ports.toolbar.focusPageNumberInput
         = [&log]() { log.actionCalls.push_back(QStringLiteral("focus-page-number")); };
+    ports.toolbar.focusZoomInput
+        = [&log]() { log.actionCalls.push_back(QStringLiteral("focus-zoom")); };
     ports.session.openFirstActiveNavigation
         = [&log]() { log.actionCalls.push_back(QStringLiteral("first-navigation")); };
     ports.session.openLastActiveNavigation
@@ -246,6 +248,7 @@ void TestApplicationCommandRouter::actionDispatchRoutesToPorts()
     router.handleActionTriggered(ActionId::GoToPageAction, input, ports);
     router.handleActionTriggered(ActionId::GoFirstImageAction, input, ports);
     router.handleActionTriggered(ActionId::GoLastImageAction, input, ports);
+    router.handleActionTriggered(ActionId::ViewZoomAction, input, ports);
     router.handleActionTriggered(ActionId::ViewZoomInAction, input, ports);
     router.handleActionTriggered(ActionId::ViewZoomOutAction, input, ports);
     router.handleActionTriggered(ActionId::ViewZoom50PercentAction, input, ports);
@@ -284,6 +287,7 @@ void TestApplicationCommandRouter::actionDispatchRoutesToPorts()
         QStringLiteral("focus-page-number"),
         QStringLiteral("first-navigation"),
         QStringLiteral("last-navigation"),
+        QStringLiteral("focus-zoom"),
         QStringLiteral("zoom-step:1"),
         QStringLiteral("zoom-step:-1"),
         QStringLiteral("manual-zoom:50"),

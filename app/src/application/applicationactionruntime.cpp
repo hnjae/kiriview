@@ -55,6 +55,7 @@ Actions::ApplicationActionStateInput actionStateInput(
     input.uiGateRevision = snapshot.uiGateRevision;
     input.helpActionsEnabled = projection.helpShortcutsEnabled;
     input.readyActionsEnabled = projection.canUseReadyActions;
+    input.zoomInputEditable = document.activeZoom.editable;
     input.transformActionsEnabled = projection.canUseTransformActions;
     input.twoPageModeActionsEnabled = projection.canUseTwoPageModeActions;
     input.rightToLeftReadingActionsEnabled = projection.canUseRightToLeftReadingActions;

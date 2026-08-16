@@ -68,6 +68,15 @@ StatefulApp.StatefulWindow {
         });
     }
 
+    function focusZoomInput() {
+        if (root.fullscreen) {
+            root.windowShell.requestToolbarReveal();
+        }
+        Qt.callLater(function () {
+            root.activeImageToolBar().focusZoomInput();
+        });
+    }
+
     function publishActionUiState() {
         kiriApplication.updateActionUiGateSnapshot(root.helpDialogOpen, root.toolbarTextInputFocused(), mediaWorkspaceHost.infoPanelVisible, mediaWorkspaceHost.thumbnailPanelVisible, root.fullscreen, root.applicationMenuShortcutEnabled, !root.helpDialogOpen);
     }
@@ -93,6 +102,10 @@ StatefulApp.StatefulWindow {
 
         function onFocusPageNumberInputRequested() {
             root.focusPageNumberInput();
+        }
+
+        function onFocusZoomInputRequested() {
+            root.focusZoomInput();
         }
 
         function onCloseInfoPanelRequested() {

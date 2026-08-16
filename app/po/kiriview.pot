@@ -70,6 +70,12 @@ msgstr ""
 #: src/application/applicationactionstatepolicy.cpp
 #, kde-format
 msgctxt "@action:inmenu"
+msgid "&Go to Page..."
+msgstr ""
+
+#: src/application/applicationactionstatepolicy.cpp
+#, kde-format
+msgctxt "@action:inmenu"
 msgid "&First Media Item"
 msgstr ""
 
@@ -89,6 +95,12 @@ msgstr ""
 #, kde-format
 msgctxt "@action:inmenu"
 msgid "&Last Image"
+msgstr ""
+
+#: src/application/applicationactionstatepolicy.cpp
+#, kde-format
+msgctxt "@action:inmenu"
+msgid "&Zoom..."
 msgstr ""
 
 #: src/application/applicationactionstatepolicy.cpp
@@ -361,12 +373,22 @@ msgstr ""
 
 #: src/application/kiriviewapplicationactions.cpp
 msgctxt "@action"
+msgid "Go to Page..."
+msgstr ""
+
+#: src/application/kiriviewapplicationactions.cpp
+msgctxt "@action"
 msgid "First Image"
 msgstr ""
 
 #: src/application/kiriviewapplicationactions.cpp
 msgctxt "@action"
 msgid "Last Image"
+msgstr ""
+
+#: src/application/kiriviewapplicationactions.cpp
+msgctxt "@action"
+msgid "Zoom..."
 msgstr ""
 
 #: src/application/kiriviewapplicationactions.cpp

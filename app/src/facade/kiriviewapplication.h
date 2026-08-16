@@ -69,6 +69,7 @@ public:
         GoToPageAction,
         GoFirstImageAction,
         GoLastImageAction,
+        ViewZoomAction,
         ViewZoomInAction,
         ViewZoomOutAction,
         ViewZoom50PercentAction,
@@ -201,6 +202,7 @@ Q_SIGNALS:
     void shortcutConfigurationRequested();
     void cancelToolbarTextInputEditingRequested();
     void focusPageNumberInputRequested();
+    void focusZoomInputRequested();
     void closeInfoPanelRequested();
     void toggleInfoPanelRequested();
     void toggleThumbnailPanelRequested();

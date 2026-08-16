@@ -14,6 +14,7 @@ kiriview::ApplicationActions::ApplicationActionStateInput readyImageInput()
     kiriview::ApplicationActions::ApplicationActionStateInput input;
     input.helpActionsEnabled = true;
     input.readyActionsEnabled = true;
+    input.zoomInputEditable = true;
     input.transformActionsEnabled = true;
     input.twoPageModeActionsEnabled = true;
     input.rightToLeftReadingActionsEnabled = true;
@@ -44,6 +45,7 @@ private Q_SLOTS:
     void visiblePreviousNextPlacementsDisableAtBoundaries();
     void firstLastActionsDisableAtKnownBoundaries();
     void goToPageRequiresEditableActiveNavigation();
+    void zoomRequiresEditableZoomInput();
     void sharedActionEnabledStateUsesRuntimeGates();
     void videoPlaybackActionUsesVideoModeGates();
     void contentBoundaryActionsUseImageAndVideoGates();
@@ -121,6 +123,20 @@ void TestApplicationActionStatePolicy::goToPageRequiresEditableActiveNavigation(
     input.activeNavigationEditable = true;
     input.activeNavigationKnown = false;
     QVERIFY(!stateFor(ActionId::GoToPageAction, input).actionEnabled);
+}
+
+void TestApplicationActionStatePolicy::zoomRequiresEditableZoomInput()
+{
+    auto input = readyImageInput();
+
+    QVERIFY(stateFor(ActionId::ViewZoomAction, input).actionEnabled);
+
+    input.zoomInputEditable = false;
+    QVERIFY(!stateFor(ActionId::ViewZoomAction, input).actionEnabled);
+
+    input.zoomInputEditable = true;
+    input.readyActionsEnabled = false;
+    QVERIFY(!stateFor(ActionId::ViewZoomAction, input).actionEnabled);
 }
 
 void TestApplicationActionStatePolicy::sharedActionEnabledStateUsesRuntimeGates()

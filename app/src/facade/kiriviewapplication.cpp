@@ -124,6 +124,7 @@ constexpr std::array actionIdMappings {
         KiriViewApplication::GoFirstImageAction, Actions::ActionId::GoFirstImageAction },
     ActionIdMapping {
         KiriViewApplication::GoLastImageAction, Actions::ActionId::GoLastImageAction },
+    ActionIdMapping { KiriViewApplication::ViewZoomAction, Actions::ActionId::ViewZoomAction },
     ActionIdMapping { KiriViewApplication::ViewZoomInAction, Actions::ActionId::ViewZoomInAction },
     ActionIdMapping {
         KiriViewApplication::ViewZoomOutAction, Actions::ActionId::ViewZoomOutAction },
@@ -720,6 +721,7 @@ Actions::KiriViewApplicationCommandPortSource::commandRouterToolbarPorts()
     ports.cancelToolbarTextInputEditing
         = [this]() { Q_EMIT m_application.cancelToolbarTextInputEditingRequested(); };
     ports.focusPageNumberInput = [this]() { Q_EMIT m_application.focusPageNumberInputRequested(); };
+    ports.focusZoomInput = [this]() { Q_EMIT m_application.focusZoomInputRequested(); };
     return ports;
 }
 

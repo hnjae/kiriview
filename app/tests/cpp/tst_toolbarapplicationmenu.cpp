@@ -55,6 +55,7 @@ private Q_SLOTS:
     void fitMenuButtonKeepsLastFitSelectionAfterManualZoom();
     void fitMenuButtonCollapsesLabelWhenConstrained();
     void responsiveDelegateTransitionReleasesZoomFocus();
+    void constrainedToolbarZoomFocusSurfacesEditableInput();
     void unusableApplicationMenuButtonMappingLeavesDiagnosticWarning();
     void toolbarActionOrderKeepsReadingDirectionBesideSpread();
     void emptyToolbarHidesReadingControls();
@@ -70,6 +71,7 @@ private Q_SLOTS:
     void pageNavigationButtonsUseSemanticActionsForReadingDirection();
     void menubarGoMenuOrderFollowsReadingDirection();
     void menubarGoMenuIconsFollowReadingDirection();
+    void imageMenubarPlacesZoomBeforeIncrementActions();
     void imageMenubarPlacesFlipActionsAfterRotation();
     void collectionVideoMenubarKeepsCollectionCommands();
     void imageActionsApplicationMenuArchiveOrderFollowsReadingDirection();
@@ -294,6 +296,10 @@ Item {
 
     function toolbarTextInputFocused() {
         return toolbar.textInputFocused();
+    }
+
+    function focusToolbarZoomInput() {
+        return toolbar.focusZoomInput();
     }
 
     function applicationMenuButton() {
@@ -1034,6 +1040,7 @@ Item {
     Kirigami.Action { id: stubLastImageMenuAction; icon.name: "go-last-symbolic"; text: "Last Image" }
     Kirigami.Action { id: stubPreviousContainerMenuAction; icon.name: "go-previous-use"; text: "Previous Archive" }
     Kirigami.Action { id: stubNextContainerMenuAction; icon.name: "go-next-use"; text: "Next Archive" }
+    Kirigami.Action { id: stubZoomMenuAction; text: "Zoom..." }
     Kirigami.Action { id: stubZoomInMenuAction; text: "Zoom In" }
     Kirigami.Action { id: stubZoomOutMenuAction; text: "Zoom Out" }
     Kirigami.Action { id: stubFitMenuAction; text: "Fit to Window" }
@@ -1068,6 +1075,7 @@ Item {
         readonly property var lastImageMenuAction: stubLastImageMenuAction
         readonly property var previousContainerMenuAction: stubPreviousContainerMenuAction
         readonly property var nextContainerMenuAction: stubNextContainerMenuAction
+        readonly property var zoomMenuAction: stubZoomMenuAction
         readonly property var zoomInMenuAction: stubZoomInMenuAction
         readonly property var zoomOutMenuAction: stubZoomOutMenuAction
         readonly property var fitMenuAction: stubFitMenuAction
@@ -1415,6 +1423,18 @@ QQuickItem* findQuickItem(QObject* root, const QString& objectName)
         }
     }
     return matches.isEmpty() ? nullptr : matches.constFirst();
+}
+
+QQuickItem* findActiveQuickItem(QObject* root, const QString& objectName)
+{
+    const QList<QQuickItem*> matches
+        = root->findChildren<QQuickItem*>(objectName, Qt::FindChildrenRecursively);
+    for (QQuickItem* item : matches) {
+        if (item->hasActiveFocus()) {
+            return item;
+        }
+    }
+    return nullptr;
 }
 
 QPoint quickItemCenter(QObject* root, QQuickItem* item)
@@ -1887,6 +1907,34 @@ void TestToolBarApplicationMenu::responsiveDelegateTransitionReleasesZoomFocus()
     QTRY_COMPARE(fixture.root->property("textInputFocusReturnCount").toInt(), focusReturnCount + 1);
 }
 
+void TestToolBarApplicationMenu::constrainedToolbarZoomFocusSurfacesEditableInput()
+{
+    QString sourcePath;
+    QString errorString;
+    std::unique_ptr<QTemporaryDir> imageDirectory = createImageDirectory(&sourcePath, &errorString);
+    QVERIFY2(imageDirectory != nullptr, qPrintable(errorString));
+    ToolBarMenuFixture fixture
+        = createOpenedCollectionScopeFixture(QUrl::fromLocalFile(sourcePath).toString());
+    fixture.temporaryDirectory = std::move(imageDirectory);
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    QTRY_VERIFY(invokeBool(fixture.root, "documentReady"));
+
+    QQuickItem* inlineZoomTextInput = findQuickItem(fixture.root, QStringLiteral("zoomTextInput"));
+    QVERIFY(inlineZoomTextInput != nullptr);
+    QTRY_VERIFY(inlineZoomTextInput->isVisible());
+
+    fixture.view->resize(160, 420);
+    QTRY_VERIFY(!inlineZoomTextInput->isVisible());
+    QVERIFY(invokeBool(fixture.root, "focusToolbarZoomInput"));
+
+    QQuickItem* focusedZoomTextInput = nullptr;
+    QTRY_VERIFY(
+        (focusedZoomTextInput = findActiveQuickItem(fixture.root, QStringLiteral("zoomTextInput")))
+        != nullptr);
+    QCOMPARE(focusedZoomTextInput->property("selectedText").toString(),
+        focusedZoomTextInput->property("text").toString());
+}
+
 void TestToolBarApplicationMenu::unusableApplicationMenuButtonMappingLeavesDiagnosticWarning()
 {
     ToolBarMenuFixture fixture = createFixture();
@@ -2343,6 +2391,25 @@ void TestToolBarApplicationMenu::imageMenubarPlacesFlipActionsAfterRotation()
     QCOMPARE(vertical, horizontal + 1);
 }
 
+void TestToolBarApplicationMenu::imageMenubarPlacesZoomBeforeIncrementActions()
+{
+    ToolBarMenuFixture fixture = createMenuBarFixture();
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+
+    invokeVoid(fixture.root, "openViewMenu");
+    QCoreApplication::processEvents();
+
+    bool ok = false;
+    const QStringList actions = invokeStringList(fixture.root, "visibleViewMenuActionTexts", &ok);
+    QVERIFY(ok);
+    const int zoom = actions.indexOf(QStringLiteral("Zoom..."));
+    const int zoomIn = actions.indexOf(QStringLiteral("Zoom In"));
+    const int zoomOut = actions.indexOf(QStringLiteral("Zoom Out"));
+    QVERIFY(zoom >= 0);
+    QCOMPARE(zoomIn, zoom + 1);
+    QCOMPARE(zoomOut, zoomIn + 1);
+}
+
 void TestToolBarApplicationMenu::collectionVideoMenubarKeepsCollectionCommands()
 {
     ToolBarMenuFixture fixture = createMenuBarFixture();
@@ -2406,12 +2473,15 @@ void TestToolBarApplicationMenu::imageActionsApplicationMenuArchiveOrderFollowsR
     const int counterclockwise = texts.indexOf(QStringLiteral("Rotate Counterclockwise"));
     const int horizontal = texts.indexOf(QStringLiteral("Flip Horizontally"));
     const int vertical = texts.indexOf(QStringLiteral("Flip Vertically"));
+    const int zoom = texts.indexOf(QStringLiteral("Zoom..."));
     QVERIFY(clockwise >= 0);
     QCOMPARE(counterclockwise, clockwise + 1);
     QCOMPARE(horizontal, counterclockwise + 1);
     QCOMPARE(vertical, horizontal + 1);
+    QVERIFY(zoom > vertical);
 
     const QStringList contextTexts = invokeStringList(fixture.root, "contextMenuActionTexts");
+    QVERIFY(!contextTexts.contains(QStringLiteral("Zoom...")));
     const int contextClockwise = contextTexts.indexOf(QStringLiteral("Rotate Clockwise"));
     const int contextCounterclockwise
         = contextTexts.indexOf(QStringLiteral("Rotate Counterclockwise"));

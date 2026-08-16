@@ -152,6 +152,8 @@ Both flip axes reset whenever a different image or page is displayed or the disp
 
 The toolbar provides a fixed-width zoom percentage input with a separate percent suffix. It shows values below 10,000% as a rounded integer percentage without digit grouping, capped at `9999 %`. It shows values from 10,000% through 999,999% in thousands using `k`, adds `+` when the actual value is above the displayed thousand bucket, and shows values at or above 1,000,000% as `999k+ %`. The editable value text is right-aligned, uses a fixed-width font, and excludes `%`; the adjacent percent suffix provides `%` after a one-space visual gap and keeps toolbar spacing before the stepper buttons.
 
+Ctrl+Y focuses the editable toolbar zoom-percentage entry and selects its complete numeric value. In fullscreen, KiriView reveals the toolbar first. When responsive toolbar presentation replaces the inline entry with a compact or overflow control, KiriView exposes that control before focusing it. The shortcut is unavailable when the zoom readout is not editable.
+
 When neither a ready image nor a playable video has an active zoom readout, the toolbar zoom control displays `- %`. An image zoom readout exists only while a ready image with a displayed image size is active. Empty, loading, error, and unsupported-video placeholder states must not expose fallback image-geometry zoom values through the toolbar.
 
 When a playable direct or opened-collection video is displayed, the toolbar zoom control remains in the same position as image mode and becomes read-only. It displays the fitted video zoom percentage when KiriView can determine the intrinsic video frame size and current displayed content size, and `? %` when the percentage is unavailable.

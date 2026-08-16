@@ -66,6 +66,8 @@ private Q_SLOTS:
     void fileDialogUsesSingleSelectionMode();
     void directImageShowsMediaPositionAfterSiblingListing();
     void goToPageShortcutFocusesPageNumberInput();
+    void zoomShortcutFocusesZoomInput();
+    void fullscreenZoomShortcutRevealsToolbarAndFocusesInput();
     void directoryImageDocumentShowsPagePosition();
     void mediaViewportHostLoadsOnlyActiveDelegate();
     void panelActionsToggleResizablePanels();
@@ -1247,6 +1249,66 @@ void TestMainWindowToolBar::goToPageShortcutFocusesPageNumberInput()
 
     QTRY_VERIFY(pageNumberField->hasActiveFocus());
     QCOMPARE(pageNumberField->property("selectedText").toString(), QStringLiteral("3"));
+}
+
+void TestMainWindowToolBar::zoomShortcutFocusesZoomInput()
+{
+    QString imageSourcePath;
+    QString videoSourcePath;
+    QString errorString;
+    std::unique_ptr<QTemporaryDir> mediaDirectory
+        = createMediaDirectory(&imageSourcePath, &videoSourcePath, &errorString);
+    QVERIFY2(mediaDirectory != nullptr, qPrintable(errorString));
+
+    MainWindowFixture fixture = createMainWindowFixture();
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    openSourceUrl(fixture, imageSourcePath);
+
+    QQuickItem* zoomTextInput = findQuickItem(fixture.window, QStringLiteral("zoomTextInput"));
+    QVERIFY(zoomTextInput != nullptr);
+    QTRY_VERIFY(zoomTextInput->isEnabled());
+    QVERIFY(!zoomTextInput->hasActiveFocus());
+
+    QTest::keyClick(fixture.window, Qt::Key_Y, Qt::ControlModifier);
+
+    QTRY_VERIFY(zoomTextInput->hasActiveFocus());
+    QCOMPARE(zoomTextInput->property("selectedText").toString(),
+        zoomTextInput->property("text").toString());
+}
+
+void TestMainWindowToolBar::fullscreenZoomShortcutRevealsToolbarAndFocusesInput()
+{
+    QString imageSourcePath;
+    QString videoSourcePath;
+    QString errorString;
+    std::unique_ptr<QTemporaryDir> mediaDirectory
+        = createMediaDirectory(&imageSourcePath, &videoSourcePath, &errorString);
+    QVERIFY2(mediaDirectory != nullptr, qPrintable(errorString));
+
+    MainWindowFixture fixture = createMainWindowFixture();
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    resizeWindow(fixture, QSize(1200, 800));
+    openSourceUrl(fixture, imageSourcePath);
+
+    QQuickItem* toolbar = findQuickItem(fixture.window, QStringLiteral("mainImageToolBar"));
+    QQuickItem* zoomTextInput = findQuickItem(fixture.window, QStringLiteral("zoomTextInput"));
+    QVERIFY(toolbar != nullptr);
+    QVERIFY(zoomTextInput != nullptr);
+    QTRY_VERIFY(zoomTextInput->isEnabled());
+
+    fixture.window->setVisibility(QWindow::FullScreen);
+    QTRY_COMPARE(fixture.window->visibility(), QWindow::FullScreen);
+    QTRY_VERIFY(fixture.windowShell->fullscreen());
+    QTRY_VERIFY_WITH_TIMEOUT(!fixture.windowShell->toolbarRevealed(), 6000);
+    QVERIFY(!toolbar->isVisible());
+
+    QTest::keyClick(fixture.window, Qt::Key_Y, Qt::ControlModifier);
+
+    QTRY_VERIFY(fixture.windowShell->toolbarRevealed());
+    QTRY_VERIFY(toolbar->isVisible());
+    QTRY_VERIFY(zoomTextInput->hasActiveFocus());
+    QCOMPARE(zoomTextInput->property("selectedText").toString(),
+        zoomTextInput->property("text").toString());
 }
 
 void TestMainWindowToolBar::directoryImageDocumentShowsPagePosition()

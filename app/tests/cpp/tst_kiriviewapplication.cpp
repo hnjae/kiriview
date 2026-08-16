@@ -63,6 +63,7 @@ constexpr std::array actionIdMappings {
     ActionIdMapping { KiriViewApplication::GoToPageAction, DomainActionId::GoToPageAction },
     ActionIdMapping { KiriViewApplication::GoFirstImageAction, DomainActionId::GoFirstImageAction },
     ActionIdMapping { KiriViewApplication::GoLastImageAction, DomainActionId::GoLastImageAction },
+    ActionIdMapping { KiriViewApplication::ViewZoomAction, DomainActionId::ViewZoomAction },
     ActionIdMapping { KiriViewApplication::ViewZoomInAction, DomainActionId::ViewZoomInAction },
     ActionIdMapping { KiriViewApplication::ViewZoomOutAction, DomainActionId::ViewZoomOutAction },
     ActionIdMapping {
@@ -462,6 +463,10 @@ void TestKiriViewApplication::typedShortcutApisReturnCurrentShortcuts()
         QList<QKeySequence>({ shortcut(QStringLiteral("Ctrl+G")) }));
     QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::GoToPageAction),
         QList<QKeySequence>());
+    QCOMPARE(application.programWideShortcutsForId(KiriViewApplication::ViewZoomAction),
+        QList<QKeySequence>({ shortcut(QStringLiteral("Ctrl+Y")) }));
+    QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::ViewZoomAction),
+        QList<QKeySequence>());
     QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::ViewZoomInAction),
         QList<QKeySequence>({ shortcut(QStringLiteral("=")), shortcut(QStringLiteral("+")) }));
     QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::ViewZoomOutAction),
@@ -718,10 +723,12 @@ void TestKiriViewApplication::shortcutHelpModelListsConfigurableActions()
         QStringLiteral("Navigation"));
     QVERIFY(model->data(navigationIndex, shortcutHelpCategoryFirstRole).toBool());
 
-    const QModelIndex viewIndex = shortcutHelpIndexForAction(model, QStringLiteral("view_zoom_in"));
+    const QModelIndex viewIndex = shortcutHelpIndexForAction(model, QStringLiteral("view_zoom"));
     QVERIFY(viewIndex.isValid());
     QCOMPARE(
         model->data(viewIndex, shortcutHelpCategoryKeyRole).toString(), QStringLiteral("view"));
+    QCOMPARE(model->data(viewIndex, shortcutHelpShortcutKeyTextsRole).toStringList(),
+        QStringList({ nativeText(shortcut(QStringLiteral("Ctrl+Y"))) }));
     QVERIFY(model->data(viewIndex, shortcutHelpCategoryFirstRole).toBool());
 
     const QModelIndex zoomPresetIndex

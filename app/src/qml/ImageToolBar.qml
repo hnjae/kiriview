@@ -39,6 +39,8 @@ Controls.ToolBar {
     property bool activeNavigationKnown: false
     property var openActiveNavigationAtNumber: function (number) {}
     property bool collectionControlsVisible: false
+    property bool zoomOverflowFocusPending: false
+    property Item toolbarOverflowButtonAnchor: null
     readonly property Item applicationMenuButtonAnchor: applicationMenuCoordinator.buttonAnchor
     readonly property int controlSpacing: compact ? Math.max(1, Math.round(Kirigami.Units.smallSpacing / 2)) : Kirigami.Units.smallSpacing
     readonly property int edgeMargin: controlSpacing
@@ -98,6 +100,24 @@ Controls.ToolBar {
 
     function focusPageNumberInput() {
         return pageNavigation.focusPageNumberInput();
+    }
+
+    function focusZoomInput() {
+        if (!retainedPresentation.zoomInteractionEnabled) {
+            return false;
+        }
+
+        if (actionToolLayout.hiddenActions.includes(zoomLevelAction)) {
+            if (root.toolbarOverflowButtonAnchor === null) {
+                return false;
+            }
+            root.zoomOverflowFocusPending = true;
+            toolbarOverflowMenu.popup(root.toolbarOverflowButtonAnchor, 0, root.toolbarOverflowButtonAnchor.height);
+            return true;
+        }
+
+        zoomLevelAction.focusRequested();
+        return true;
     }
 
     function textInputFocused() {
@@ -373,6 +393,8 @@ Controls.ToolBar {
         property Component iconDisplayComponent
         property bool presentationChecked: false
         property bool presentationEnabled: false
+
+        signal focusRequested
     }
 
     component ImageToolbarZoomIconButton: Controls.Control {
@@ -381,7 +403,25 @@ Controls.ToolBar {
         required property bool interactionEnabled
         required property bool presentationEnabled
         required property Component zoomControlsComponent
+        property bool zoomFocusPending: false
         readonly property ImageZoomControls popupControls: zoomPopupLoader.item as ImageZoomControls
+
+        function focusLoadedZoomInput() {
+            if (zoomFocusPending && popupControls !== null && popupControls.focusZoomInput()) {
+                zoomFocusPending = false;
+            }
+        }
+
+        function focusZoomInput() {
+            if (!visible || !interactionEnabled) {
+                return false;
+            }
+
+            zoomFocusPending = true;
+            zoomPopup.open();
+            Qt.callLater(focusLoadedZoomInput);
+            return true;
+        }
 
         enabled: presentationEnabled
         focusPolicy: interactionEnabled ? Qt.StrongFocus : Qt.NoFocus
@@ -406,12 +446,14 @@ Controls.ToolBar {
 
         onInteractionEnabledChanged: {
             if (!interactionEnabled) {
+                zoomFocusPending = false;
                 focus = false;
                 zoomPopup.close();
             }
         }
         onVisibleChanged: {
             if (!visible) {
+                zoomFocusPending = false;
                 if (popupControls?.textInputActive ?? false) {
                     popupControls.cancelEditing(true);
                 }
@@ -424,6 +466,14 @@ Controls.ToolBar {
             if (zoomIconButton.visible && zoomIconButton.interactionEnabled && (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
                 zoomPopup.open();
                 event.accepted = true;
+            }
+        }
+
+        Connections {
+            target: root.zoomLevelAction
+
+            function onFocusRequested() {
+                zoomIconButton.focusZoomInput();
             }
         }
 
@@ -473,11 +523,15 @@ Controls.ToolBar {
             popupType: Controls.Popup.Item
             y: zoomIconButton.height
 
+            onClosed: zoomIconButton.zoomFocusPending = false
+
             contentItem: Loader {
                 id: zoomPopupLoader
 
                 active: zoomPopup.visible
                 sourceComponent: zoomIconButton.zoomControlsComponent
+
+                onLoaded: Qt.callLater(zoomIconButton.focusLoadedZoomInput)
             }
         }
     }
@@ -526,6 +580,16 @@ Controls.ToolBar {
 
                 function onCommitRequested(returnViewerFocus) {
                     zoomControls.commitEditing(returnViewerFocus);
+                }
+            }
+
+            Connections {
+                target: root.zoomLevelAction
+
+                function onFocusRequested() {
+                    if (zoomControls.visible) {
+                        zoomControls.focusZoomInput();
+                    }
                 }
             }
         }
@@ -782,6 +846,18 @@ Controls.ToolBar {
         closePolicy: Controls.Popup.CloseOnEscape | Controls.Popup.CloseOnPressOutsideParent
         popupType: Controls.Popup.Item
 
+        onClosed: root.zoomOverflowFocusPending = false
+        onOpened: {
+            if (root.zoomOverflowFocusPending) {
+                Qt.callLater(function () {
+                    if (toolbarOverflowMenu.visible) {
+                        root.zoomLevelAction.focusRequested();
+                    }
+                    root.zoomOverflowFocusPending = false;
+                });
+            }
+        }
+
         Instantiator {
             model: root.toolbarActions
 
@@ -894,6 +970,13 @@ Controls.ToolBar {
 
                 Controls.ToolTip.text: Accessible.name
                 Controls.ToolTip.visible: hovered && !pressed && !toolbarOverflowMenu.visible && !Kirigami.Settings.hasTransientTouchInput
+
+                Component.onCompleted: root.toolbarOverflowButtonAnchor = this
+                Component.onDestruction: {
+                    if (root.toolbarOverflowButtonAnchor === this) {
+                        root.toolbarOverflowButtonAnchor = null;
+                    }
+                }
 
                 onClicked: toolbarOverflowMenu.popup(this, 0, height)
                 onVisibleChanged: {

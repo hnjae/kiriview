@@ -377,6 +377,7 @@ bool videoActionUnsupported(ActionId actionId)
     switch (actionId) {
     case ActionId::GoPreviousArchiveAction:
     case ActionId::GoNextArchiveAction:
+    case ActionId::ViewZoomAction:
     case ActionId::ViewZoomInAction:
     case ActionId::ViewZoomOutAction:
     case ActionId::ViewZoom50PercentAction:

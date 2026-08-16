@@ -83,6 +83,7 @@ struct ApplicationCommandRouterToolbarPorts
 {
     std::function<void()> cancelToolbarTextInputEditing;
     std::function<void()> focusPageNumberInput;
+    std::function<void()> focusZoomInput;
 };
 
 struct ApplicationCommandRouterWindowPorts

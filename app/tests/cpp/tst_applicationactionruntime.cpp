@@ -448,6 +448,7 @@ void TestApplicationActionRuntime::retainedImageToolbarKeepsAppearanceUntilCurre
     }
     const QList<ActionId> readinessDependentActions {
         ActionId::ViewFitHeightAction,
+        ActionId::ViewZoomAction,
         ActionId::ViewZoomInAction,
     };
     for (ActionId actionId : readinessDependentActions) {

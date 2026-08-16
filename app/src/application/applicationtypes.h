@@ -24,6 +24,7 @@ enum class ActionId {
     GoToPageAction,
     GoFirstImageAction,
     GoLastImageAction,
+    ViewZoomAction,
     ViewZoomInAction,
     ViewZoomOutAction,
     ViewZoom50PercentAction,

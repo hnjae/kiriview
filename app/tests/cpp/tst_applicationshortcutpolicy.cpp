@@ -200,6 +200,8 @@ void TestApplicationShortcutPolicy::actionDefinitionsOwnApplicationShortcutRoute
         Scope::ReadyViewerShortcutScope));
     QVERIFY(hasRouteSpec(
         ActionId::ViewZoomInAction, ActivationScope::ViewerLocal, Scope::ReadyViewerShortcutScope));
+    QVERIFY(hasRouteSpec(
+        ActionId::ViewZoomAction, ActivationScope::ProgramWide, Scope::ReadyShortcutScope));
     QVERIFY(hasRouteSpec(ActionId::ViewToggleTwoPageModeAction, ActivationScope::ViewerLocal,
         Scope::CollectionReadingViewerShortcutScope));
     QVERIFY(hasRouteSpec(ActionId::ViewToggleRightToLeftReadingAction, ActivationScope::ViewerLocal,
@@ -247,6 +249,7 @@ void TestApplicationShortcutPolicy::actionDefinitionsOwnShortcutHelpCategories()
     QCOMPARE(categoryFor(ActionId::FileQuitAction), Category::File);
     QCOMPARE(categoryFor(ActionId::GoPreviousImageAction), Category::Navigation);
     QCOMPARE(categoryFor(ActionId::GoToPageAction), Category::Navigation);
+    QCOMPARE(categoryFor(ActionId::ViewZoomAction), Category::View);
     QCOMPARE(categoryFor(ActionId::ViewZoomInAction), Category::View);
     QCOMPARE(categoryFor(ActionId::ViewToggleInfoPanelAction), Category::Panels);
     QCOMPARE(categoryFor(ActionId::WindowFullscreenAction), Category::Window);
@@ -285,6 +288,12 @@ void TestApplicationShortcutPolicy::actionDefinitionsOwnShortcutHelpCategories()
 
 void TestApplicationShortcutPolicy::shortcutRoutesGroupDefinitionOwnedSpecs()
 {
+    const kiriview::ApplicationActions::ApplicationShortcutRoute* programWideReadyRoute
+        = routeFor(ActivationScope::ProgramWide, Scope::ReadyShortcutScope);
+    QVERIFY(programWideReadyRoute != nullptr);
+    QCOMPARE(actionIdVariants(programWideReadyRoute->actionIds),
+        actionIdVariants({ ActionId::ViewZoomAction }));
+
     const kiriview::ApplicationActions::ApplicationShortcutRoute* readyRoute
         = routeFor(ActivationScope::ViewerLocal, Scope::ReadyViewerShortcutScope);
     QVERIFY(readyRoute != nullptr);
@@ -425,6 +434,7 @@ void TestApplicationShortcutPolicy::videoUnsupportedActionPolicyRejectsImageOnly
         kiriview::ApplicationActions::videoActionUnsupported(ActionId::ViewFlipHorizontallyAction));
     QVERIFY(
         kiriview::ApplicationActions::videoActionUnsupported(ActionId::ViewFlipVerticallyAction));
+    QVERIFY(kiriview::ApplicationActions::videoActionUnsupported(ActionId::ViewZoomAction));
     QVERIFY(kiriview::ApplicationActions::videoActionUnsupported(ActionId::ViewZoomInAction));
     QVERIFY(
         kiriview::ApplicationActions::videoActionUnsupported(ActionId::ViewZoom50PercentAction));
@@ -460,6 +470,7 @@ void TestApplicationShortcutPolicy::imageUnsupportedActionPolicyRejectsVideoOnly
 {
     QVERIFY(kiriview::ApplicationActions::imageActionUnsupported(
         ActionId::ViewToggleVideoPlaybackAction));
+    QVERIFY(!kiriview::ApplicationActions::imageActionUnsupported(ActionId::ViewZoomAction));
     QVERIFY(!kiriview::ApplicationActions::imageActionUnsupported(ActionId::ViewZoomInAction));
     QVERIFY(
         !kiriview::ApplicationActions::imageActionUnsupported(ActionId::ViewRotateClockwiseAction));

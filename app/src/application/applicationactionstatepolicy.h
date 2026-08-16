@@ -15,6 +15,7 @@ struct ApplicationActionStateInput
     quint64 uiGateRevision = 0;
     bool helpActionsEnabled = false;
     bool readyActionsEnabled = false;
+    bool zoomInputEditable = false;
     bool transformActionsEnabled = false;
     bool twoPageModeActionsEnabled = false;
     bool rightToLeftReadingActionsEnabled = false;

@@ -46,6 +46,20 @@ RowLayout {
         }
     }
 
+    function focusZoomInput() {
+        if (!visible || !zoomSpinBox.semanticInputAvailable || !zoomTextInput.enabled) {
+            return false;
+        }
+
+        zoomTextInput.forceActiveFocus(Qt.ShortcutFocusReason);
+        if (!zoomTextInput.activeFocus) {
+            return false;
+        }
+
+        zoomTextInput.selectAll();
+        return true;
+    }
+
     spacing: controlSpacing
 
     function textInputFocused() {

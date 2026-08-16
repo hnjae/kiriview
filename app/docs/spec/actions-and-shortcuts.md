@@ -12,6 +12,8 @@ Configurable shortcuts have a declared activation scope. Program-wide shortcuts 
 
 Ctrl+G is the default program-wide configurable shortcut for Go to Page. Go to Page is enabled whenever the toolbar page-number entry is editable and focuses that entry for direct navigation.
 
+Ctrl+Y is the default program-wide configurable shortcut for Zoom. Zoom is enabled whenever the toolbar zoom-percentage entry is editable. It reveals the toolbar when necessary, exposes the editable zoom control in the toolbar's current responsive presentation, focuses the entry, and selects its complete numeric value.
+
 Users may edit a shortcut slot's key sequence but may not change that slot's activation scope.
 
 Program-wide configurable shortcuts appear as ordinary action shortcuts in menus, Keyboard Shortcuts configuration, and Keyboard Shortcuts help.

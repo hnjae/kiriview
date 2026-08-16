@@ -81,6 +81,9 @@ void ApplicationCommandRouter::handleActionTriggered(ActionId actionId,
     case ActionId::GoLastImageAction:
         callVoid(ports.session.openLastActiveNavigation);
         return;
+    case ActionId::ViewZoomAction:
+        callVoid(ports.toolbar.focusZoomInput);
+        return;
     case ActionId::ViewZoomInAction:
         callDouble(ports.imagePresentation.requestZoomByStepAtCenter, 1.0);
         return;
