@@ -26,6 +26,8 @@ The Previous action placement is disabled on the first item, and the Next action
 
 Page numbers are shown to users starting at 1.
 
+When page-number entry is available and is not being edited, unmodified vertical mouse-wheel or trackpad scrolling over the entry performs semantic adjacent navigation. Scrolling down performs Next and scrolling up performs Previous regardless of Right-to-Left Reading presentation. Each standard wheel-detent equivalent performs one adjacent-navigation step, smooth scrolling accumulates toward those steps, and navigation does not wrap at the first or last item. Horizontal scrolling, modified scrolling, and scrolling while the entry is being edited do not change the active item or the text being edited.
+
 ### Thumbnail Strip Eligibility
 
 When the active navigation list is known, the thumbnail strip exposes one item per supported active navigation item with the same ordering and 1-based numbering as the toolbar readout and page-number entry.

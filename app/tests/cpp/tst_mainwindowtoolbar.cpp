@@ -69,6 +69,7 @@ private Q_SLOTS:
     void zoomShortcutFocusesZoomInput();
     void fullscreenZoomShortcutRevealsToolbarAndFocusesInput();
     void directoryImageDocumentShowsPagePosition();
+    void pageNumberWheelNavigatesSemantically();
     void mediaViewportHostLoadsOnlyActiveDelegate();
     void panelActionsToggleResizablePanels();
     void infoPanelAdvancedMetadataSectionFoldsRows();
@@ -1325,6 +1326,38 @@ void TestMainWindowToolBar::directoryImageDocumentShowsPagePosition()
     openSourceUrl(fixture, sourcePath);
 
     compareToolbarPageReadout(fixture, QStringLiteral("1"), QStringLiteral("3"), true);
+}
+
+void TestMainWindowToolBar::pageNumberWheelNavigatesSemantically()
+{
+    QString sourcePath;
+    QString errorString;
+    std::unique_ptr<QTemporaryDir> imageDirectory
+        = createDirectoryCollection(&sourcePath, &errorString);
+    QVERIFY2(imageDirectory != nullptr, qPrintable(errorString));
+
+    MainWindowFixture fixture = createMainWindowFixture();
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    openSourceUrl(fixture, sourcePath);
+    compareToolbarPageReadout(fixture, QStringLiteral("1"), QStringLiteral("3"), true);
+
+    KiriDocumentSession* documentSession = findDocumentSession(fixture.window);
+    QQuickItem* pageNumberField = findQuickItem(fixture.window, QStringLiteral("pageNumberField"));
+    QVERIFY(documentSession != nullptr);
+    QVERIFY(pageNumberField != nullptr);
+
+    wheelItem(fixture.window, pageNumberField, -120);
+    QTRY_COMPARE(documentSession->activeNavigationCurrentNumber(), 2);
+    QTRY_COMPARE(pageNumberField->property("text").toString(), QStringLiteral("2"));
+    QTRY_VERIFY(documentSession->activeImageReady());
+
+    wheelItem(fixture.window, pageNumberField, 120);
+    QTRY_COMPARE(documentSession->activeNavigationCurrentNumber(), 1);
+    QTRY_COMPARE(pageNumberField->property("text").toString(), QStringLiteral("1"));
+    QTRY_VERIFY(documentSession->activeImageReady());
+
+    wheelItem(fixture.window, pageNumberField, 120);
+    QCOMPARE(documentSession->activeNavigationCurrentNumber(), 1);
 }
 
 void TestMainWindowToolBar::mediaViewportHostLoadsOnlyActiveDelegate()

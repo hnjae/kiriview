@@ -25,6 +25,7 @@
 #include <QTest>
 #include <QUrl>
 #include <QVariant>
+#include <QWheelEvent>
 #include <QtQml/qqml.h>
 #include <memory>
 #include <type_traits>
@@ -38,6 +39,8 @@ private Q_SLOTS:
     void initTestCase();
     void init();
     void pageNavigationButtonsTriggerActiveNavigationActions();
+    void pageNavigationWheelTriggersSemanticActions();
+    void pageNavigationWheelDoesNotInterruptEditing();
     void pageNavigationEditingDispatchesActiveNavigationCallback();
     void pageNavigationUnavailableStateBlocksEditing();
     void documentSessionFacadeExposesOnlySharedActiveNavigationSurface();
@@ -173,8 +176,8 @@ QString pageNavigationFixtureQml()
 {
     return QStringLiteral(R"(
 import QtQuick
-import QtQuick.Controls as Controls
 import org.hnjae.kiriview
+import org.kde.kirigami as Kirigami
 import "%1" as KiriViewQml
 
 Item {
@@ -191,6 +194,7 @@ Item {
     property bool activeNavigationEditable: true
     property bool activeNavigationKnown: true
     property bool nextEnabled: true
+    property bool nextVisible: true
     property bool previousEnabled: true
     property bool editingReturnedFocus: false
     property int nextTriggerCount: 0
@@ -203,7 +207,7 @@ Item {
         activeNavigationCurrentNumber = number;
     }
 
-    Controls.Action {
+    Kirigami.Action {
         id: previousAction
 
         enabled: root.previousEnabled
@@ -212,11 +216,12 @@ Item {
         onTriggered: root.previousTriggerCount += 1
     }
 
-    Controls.Action {
+    Kirigami.Action {
         id: nextAction
 
         enabled: root.nextEnabled
         text: "Next"
+        visible: root.nextVisible
 
         onTriggered: root.nextTriggerCount += 1
     }
@@ -358,6 +363,30 @@ void clickItem(QQuickView* view, QQuickItem* item)
     QCoreApplication::processEvents();
 }
 
+void wheelItem(QQuickView* view, QQuickItem* item, const QPoint& pixelDelta,
+    const QPoint& angleDelta, Qt::KeyboardModifiers modifiers = Qt::NoModifier)
+{
+    const QPoint point = itemCenter(item);
+    QVERIFY(point.x() >= 0);
+    QVERIFY(point.y() >= 0);
+
+    QWheelEvent event(QPointF(point), view->mapToGlobal(point), pixelDelta, angleDelta,
+        Qt::NoButton, modifiers, Qt::ScrollUpdate, false);
+    QCoreApplication::sendEvent(view, &event);
+    QCoreApplication::processEvents();
+}
+
+void wheelItem(QQuickView* view, QQuickItem* item, int angleDeltaY)
+{
+    wheelItem(view, item, QPoint(), QPoint(0, angleDeltaY));
+}
+
+bool invokeCancelEditing(QQuickItem* pageNavigation, bool returnViewerFocus)
+{
+    return QMetaObject::invokeMethod(pageNavigation, "cancelEditing", Qt::DirectConnection,
+        Q_ARG(QVariant, QVariant(returnViewerFocus)));
+}
+
 bool invokeCommitEditing(QQuickItem* pageNavigation, bool returnViewerFocus)
 {
     return QMetaObject::invokeMethod(pageNavigation, "commitEditing", Qt::DirectConnection,
@@ -437,6 +466,71 @@ void TestMainWindowVideoIntegration::pageNavigationButtonsTriggerActiveNavigatio
     QCOMPARE(fixture.root->property("nextTriggerCount").toInt(), 2);
 }
 
+void TestMainWindowVideoIntegration::pageNavigationWheelTriggersSemanticActions()
+{
+    PageNavigationFixture fixture = createPageNavigationFixture();
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+
+    wheelItem(fixture.view.get(), fixture.pageNumberField, -120);
+    QCOMPARE(fixture.root->property("previousTriggerCount").toInt(), 0);
+    QCOMPARE(fixture.root->property("nextTriggerCount").toInt(), 1);
+
+    wheelItem(fixture.view.get(), fixture.pageNumberField, 120);
+    QCOMPARE(fixture.root->property("previousTriggerCount").toInt(), 1);
+    QCOMPARE(fixture.root->property("nextTriggerCount").toInt(), 1);
+
+    wheelItem(fixture.view.get(), fixture.pageNumberField, QPoint(0, 60), QPoint(0, 60));
+    wheelItem(fixture.view.get(), fixture.pageNumberField, QPoint(0, -60), QPoint(0, -60));
+    QCOMPARE(fixture.root->property("previousTriggerCount").toInt(), 1);
+    QCOMPARE(fixture.root->property("nextTriggerCount").toInt(), 1);
+    wheelItem(fixture.view.get(), fixture.pageNumberField, QPoint(0, -60), QPoint(0, -60));
+    QCOMPARE(fixture.root->property("nextTriggerCount").toInt(), 2);
+
+    wheelItem(fixture.view.get(), fixture.pageNumberField, -240);
+    QCOMPARE(fixture.root->property("nextTriggerCount").toInt(), 4);
+
+    QVERIFY(fixture.root->setProperty("rightToLeftPresentationActive", true));
+    QCoreApplication::processEvents();
+    wheelItem(fixture.view.get(), fixture.pageNumberField, -120);
+    QCOMPARE(fixture.root->property("previousTriggerCount").toInt(), 1);
+    QCOMPARE(fixture.root->property("nextTriggerCount").toInt(), 5);
+
+    QVERIFY(fixture.root->setProperty("nextVisible", false));
+    QCoreApplication::processEvents();
+    wheelItem(fixture.view.get(), fixture.pageNumberField, -120);
+    QCOMPARE(fixture.root->property("nextTriggerCount").toInt(), 5);
+}
+
+void TestMainWindowVideoIntegration::pageNavigationWheelDoesNotInterruptEditing()
+{
+    PageNavigationFixture fixture = createPageNavigationFixture();
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+
+    wheelItem(fixture.view.get(), fixture.pageNumberField, QPoint(0, -60), QPoint(0, -60));
+    QCOMPARE(fixture.root->property("nextTriggerCount").toInt(), 0);
+
+    focusPageNumberField(fixture.pageNumberField);
+    QVERIFY(fixture.pageNumberField->setProperty("text", QStringLiteral("8")));
+    wheelItem(fixture.view.get(), fixture.pageNumberField, -120);
+    QCOMPARE(fixture.root->property("previousTriggerCount").toInt(), 0);
+    QCOMPARE(fixture.root->property("nextTriggerCount").toInt(), 0);
+    QCOMPARE(fixture.pageNumberField->property("text").toString(), QStringLiteral("8"));
+
+    QVERIFY(invokeCancelEditing(fixture.pageNavigation, false));
+    QTRY_VERIFY(!fixture.pageNumberField->hasActiveFocus());
+    QTRY_COMPARE(fixture.pageNumberField->property("text").toString(), QStringLiteral("3"));
+
+    wheelItem(fixture.view.get(), fixture.pageNumberField, QPoint(0, -60), QPoint(0, -60));
+    QCOMPARE(fixture.root->property("nextTriggerCount").toInt(), 0);
+    wheelItem(fixture.view.get(), fixture.pageNumberField, QPoint(0, -60), QPoint(0, -60));
+    QCOMPARE(fixture.root->property("nextTriggerCount").toInt(), 1);
+
+    wheelItem(fixture.view.get(), fixture.pageNumberField, QPoint(), QPoint(0, -120),
+        Qt::ControlModifier);
+    wheelItem(fixture.view.get(), fixture.pageNumberField, QPoint(), QPoint(-120, 0));
+    QCOMPARE(fixture.root->property("nextTriggerCount").toInt(), 1);
+}
+
 void TestMainWindowVideoIntegration::pageNavigationEditingDispatchesActiveNavigationCallback()
 {
     PageNavigationFixture fixture = createPageNavigationFixture();
@@ -467,6 +561,7 @@ void TestMainWindowVideoIntegration::pageNavigationUnavailableStateBlocksEditing
     QTRY_COMPARE(fixture.pageNumberField->property("text").toString(), QStringLiteral("–"));
     QVERIFY(!fixture.pageNumberField->isEnabled());
 
+    wheelItem(fixture.view.get(), fixture.pageNumberField, -120);
     clickItem(fixture.view.get(), fixture.leftButton);
     clickItem(fixture.view.get(), fixture.rightButton);
     QCOMPARE(fixture.root->property("openedNumber").toInt(), -1);

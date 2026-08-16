@@ -67,6 +67,39 @@ RowLayout {
         return true;
     }
 
+    function handlePageNumberWheel(wheel) {
+        if (!pageNumberField.enabled || root.textInputActive) {
+            pageNumberWheelHandler.resetWheelDelta();
+            wheel.accepted = false;
+            return;
+        }
+
+        const verticalDelta = wheel.pixelDelta.y !== 0 ? wheel.pixelDelta.y : wheel.angleDelta.y;
+        if (verticalDelta === 0) {
+            wheel.accepted = false;
+            return;
+        }
+
+        if (pageNumberWheelHandler.deltaRemainder !== 0 && Math.sign(pageNumberWheelHandler.deltaRemainder) !== Math.sign(verticalDelta)) {
+            pageNumberWheelHandler.deltaRemainder = 0;
+        }
+        pageNumberWheelHandler.deltaRemainder += verticalDelta;
+
+        const stepCount = Math.floor(Math.abs(pageNumberWheelHandler.deltaRemainder) / pageNumberWheelHandler.deltaPerNavigationStep);
+        if (stepCount === 0) {
+            wheel.accepted = true;
+            return;
+        }
+
+        const direction = Math.sign(pageNumberWheelHandler.deltaRemainder);
+        pageNumberWheelHandler.deltaRemainder -= direction * stepCount * pageNumberWheelHandler.deltaPerNavigationStep;
+        const navigationAction = direction > 0 ? root.actions.previousImageAction : root.actions.nextImageAction;
+        for (let step = 0; step < stepCount; ++step) {
+            root.triggerWheelNavigationAction(navigationAction);
+        }
+        wheel.accepted = true;
+    }
+
     function pageNumberText() {
         if (!root.pageNavigationAvailable) {
             return root.unknownNavigationText;
@@ -81,6 +114,12 @@ RowLayout {
 
     function triggerNavigationAction(action) {
         if (action !== null && action !== undefined && action.enabled) {
+            action.trigger();
+        }
+    }
+
+    function triggerWheelNavigationAction(action) {
+        if (action !== null && action !== undefined && action.enabled && action.visible !== false) {
             action.trigger();
         }
     }
@@ -190,6 +229,36 @@ RowLayout {
         Component.onCompleted: resetPageNumberText()
         onAccepted: commitEditing(true)
         onEditingFinished: commitEditing(false)
+
+        WheelHandler {
+            id: pageNumberWheelHandler
+
+            property real deltaRemainder: 0
+            readonly property int deltaPerNavigationStep: 120
+
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            acceptedModifiers: Qt.NoModifier
+            blocking: true
+            enabled: pageNumberField.enabled && !root.textInputActive
+            orientation: Qt.Vertical
+            target: null
+
+            function resetWheelDelta() {
+                deltaRemainder = 0;
+            }
+
+            onActiveChanged: {
+                if (!active) {
+                    resetWheelDelta();
+                }
+            }
+            onEnabledChanged: {
+                if (!enabled) {
+                    resetWheelDelta();
+                }
+            }
+            onWheel: wheel => root.handlePageNumberWheel(wheel)
+        }
     }
 
     Shortcut {
