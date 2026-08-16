@@ -479,6 +479,9 @@ void TestKiriViewApplication::typedShortcutApisReturnCurrentShortcuts()
         QList<QKeySequence>({ shortcut(QStringLiteral("Ctrl+M")) }));
     QCOMPARE(application.programWideShortcutsForId(KiriViewApplication::OpenApplicationMenuAction),
         QList<QKeySequence>({ shortcut(QStringLiteral("F10")) }));
+    QCOMPARE(application.programWideShortcutsForId(
+                 KiriViewApplication::OptionsConfigureKeybindingAction),
+        QList<QKeySequence>({ shortcut(QStringLiteral("Ctrl+,")) }));
     QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::ViewRotateClockwiseAction),
         QList<QKeySequence>({ shortcut(QStringLiteral("R")) }));
     QCOMPARE(application.viewerLocalShortcutsForId(

@@ -287,7 +287,7 @@ constexpr std::array actionDefinitions {
             route(ActivationScope::ViewerLocal, Scope::ViewerShortcutScope))),
     standardAction(Actions::ActionId::OptionsConfigureKeybindingAction,
         "options_configure_keybinding", Category::Settings, KStandardActions::KeyBindings,
-        kli18nc("@action", "Configure Keyboard Shortcuts..."), noDefaultShortcuts(),
+        kli18nc("@action", "Configure Keyboard Shortcuts..."), portableShortcutSpec("Ctrl+,"),
         noDefaultShortcuts(),
         shortcutRouteSpecs(route(ActivationScope::ProgramWide, Scope::HelpShortcutScope))),
     showMenubarAction(Actions::ActionId::OptionsShowMenubarAction, "options_show_menubar",

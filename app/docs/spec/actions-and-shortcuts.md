@@ -70,6 +70,8 @@ Quit shortcuts using Ctrl, Alt, or Meta remain active while those inputs are foc
 
 Users can open Keyboard Shortcuts configuration to configure KiriView's keyboard shortcuts.
 
+Ctrl+, opens Keyboard Shortcuts configuration as its default program-wide configurable shortcut.
+
 Changing a shortcut updates the toolbar, application menu, menubar, shortcut help, and active keyboard handling consistently.
 
 Shortcut changes apply immediately and persist across launches.
