@@ -304,6 +304,7 @@ in
           require_arg "--filesystem=xdg-run/gvfs"
           require_arg "--filesystem=xdg-cache/thumbnails:create"
           require_arg "--talk-name=org.kde.KIOFuse"
+          require_arg "--talk-name=org.freedesktop.FileManager1"
 
           forbid_arg "--filesystem=/run/user"
           forbid_arg "--filesystem=/run/user:ro"

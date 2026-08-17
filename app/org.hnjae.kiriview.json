@@ -43,6 +43,7 @@
     "--filesystem=xdg-run/pipewire-0",
     "--filesystem=xdg-run/gvfs",
     "--talk-name=org.kde.KIOFuse",
+    "--talk-name=org.freedesktop.FileManager1",
     "--env=LIBHEIF_PLUGIN_PATH=/app/lib/libheif"
   ],
   "modules": [
