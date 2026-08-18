@@ -16,8 +16,8 @@ namespace kiriview {
 class QImageReaderDisplaySource final : public StaticImageDisplaySource
 {
 public:
-    static std::shared_ptr<QImageReaderDisplaySource> open(
-        const QByteArray& data, const QByteArray& format, QString* errorString);
+    static std::shared_ptr<QImageReaderDisplaySource> open(const QByteArray& data,
+        const QByteArray& format, StaticImageDisplayDecodeDiagnostics* diagnostics);
 
     QImageReaderDisplaySource(QByteArray data, QByteArray format, QSize imageSize,
         StaticImageReaderTransform transform, QSize readerImageSize = {},

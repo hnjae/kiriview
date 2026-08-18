@@ -121,11 +121,6 @@ bool DocumentSessionRuntime::activeImageRightToLeftReadingActive() const
 
 bool DocumentSessionRuntime::activeVideoReady() const { return m_runtimeGraph->activeVideoReady(); }
 
-bool DocumentSessionRuntime::activeVideoControlsReady() const
-{
-    return m_runtimeGraph->activeVideoControlsReady();
-}
-
 const DocumentSessionActionStateSnapshot& DocumentSessionRuntime::actionStateSnapshot() const
 {
     return m_runtimeGraph->actionStateSnapshot();

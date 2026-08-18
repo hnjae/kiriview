@@ -389,7 +389,7 @@ ImageZoomMode ImageDocumentRuntime::zoomMode() const
     return imageZoomMode(viewportProjection().fitMode);
 }
 
-ImageZoomMode ImageDocumentRuntime::fitModeSelection() const { return fitModeSelectionPreference; }
+ImageZoomMode ImageDocumentRuntime::fitModeSelection() const { return state.fitModeSelection(); }
 
 qreal ImageDocumentRuntime::maximumManualZoomPercent() const
 {
@@ -655,21 +655,18 @@ void ImageDocumentRuntime::deleteDisplayedFile(FileDeletionMode mode)
 
 void ImageDocumentRuntime::resetZoom()
 {
-    const ImageZoomMode previousSelection = fitModeSelectionPreference;
-    fitModeSelectionPreference = ImageZoomMode::Fit;
-    if (!runtimeGraph->viewportIntegration().resetView()) {
-        fitModeSelectionPreference = previousSelection;
+    [[maybe_unused]] auto batch = state.beginChangeBatch();
+    if (runtimeGraph->viewportIntegration().resetView()) {
+        state.setFitModeSelection(ImageZoomMode::Fit);
     }
 }
 
 void ImageDocumentRuntime::setFitMode(ImageZoomMode zoomMode)
 {
-    const ImageZoomMode previousSelection = fitModeSelectionPreference;
-    if (zoomMode != ImageZoomMode::Manual) {
-        fitModeSelectionPreference = zoomMode;
-    }
-    if (!runtimeGraph->viewportIntegration().setFitMode(viewportFitMode(zoomMode))) {
-        fitModeSelectionPreference = previousSelection;
+    [[maybe_unused]] auto batch = state.beginChangeBatch();
+    if (runtimeGraph->viewportIntegration().setFitMode(viewportFitMode(zoomMode))
+        && zoomMode != ImageZoomMode::Manual) {
+        state.setFitModeSelection(zoomMode);
     }
 }
 

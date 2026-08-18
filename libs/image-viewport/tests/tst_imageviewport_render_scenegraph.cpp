@@ -46,6 +46,12 @@ private Q_SLOTS:
     void renderAdapterReportsTextureCreationFailureCause();
     void renderAdapterReportsImageNodeCreationFailureCause();
     void renderAdapterReportsInvalidRolePayloadFailureCause();
+    void presentationOnlyUpdateReusesPayloadTexture();
+    void payloadReplacementRetiresSupersededTextureOnce();
+    void textureOptionChangeReplacesPayloadTexture();
+    void windowChangeReplacesPayloadTexture();
+    void sceneGraphInvalidationRecreatesPayloadTexture();
+    void replacementFailurePreservesOldPayloadResourceAtomically();
     void initialRenderFailureWithoutRetainedContentReturnsNullNode();
     void retainedRenderFailureKeepsOldPaintNode();
     void renderPlanBuildsBackgroundPrimitivesWithoutSceneGraph();
@@ -81,6 +87,20 @@ RenderAdapter::Input renderAdapterInputForPayload(
     input.imageLayers.append({ ImageViewportPageRole::Primary, payload,
         QRectF(0.0, 0.0, 10.0, 10.0), QRectF(0.0, 0.0, 2.0, 2.0) });
     return input;
+}
+
+QSGImageNode* imageNodeInSubtree(QSGNode* node)
+{
+    if (auto* imageNode = dynamic_cast<QSGImageNode*>(node)) {
+        return imageNode;
+    }
+    for (QSGNode* child = node == nullptr ? nullptr : node->firstChild(); child != nullptr;
+        child = child->nextSibling()) {
+        if (QSGImageNode* imageNode = imageNodeInSubtree(child)) {
+            return imageNode;
+        }
+    }
+    return nullptr;
 }
 
 ImageViewportCommandOutcome setPageGapCommand(ImageViewport& item, double gap)
@@ -159,6 +179,82 @@ public:
     QSGImageNode* createImageNode(QQuickWindow*) const override { return nullptr; }
 };
 
+struct TextureLifetimeObservation
+{
+    int requests = 0;
+    int created = 0;
+    int destroyed = 0;
+};
+
+class ObservedTexture final : public QSGTexture
+{
+public:
+    ObservedTexture(QSize size, bool alpha, bool mipmaps,
+        std::shared_ptr<TextureLifetimeObservation> observation)
+        : m_size(size)
+        , m_alpha(alpha)
+        , m_mipmaps(mipmaps)
+        , m_observation(std::move(observation))
+    {
+        m_comparisonKey = ++m_observation->created;
+    }
+
+    ~ObservedTexture() override { ++m_observation->destroyed; }
+
+    [[nodiscard]] qint64 comparisonKey() const override { return m_comparisonKey; }
+    [[nodiscard]] QSize textureSize() const override { return m_size; }
+    [[nodiscard]] bool hasAlphaChannel() const override { return m_alpha; }
+    [[nodiscard]] bool hasMipmaps() const override { return m_mipmaps; }
+
+private:
+    Q_DISABLE_COPY_MOVE(ObservedTexture)
+
+    QSize m_size;
+    bool m_alpha = false;
+    bool m_mipmaps = false;
+    qint64 m_comparisonKey = 0;
+    std::shared_ptr<TextureLifetimeObservation> m_observation;
+};
+
+class ObservingSceneGraphFactory final : public RenderAdapterSceneGraph::Factory
+{
+public:
+    [[nodiscard]] std::shared_ptr<TextureLifetimeObservation> observation() const
+    {
+        return m_observation;
+    }
+
+    void failTextureRequestAfter(int successfulRequests)
+    {
+        Q_ASSERT(successfulRequests >= 0);
+        m_successfulRequestsBeforeFailure = successfulRequests;
+    }
+
+    QSGTexture* createTexture(QQuickWindow*, const QImage& image,
+        QQuickWindow::CreateTextureOptions options) const override
+    {
+        ++m_observation->requests;
+        if (m_successfulRequestsBeforeFailure == 0) {
+            m_successfulRequestsBeforeFailure = -1;
+            return nullptr;
+        }
+        if (m_successfulRequestsBeforeFailure > 0) {
+            --m_successfulRequestsBeforeFailure;
+        }
+        return new ObservedTexture(image.size(), image.hasAlphaChannel(),
+            options.testFlag(QQuickWindow::TextureHasMipmaps), m_observation);
+    }
+
+    QSGImageNode* createImageNode(QQuickWindow* window) const override
+    {
+        return window == nullptr ? nullptr : window->createImageNode();
+    }
+
+private:
+    std::shared_ptr<TextureLifetimeObservation> m_observation
+        = std::make_shared<TextureLifetimeObservation>();
+    mutable int m_successfulRequestsBeforeFailure = -1;
+};
 }
 
 void ImageViewportRenderSceneGraphTest::transparentBackgroundDoesNotCreatePaintNode()
@@ -285,7 +381,7 @@ void ImageViewportRenderSceneGraphTest::stillImageCreatesTexturePaintNode()
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(root);
 
-    auto* imageNode = dynamic_cast<QSGImageNode*>(root->lastChild());
+    auto* imageNode = imageNodeInSubtree(root->lastChild());
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
     QCOMPARE(imageNode->rect(), contentRect(item));
@@ -321,14 +417,14 @@ void ImageViewportRenderSceneGraphTest::twoPageStillSpreadCreatesRoleTextureNode
     QVERIFY(root);
     QCOMPARE(root->childCount(), 2);
 
-    auto* primaryNode = dynamic_cast<QSGImageNode*>(root->firstChild());
+    auto* primaryNode = imageNodeInSubtree(root->firstChild());
     QVERIFY(primaryNode);
     QVERIFY(primaryNode->texture());
     QCOMPARE(primaryNode->rect(), primaryItemRect(item));
     QCOMPARE(primaryNode->rect(), QRectF(0.0, 14.0, 20.0, 16.0));
     QCOMPARE(primaryNode->sourceRect(), visiblePrimaryPageRect(item));
 
-    auto* secondaryNode = dynamic_cast<QSGImageNode*>(root->firstChild()->nextSibling());
+    auto* secondaryNode = imageNodeInSubtree(root->firstChild()->nextSibling());
     QVERIFY(secondaryNode);
     QVERIFY(secondaryNode->texture());
     QCOMPARE(secondaryNode->rect(), secondaryItemRect(item));
@@ -395,11 +491,11 @@ void ImageViewportRenderSceneGraphTest::
     QVERIFY(retainedRoot);
     QCOMPARE(retainedRoot->childCount(), 2);
 
-    auto* primaryNode = dynamic_cast<QSGImageNode*>(retainedRoot->firstChild());
+    auto* primaryNode = imageNodeInSubtree(retainedRoot->firstChild());
     QVERIFY(primaryNode);
     QCOMPARE(primaryNode->rect(), primaryItemRect(item));
 
-    auto* secondaryNode = dynamic_cast<QSGImageNode*>(retainedRoot->firstChild()->nextSibling());
+    auto* secondaryNode = imageNodeInSubtree(retainedRoot->firstChild()->nextSibling());
     QVERIFY(secondaryNode);
     QCOMPARE(secondaryNode->rect(), secondaryItemRect(item));
     QCOMPARE(secondaryNode->sourceRect(), visibleSecondaryPageRect(item));
@@ -477,11 +573,11 @@ void ImageViewportRenderSceneGraphTest::secondaryProviderFrameCompletesSpreadTex
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
 
-    auto* primaryNode = dynamic_cast<QSGImageNode*>(root->firstChild());
+    auto* primaryNode = imageNodeInSubtree(root->firstChild());
     QVERIFY(primaryNode);
     QCOMPARE(primaryNode->rect(), primaryItemRect(item));
 
-    auto* secondaryNode = dynamic_cast<QSGImageNode*>(root->firstChild()->nextSibling());
+    auto* secondaryNode = imageNodeInSubtree(root->firstChild()->nextSibling());
     QVERIFY(secondaryNode);
     QCOMPARE(secondaryNode->rect(), secondaryItemRect(item));
 }
@@ -603,7 +699,7 @@ void ImageViewportRenderSceneGraphTest::deviceIndependentStillImageUsesPhysicalT
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(root);
 
-    auto* imageNode = dynamic_cast<QSGImageNode*>(root->lastChild());
+    auto* imageNode = imageNodeInSubtree(root->lastChild());
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
     QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 2.0, 1.0));
@@ -634,7 +730,7 @@ void ImageViewportRenderSceneGraphTest::
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(root);
 
-    auto* imageNode = dynamic_cast<QSGImageNode*>(root->lastChild());
+    auto* imageNode = imageNodeInSubtree(root->lastChild());
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
     QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 16.0, 8.0));
@@ -669,7 +765,7 @@ void ImageViewportRenderSceneGraphTest::
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
 
-    auto* imageNode = dynamic_cast<QSGImageNode*>(root->lastChild());
+    auto* imageNode = imageNodeInSubtree(root->lastChild());
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
     QCOMPARE(imageNode->sourceRect(), QRectF(0.0, 0.0, 7.0, 7.0));
@@ -704,7 +800,7 @@ void ImageViewportRenderSceneGraphTest::solidBackgroundRendersBehindImageNode()
     QCOMPARE(background->rect(), QRectF(0.0, 0.0, 40.0, 20.0));
     QCOMPARE(background->color(), QColor(20, 40, 60, 255));
 
-    auto* imageNode = dynamic_cast<QSGImageNode*>(root->lastChild());
+    auto* imageNode = imageNodeInSubtree(root->lastChild());
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
     QCOMPARE(imageNode->rect(), contentRect(item));
@@ -732,7 +828,7 @@ void ImageViewportRenderSceneGraphTest::qualityAndMirroringConfigureTextureNode(
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(root);
 
-    auto* imageNode = dynamic_cast<QSGImageNode*>(root->lastChild());
+    auto* imageNode = imageNodeInSubtree(root->lastChild());
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
     QCOMPARE(imageNode->filtering(), QSGTexture::Nearest);
@@ -913,6 +1009,227 @@ void ImageViewportRenderSceneGraphTest::renderAdapterReportsInvalidRolePayloadFa
     QCOMPARE(output.failureCause, RenderFailureCause::InvalidRolePayload);
 }
 
+void ImageViewportRenderSceneGraphTest::presentationOnlyUpdateReusesPayloadTexture()
+{
+    QImage image(8, 4, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::red);
+    const ImageViewportInternal::PreparedPayload payload = renderAdapterPayload(std::move(image));
+    RenderAdapter::Input input = renderAdapterInputForPayload(payload);
+    QQuickWindow window;
+    ObservingSceneGraphFactory factory;
+    const std::shared_ptr<TextureLifetimeObservation> observation = factory.observation();
+
+    RenderAdapter adapter;
+    RenderAdapterSceneGraph::Output first
+        = RenderAdapterSceneGraph::createNode(adapter, nullptr, { input, &window, &factory });
+    QCOMPARE(first.result, RenderAdapter::CommitResult::Committed);
+    std::unique_ptr<QSGNode> root(first.node);
+    QVERIFY(root);
+    QCOMPARE(observation->requests, 1);
+    QCOMPARE(observation->created, 1);
+    QCOMPARE(observation->destroyed, 0);
+
+    input.imageLayers.first().targetRect = QRectF(-4.0, -2.0, 20.0, 10.0);
+    input.imageLayers.first().sourceRect = QRectF(1.0, 0.5, 4.0, 2.0);
+    input.imageLayers.first().mirrorHorizontally = true;
+    input.smoothing = false;
+    RenderAdapterSceneGraph::Output updated = RenderAdapterSceneGraph::createNode(
+        adapter, root.release(), { input, &window, &factory });
+    root.reset(updated.node);
+
+    QCOMPARE(updated.result, RenderAdapter::CommitResult::Committed);
+    QVERIFY(root);
+    QCOMPARE(observation->requests, 1);
+    QCOMPARE(observation->created, 1);
+    QCOMPARE(observation->destroyed, 0);
+    root.reset();
+    QCOMPARE(observation->destroyed, 1);
+}
+
+void ImageViewportRenderSceneGraphTest::payloadReplacementRetiresSupersededTextureOnce()
+{
+    QImage image(8, 4, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::red);
+    RenderAdapter::Input input
+        = renderAdapterInputForPayload(renderAdapterPayload(std::move(image)));
+    QQuickWindow window;
+    ObservingSceneGraphFactory factory;
+    const std::shared_ptr<TextureLifetimeObservation> observation = factory.observation();
+
+    RenderAdapter adapter;
+    RenderAdapterSceneGraph::Output first
+        = RenderAdapterSceneGraph::createNode(adapter, nullptr, { input, &window, &factory });
+    std::unique_ptr<QSGNode> root(first.node);
+    QCOMPARE(first.result, RenderAdapter::CommitResult::Committed);
+    QVERIFY(root);
+
+    QImage replacementImage(8, 4, QImage::Format_ARGB32_Premultiplied);
+    replacementImage.fill(Qt::green);
+    ImageViewportInternal::PreparedPayload replacement
+        = renderAdapterPayload(std::move(replacementImage));
+    replacement.payloadId = 2;
+    input.imageLayers.first().preparedPayload = std::move(replacement);
+    RenderAdapterSceneGraph::Output replaced = RenderAdapterSceneGraph::createNode(
+        adapter, root.release(), { input, &window, &factory });
+    root.reset(replaced.node);
+
+    QCOMPARE(replaced.result, RenderAdapter::CommitResult::Committed);
+    QCOMPARE(observation->requests, 2);
+    QCOMPARE(observation->created, 2);
+    QCOMPARE(observation->destroyed, 1);
+    root.reset();
+    QCOMPARE(observation->destroyed, 2);
+}
+
+void ImageViewportRenderSceneGraphTest::textureOptionChangeReplacesPayloadTexture()
+{
+    QImage image(8, 4, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::red);
+    RenderAdapter::Input input
+        = renderAdapterInputForPayload(renderAdapterPayload(std::move(image)));
+    QQuickWindow window;
+    ObservingSceneGraphFactory factory;
+    const std::shared_ptr<TextureLifetimeObservation> observation = factory.observation();
+
+    RenderAdapter adapter;
+    RenderAdapterSceneGraph::Output first
+        = RenderAdapterSceneGraph::createNode(adapter, nullptr, { input, &window, &factory });
+    std::unique_ptr<QSGNode> root(first.node);
+    QCOMPARE(first.result, RenderAdapter::CommitResult::Committed);
+    QVERIFY(root);
+
+    input.mipmap = true;
+    RenderAdapterSceneGraph::Output replaced = RenderAdapterSceneGraph::createNode(
+        adapter, root.release(), { input, &window, &factory });
+    root.reset(replaced.node);
+
+    QCOMPARE(replaced.result, RenderAdapter::CommitResult::Committed);
+    QCOMPARE(observation->requests, 2);
+    QCOMPARE(observation->created, 2);
+    QCOMPARE(observation->destroyed, 1);
+    root.reset();
+    QCOMPARE(observation->destroyed, 2);
+}
+
+void ImageViewportRenderSceneGraphTest::windowChangeReplacesPayloadTexture()
+{
+    QImage image(8, 4, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::red);
+    const RenderAdapter::Input input
+        = renderAdapterInputForPayload(renderAdapterPayload(std::move(image)));
+    QQuickWindow firstWindow;
+    QQuickWindow secondWindow;
+    ObservingSceneGraphFactory factory;
+    const std::shared_ptr<TextureLifetimeObservation> observation = factory.observation();
+
+    RenderAdapter adapter;
+    RenderAdapterSceneGraph::Output first
+        = RenderAdapterSceneGraph::createNode(adapter, nullptr, { input, &firstWindow, &factory });
+    std::unique_ptr<QSGNode> root(first.node);
+    QCOMPARE(first.result, RenderAdapter::CommitResult::Committed);
+    QVERIFY(root);
+
+    RenderAdapterSceneGraph::Output replaced = RenderAdapterSceneGraph::createNode(
+        adapter, root.release(), { input, &secondWindow, &factory });
+    root.reset(replaced.node);
+
+    QCOMPARE(replaced.result, RenderAdapter::CommitResult::Committed);
+    QCOMPARE(observation->requests, 2);
+    QCOMPARE(observation->created, 2);
+    QCOMPARE(observation->destroyed, 1);
+    root.reset();
+    QCOMPARE(observation->destroyed, 2);
+}
+
+void ImageViewportRenderSceneGraphTest::sceneGraphInvalidationRecreatesPayloadTexture()
+{
+    QImage image(8, 4, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::red);
+    const RenderAdapter::Input input
+        = renderAdapterInputForPayload(renderAdapterPayload(std::move(image)));
+    QQuickWindow window;
+    ObservingSceneGraphFactory factory;
+    const std::shared_ptr<TextureLifetimeObservation> observation = factory.observation();
+
+    RenderAdapter adapter;
+    RenderAdapterSceneGraph::Output first
+        = RenderAdapterSceneGraph::createNode(adapter, nullptr, { input, &window, &factory });
+    std::unique_ptr<QSGNode> root(first.node);
+    QCOMPARE(first.result, RenderAdapter::CommitResult::Committed);
+    QVERIFY(root);
+    root.reset();
+    QCOMPARE(observation->destroyed, 1);
+
+    RenderAdapterSceneGraph::Output rebuilt
+        = RenderAdapterSceneGraph::createNode(adapter, nullptr, { input, &window, &factory });
+    root.reset(rebuilt.node);
+    QCOMPARE(rebuilt.result, RenderAdapter::CommitResult::Committed);
+    QCOMPARE(observation->requests, 2);
+    QCOMPARE(observation->created, 2);
+    QCOMPARE(observation->destroyed, 1);
+    root.reset();
+    QCOMPARE(observation->destroyed, 2);
+}
+
+void ImageViewportRenderSceneGraphTest::replacementFailurePreservesOldPayloadResourceAtomically()
+{
+    QImage primaryImage(8, 4, QImage::Format_ARGB32_Premultiplied);
+    primaryImage.fill(Qt::red);
+    RenderAdapter::Input input
+        = renderAdapterInputForPayload(renderAdapterPayload(std::move(primaryImage)));
+    input.itemSize = QSizeF(20.0, 10.0);
+    input.requiredRoleSet = ImageViewportRoleSet(true, true);
+    QImage secondaryImage(8, 4, QImage::Format_ARGB32_Premultiplied);
+    secondaryImage.fill(Qt::green);
+    ImageViewportInternal::PreparedPayload secondaryPayload
+        = renderAdapterPayload(std::move(secondaryImage));
+    secondaryPayload.payloadId = 2;
+    input.imageLayers.append({ ImageViewportPageRole::Secondary, std::move(secondaryPayload),
+        QRectF(10.0, 0.0, 10.0, 10.0), QRectF(0.0, 0.0, 2.0, 2.0) });
+    QQuickWindow window;
+    ObservingSceneGraphFactory factory;
+    const std::shared_ptr<TextureLifetimeObservation> observation = factory.observation();
+
+    RenderAdapter adapter;
+    RenderAdapterSceneGraph::Output first
+        = RenderAdapterSceneGraph::createNode(adapter, nullptr, { input, &window, &factory });
+    std::unique_ptr<QSGNode> root(first.node);
+    QCOMPARE(first.result, RenderAdapter::CommitResult::Committed);
+    QVERIFY(root);
+    QSGNode* const oldRoot = root.get();
+    QSGImageNode* const oldPrimary = imageNodeInSubtree(root->firstChild());
+    QVERIFY(oldPrimary);
+    QSGImageNode* const oldSecondary = imageNodeInSubtree(root->firstChild()->nextSibling());
+    QVERIFY(oldSecondary);
+    const QRectF oldPrimaryRect = oldPrimary->rect();
+
+    input.imageLayers.first().targetRect = QRectF(1.0, 1.0, 8.0, 8.0);
+    ImageViewportInternal::PreparedPayload primaryReplacement
+        = input.imageLayers.constFirst().preparedPayload;
+    primaryReplacement.payloadId = 3;
+    input.imageLayers.first().preparedPayload = std::move(primaryReplacement);
+    ImageViewportInternal::PreparedPayload secondaryReplacement
+        = input.imageLayers.constLast().preparedPayload;
+    secondaryReplacement.payloadId = 4;
+    input.imageLayers.last().preparedPayload = std::move(secondaryReplacement);
+    factory.failTextureRequestAfter(1);
+    RenderAdapterSceneGraph::Output failed = RenderAdapterSceneGraph::createNode(
+        adapter, root.release(), { input, &window, &factory });
+    root.reset(failed.node);
+
+    QCOMPARE(failed.result, RenderAdapter::CommitResult::Failed);
+    QCOMPARE(failed.failureCause, RenderFailureCause::TextureCreationFailure);
+    QCOMPARE(root.get(), oldRoot);
+    QCOMPARE(imageNodeInSubtree(root->firstChild()), oldPrimary);
+    QCOMPARE(imageNodeInSubtree(root->firstChild()->nextSibling()), oldSecondary);
+    QCOMPARE(oldPrimary->rect(), oldPrimaryRect);
+    QCOMPARE(observation->requests, 4);
+    QCOMPARE(observation->created, 3);
+    QCOMPARE(observation->destroyed, 1);
+    root.reset();
+    QCOMPARE(observation->destroyed, 3);
+}
+
 void ImageViewportRenderSceneGraphTest::initialRenderFailureWithoutRetainedContentReturnsNullNode()
 {
     ImageSequenceFactory factory;
@@ -980,7 +1297,7 @@ void ImageViewportRenderSceneGraphTest::retainedRenderFailureKeepsOldPaintNode()
 
     QCOMPARE(retainedRoot.data(), oldNode);
     QCOMPARE(retainedRoot->childCount(), 1);
-    auto* imageNode = dynamic_cast<QSGImageNode*>(retainedRoot->lastChild());
+    auto* imageNode = imageNodeInSubtree(retainedRoot->lastChild());
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -1195,7 +1512,7 @@ void ImageViewportRenderSceneGraphTest::coverImageTextureNodeUsesVisibleSourceRe
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(root);
 
-    auto* imageNode = dynamic_cast<QSGImageNode*>(root->lastChild());
+    auto* imageNode = imageNodeInSubtree(root->lastChild());
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
     QCOMPARE(imageNode->rect(), QRectF(0.0, 0.0, 100.0, 100.0));
@@ -1240,7 +1557,7 @@ void ImageViewportRenderSceneGraphTest::providerStillFrameCreatesTexturePaintNod
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(root);
 
-    auto* imageNode = dynamic_cast<QSGImageNode*>(root->lastChild());
+    auto* imageNode = imageNodeInSubtree(root->lastChild());
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
     QCOMPARE(imageNode->rect(), contentRect(item));
@@ -1305,7 +1622,7 @@ void ImageViewportRenderSceneGraphTest::
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
 
-    auto* imageNode = dynamic_cast<QSGImageNode*>(root->lastChild());
+    auto* imageNode = imageNodeInSubtree(root->lastChild());
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
     QCOMPARE(imageNode->rect(), contentRect(item));

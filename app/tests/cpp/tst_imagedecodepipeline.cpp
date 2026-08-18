@@ -102,6 +102,11 @@ QByteArray animatedGifData()
                           "AAACAkQBACH5BAACAAAALAAAAAABAAEAAAICTAEAOw=="));
 }
 
+QByteArray apngWithExcessiveDeclaredFrameCount()
+{
+    return QByteArray::fromHex("89504e470d0a1a0a000000086163544cffffffff0000000000000000");
+}
+
 QByteArray jpegWithCameraMakeMetadata()
 {
     return QByteArray::fromHex(
@@ -170,6 +175,7 @@ private Q_SLOTS:
     void compatibleDataAdmissionIsSharedAcrossLiveResults();
     void preparedCompatibleDataCarriesRetainedBaselineIntoExactRasterStage();
     void qtRasterClassificationCarriesExplicitFormat();
+    void preparedQtRasterOpenFailureSeparatesPublicAndDiagnosticText();
     void preparedQtRasterStillDeclaresExactProducerEnvelope();
     void defaultSvgDecodeUsesFirstDisplayContext();
     void preparedSvgSeparatesParserAndRasterEnvelopes();
@@ -183,6 +189,7 @@ private Q_SLOTS:
     void preparedJxlAnimationUsesPrechargedAllocatorEnvelope();
     void defaultSvgOpenFailurePreservesAdapterDiagnostics();
     void defaultApngOpenFailurePreservesAdapterDiagnostics();
+    void apngCatalogResourceLimitPreservesTypedFailureAcrossDecodeBoundaries();
     void defaultJxlAnimationOpenFailurePreservesAdapterDiagnostics();
     void unknownClassificationFailsWithoutDecoder();
 };
@@ -854,6 +861,29 @@ void TestImageDecodePipeline::preparedQtRasterStillDeclaresExactProducerEnvelope
     QCOMPARE(decoded->displayImage.image.size(), sourceImage.size());
 }
 
+void TestImageDecodePipeline::preparedQtRasterOpenFailureSeparatesPublicAndDiagnosticText()
+{
+    kiriview::ImageDecodeRouter router({}, [](const QByteArray&, const QString&) {
+        return classification(kiriview::ImageInputKind::QtRaster, kiriview::QtRasterFormat::Png);
+    });
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(1024 * 1024, 1024 * 1024);
+
+    kiriview::PreparedImageDecodeResult plan
+        = router.prepare(kiriview::ImageSourceData(QByteArrayLiteral("not image data")),
+            kiriview::ImageDecodeRequest {}, kiriview::ImageDecodeWorkspacePriority::Interactive,
+            budget);
+    const auto* result = std::get_if<kiriview::DecodedImageResult>(&plan);
+    QVERIFY(result != nullptr);
+    const kiriview::DecodedImageFailure* failure = kiriview::decodedImageResultFailure(*result);
+    QVERIFY(failure != nullptr);
+    QCOMPARE(failure->route, kiriview::DecodedImageFailureRoute::QtRaster);
+    QCOMPARE(failure->operation, kiriview::DecodedImageFailureOperation::OpenStaticImageSource);
+    QCOMPARE(
+        failure->errorString, kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData));
+    QVERIFY(!failure->diagnosticDetail.isEmpty());
+    QVERIFY(failure->diagnosticDetail != failure->errorString);
+}
+
 void TestImageDecodePipeline::defaultSvgDecodeUsesFirstDisplayContext()
 {
     const QByteArray data
@@ -1326,6 +1356,43 @@ void TestImageDecodePipeline::defaultApngOpenFailurePreservesAdapterDiagnostics(
     QVERIFY(!failure->diagnosticDetail.isEmpty());
     QVERIFY(failure->diagnosticDetail != failure->errorString);
     QVERIFY(kiriview::decodedImageResultImage(result) == nullptr);
+}
+
+void TestImageDecodePipeline::apngCatalogResourceLimitPreservesTypedFailureAcrossDecodeBoundaries()
+{
+    const QByteArray data = apngWithExcessiveDeclaredFrameCount();
+    const kiriview::ImageDecodeRoute route {
+        kiriview::ImageDecodeHandlerKind::Apng,
+        kiriview::ImageDecodeDataSource::Original,
+        kiriview::QtRasterFormat::None,
+    };
+    const kiriview::ImageDecodeRouterRuntime runtime({});
+    const kiriview::DecodedImageResult direct
+        = runtime.execute(route, data, kiriview::ImageDecodeRequest {});
+
+    kiriview::ImageDecodeRouter router({}, [](const QByteArray&, const QString&) {
+        return classification(kiriview::ImageInputKind::Apng);
+    });
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(1024 * 1024, 1024 * 1024);
+    kiriview::PreparedImageDecodeResult prepared
+        = router.prepare(kiriview::ImageSourceData(data), kiriview::ImageDecodeRequest {},
+            kiriview::ImageDecodeWorkspacePriority::Interactive, budget);
+    const auto* preparedResult = std::get_if<kiriview::DecodedImageResult>(&prepared);
+    QVERIFY(preparedResult != nullptr);
+
+    const auto verifyFailure = [](const kiriview::DecodedImageResult& result) {
+        const kiriview::DecodedImageFailure* failure = kiriview::decodedImageResultFailure(result);
+        QVERIFY(failure != nullptr);
+        QCOMPARE(failure->route, kiriview::DecodedImageFailureRoute::Apng);
+        QCOMPARE(failure->operation, kiriview::DecodedImageFailureOperation::DecodeAnimationOpen);
+        QCOMPARE(failure->cause, kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
+        QCOMPARE(failure->errorString,
+            kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeApngAnimation));
+        QVERIFY(!failure->diagnosticDetail.isEmpty());
+        QVERIFY(failure->diagnosticDetail != failure->errorString);
+    };
+    verifyFailure(direct);
+    verifyFailure(*preparedResult);
 }
 
 void TestImageDecodePipeline::defaultJxlAnimationOpenFailurePreservesAdapterDiagnostics()

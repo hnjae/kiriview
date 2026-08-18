@@ -35,6 +35,7 @@ enum class ImageDocumentChange {
     RightToLeftReading,
     UnsupportedOpenedCollectionVideo,
     EmbeddedMetadata,
+    FitModeSelection,
     ViewportProjection,
 };
 }

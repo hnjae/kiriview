@@ -102,6 +102,8 @@ bool ImageDocumentState::unsupportedOpenedCollectionVideo() const
 
 const EmbeddedMetadata& ImageDocumentState::embeddedMetadata() const { return m_embeddedMetadata; }
 
+ImageZoomMode ImageDocumentState::fitModeSelection() const { return m_fitModeSelection; }
+
 void ImageDocumentState::setSelectedTarget(const ImageDocumentSelectedTarget& target)
 {
     const QUrl previousSourceUrl = sourceUrl();
@@ -218,6 +220,17 @@ void ImageDocumentState::setEmbeddedMetadata(EmbeddedMetadata metadata)
 {
     m_embeddedMetadata = std::move(metadata);
     notify(ImageDocumentChange::EmbeddedMetadata);
+}
+
+void ImageDocumentState::setFitModeSelection(ImageZoomMode selection)
+{
+    Q_ASSERT(selection != ImageZoomMode::Manual);
+    if (selection == ImageZoomMode::Manual) {
+        return;
+    }
+    if (replaceIfChanged(m_fitModeSelection, selection)) {
+        notify(ImageDocumentChange::FitModeSelection);
+    }
 }
 
 void ImageDocumentState::notify(ImageDocumentChange change) { m_changes->notify(change); }

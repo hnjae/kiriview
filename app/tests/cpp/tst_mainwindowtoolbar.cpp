@@ -64,6 +64,7 @@ private Q_SLOTS:
     void toolbarPageReadoutUsesSystemFixedWidthFont();
     void startupInitialDirectImageRendersMainViewport();
     void startupInitialComicArchiveRendersAndNavigatesMainViewport();
+    void outsideScopePresentationCommitResetsFitSelection();
     void comicPageReplacementKeepsRightToolbarPresentationStable();
     void spreadPageReplacementKeepsRightToolbarPresentationStable();
     void dropOpensFirstUrlOnly();
@@ -550,11 +551,18 @@ std::unique_ptr<QTemporaryDir> createPortraitComicBookArchive(
     return directory;
 }
 
-MainWindowFixture createMainWindowFixture(const QUrl& initialSourceUrl);
+MainWindowFixture createMainWindowFixture(
+    const QUrl& initialSourceUrl, kiriview::TimerScheduler timerScheduler);
+
+MainWindowFixture createMainWindowFixture(const QUrl& initialSourceUrl)
+{
+    return createMainWindowFixture(initialSourceUrl, {});
+}
 
 MainWindowFixture createMainWindowFixture() { return createMainWindowFixture(QUrl()); }
 
-MainWindowFixture createMainWindowFixture(const QUrl& initialSourceUrl)
+MainWindowFixture createMainWindowFixture(
+    const QUrl& initialSourceUrl, kiriview::TimerScheduler timerScheduler)
 {
     MainWindowFixture fixture;
     registerKiriViewQmlTypes();
@@ -566,7 +574,7 @@ MainWindowFixture createMainWindowFixture(const QUrl& initialSourceUrl)
     kiriview::registerApplicationImageProviders(*fixture.engine);
     auto* documentSession = new ToolbarTestDocumentSession(fixture.engine.get());
     documentSession->setObjectName(QStringLiteral("documentSession"));
-    fixture.windowShell = new KiriWindowShell(fixture.engine.get());
+    fixture.windowShell = new KiriWindowShell(std::move(timerScheduler), fixture.engine.get());
     fixture.application = new KiriViewApplication(fixture.engine.get());
     kiriview::composeApplicationRuntimeGraph(
         *fixture.application, *documentSession, *fixture.windowShell);
@@ -983,6 +991,93 @@ void TestMainWindowToolBar::startupInitialComicArchiveRendersAndNavigatesMainVie
     QVERIFY(!thumbnailPanel->isVisible());
 }
 
+void TestMainWindowToolBar::outsideScopePresentationCommitResetsFitSelection()
+{
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    ScopedToolbarImageWorkerSchedulerOverride workerSchedulerOverride(workerScheduler.scheduler());
+    QString archivePath;
+    QString errorString;
+    std::unique_ptr<QTemporaryDir> archiveDirectory
+        = createComicBookArchive(&archivePath, &errorString);
+    QVERIFY2(archiveDirectory != nullptr, qPrintable(errorString));
+    QTemporaryDir directImageDirectory;
+    QVERIFY(directImageDirectory.isValid());
+    const QString directImagePath
+        = directImageDirectory.filePath(QStringLiteral("outside-scope.png"));
+    const QString missingImagePath
+        = directImageDirectory.filePath(QStringLiteral("missing-outside-scope.png"));
+    QVERIFY(writeTestPng(directImagePath));
+
+    MainWindowFixture fixture = createMainWindowFixture(QUrl::fromLocalFile(archivePath));
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    KiriDocumentSession* documentSession = findDocumentSession(fixture.window);
+    QVERIFY(documentSession != nullptr);
+    KiriImageDocument* imageDocument = documentSession->imageDocument();
+    QVERIFY(imageDocument != nullptr);
+    QObject* toolbar = findObject(fixture.window, QStringLiteral("mainImageToolBar"));
+    QVERIFY(toolbar != nullptr);
+
+    std::size_t nextWorkerSchedule = 0;
+    const auto driveUntilReady = [&]() {
+        for (int attempt = 0; attempt < 2'000 && !documentSession->activeImageReady(); ++attempt) {
+            kiriview::TestSupport::runOutstandingImageWorkerSchedules(
+                workerScheduler, nextWorkerSchedule);
+            fixture.window->update();
+            static_cast<void>(fixture.window->grabWindow());
+            QCoreApplication::processEvents();
+            QTest::qWait(1);
+        }
+        QVERIFY2(documentSession->activeImageReady(),
+            qPrintable(imageViewportStateReport(fixture.window)));
+    };
+
+    driveUntilReady();
+    QVERIFY(imageDocument->requestFitMode(KiriImageDocument::ZoomMode::FitWidth));
+    QTRY_COMPARE(imageDocument->zoomMode(), KiriImageDocument::ZoomMode::FitWidth);
+    QCOMPARE(imageDocument->fitModeSelection(), KiriImageDocument::ZoomMode::FitWidth);
+    QTRY_COMPARE(toolbar->property("presentedFitModeSelection").toInt(),
+        static_cast<int>(KiriImageDocument::ZoomMode::FitWidth));
+
+    QVERIFY(imageDocument->requestManualZoomPercent(150.0));
+    QTRY_COMPARE(imageDocument->zoomMode(), KiriImageDocument::ZoomMode::Manual);
+    QCOMPARE(imageDocument->fitModeSelection(), KiriImageDocument::ZoomMode::FitWidth);
+    QCOMPARE(toolbar->property("presentedFitModeSelection").toInt(),
+        static_cast<int>(KiriImageDocument::ZoomMode::FitWidth));
+
+    imageDocument->openNextPage();
+    driveUntilReady();
+    QCOMPARE(imageDocument->zoomMode(), KiriImageDocument::ZoomMode::Manual);
+    QCOMPARE(imageDocument->fitModeSelection(), KiriImageDocument::ZoomMode::FitWidth);
+    QCOMPARE(toolbar->property("presentedFitModeSelection").toInt(),
+        static_cast<int>(KiriImageDocument::ZoomMode::FitWidth));
+
+    openSourceUrl(fixture, missingImagePath);
+    for (int attempt = 0;
+        attempt < 2'000 && imageDocument->status() != KiriImageDocument::Status::Error; ++attempt) {
+        kiriview::TestSupport::runOutstandingImageWorkerSchedules(
+            workerScheduler, nextWorkerSchedule);
+        fixture.window->update();
+        static_cast<void>(fixture.window->grabWindow());
+        QCoreApplication::processEvents();
+        QTest::qWait(1);
+    }
+    QCOMPARE(imageDocument->status(), KiriImageDocument::Status::Error);
+    QCOMPARE(imageDocument->fitModeSelection(), KiriImageDocument::ZoomMode::FitWidth);
+    QTRY_COMPARE(toolbar->property("presentedFitModeSelection").toInt(),
+        static_cast<int>(KiriImageDocument::ZoomMode::FitWidth));
+
+    openSourceUrl(fixture, directImagePath);
+    QCOMPARE(imageDocument->status(), KiriImageDocument::Status::Loading);
+    QCOMPARE(imageDocument->fitModeSelection(), KiriImageDocument::ZoomMode::FitWidth);
+    QCOMPARE(toolbar->property("presentedFitModeSelection").toInt(),
+        static_cast<int>(KiriImageDocument::ZoomMode::FitWidth));
+    driveUntilReady();
+    QCOMPARE(imageDocument->zoomMode(), KiriImageDocument::ZoomMode::Fit);
+    QCOMPARE(imageDocument->fitModeSelection(), KiriImageDocument::ZoomMode::Fit);
+    QTRY_COMPARE(toolbar->property("presentedFitModeSelection").toInt(),
+        static_cast<int>(KiriImageDocument::ZoomMode::Fit));
+}
+
 void TestMainWindowToolBar::comicPageReplacementKeepsRightToolbarPresentationStable()
 {
     kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
@@ -1336,6 +1431,7 @@ void TestMainWindowToolBar::zoomShortcutFocusesZoomInput()
 
 void TestMainWindowToolBar::fullscreenZoomShortcutRevealsToolbarAndFocusesInput()
 {
+    kiriview::TestSupport::ManualTimerScheduler timerScheduler;
     QString imageSourcePath;
     QString videoSourcePath;
     QString errorString;
@@ -1343,7 +1439,7 @@ void TestMainWindowToolBar::fullscreenZoomShortcutRevealsToolbarAndFocusesInput(
         = createMediaDirectory(&imageSourcePath, &videoSourcePath, &errorString);
     QVERIFY2(mediaDirectory != nullptr, qPrintable(errorString));
 
-    MainWindowFixture fixture = createMainWindowFixture();
+    MainWindowFixture fixture = createMainWindowFixture(QUrl(), timerScheduler.scheduler());
     QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
     resizeWindow(fixture, QSize(1200, 800));
     openSourceUrl(fixture, imageSourcePath);
@@ -1357,7 +1453,18 @@ void TestMainWindowToolBar::fullscreenZoomShortcutRevealsToolbarAndFocusesInput(
     fixture.window->setVisibility(QWindow::FullScreen);
     QTRY_COMPARE(fixture.window->visibility(), QWindow::FullScreen);
     QTRY_VERIFY(fixture.windowShell->fullscreen());
-    QTRY_VERIFY_WITH_TIMEOUT(!fixture.windowShell->toolbarRevealed(), 6000);
+    QVERIFY(fixture.windowShell->toolbarRevealed());
+    moveMouse(fixture.window, QPoint(fixture.window->width() / 2, fixture.window->height() / 2));
+    fixture.windowShell->reportToolbarInteractionActive(false);
+    fixture.windowShell->reportPointerMoved(false);
+    QVERIFY(timerScheduler.timerCount() > 0);
+    {
+        kiriview::TestSupport::ManualRuntimeTimer& toolbarHideTimer
+            = timerScheduler.timerAt(timerScheduler.timerCount() - 1);
+        QVERIFY(toolbarHideTimer.active());
+        toolbarHideTimer.fire();
+    }
+    QTRY_VERIFY(!fixture.windowShell->toolbarRevealed());
     QVERIFY(!toolbar->isVisible());
 
     QTest::keyClick(fixture.window, Qt::Key_Y, Qt::ControlModifier);

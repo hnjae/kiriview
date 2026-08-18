@@ -157,15 +157,8 @@ kiriview::ThumbnailCacheLookupResult admittedThumbnailCacheLookup(
         return result;
     }
 
-    const qsizetype retainedByteCount = result.image.sizeInBytes();
-    kiriview::ImageDecodeWorkspaceHold retainedWorkspace
-        = workspaceLease.retainOnly(retainedByteCount);
-    if (!retainedWorkspace.isManaged()) {
-        result = thumbnailCacheLookupResourceLimitResult(request);
-        return result;
-    }
-    result.image = kiriview::imageRetainingDecodeWorkspace(
-        std::move(result.image), std::move(retainedWorkspace));
+    result.image = kiriview::displayReadyImageRetainingDecodeWorkspace(
+        std::move(result.image), std::move(workspaceLease));
     if (result.image.isNull()) {
         result = thumbnailCacheLookupResourceLimitResult(request);
     }

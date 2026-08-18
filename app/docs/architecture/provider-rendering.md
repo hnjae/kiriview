@@ -38,7 +38,7 @@ Each accepted provider request has one authoritative application completion owne
 
 The display image store owns KiriView's reusable decoded entries, byte accounting, priority, eviction, and leases. Provider ownership callbacks are the only dependency inputs that may change the application lease state; QML load status, visual-item lifetime, and polling are not application resource authorities.
 
-The application provider retains source-specific failure detail in a KiriView-owned immutable failure record and sends only values allowed by the public provider protocol. The integration owner resolves an opaque application reference only when a matching supported observation exposes it. An absent, stale, or unresolved reference cannot recover detail from another application target and falls back to the generic failure exposed by the dependency.
+The application provider retains source-specific failure detail in a KiriView-owned immutable failure record and sends only values allowed by the public provider protocol. The integration owner resolves an opaque application reference only when a matching supported observation exposes it. A resolved non-empty application message remains authoritative. An empty application message or an absent, stale, or unresolved reference cannot recover detail from another application target and instead maps the typed viewport failure facts to a stable localized KiriView message. Component-authored diagnostic text remains diagnostic detail and is never application-facing copy.
 
 ## Preview, Refinement, And Reuse
 

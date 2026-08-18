@@ -62,7 +62,7 @@ kiriview::ThumbnailCacheLookupProvider thumbnailLookupProvider(bool ready)
         result.requestedBucket = request.requestedBucket;
         if (ready) {
             result.status = kiriview::ThumbnailCacheLookupStatus::Ready;
-            result.image = QImage(QSize(400, 300), QImage::Format_RGBA8888);
+            result.image = QImage(QSize(400, 300), QImage::Format_RGBA8888_Premultiplied);
             result.image.fill(QColor(Qt::blue));
             result.sourceBucket = request.requestedBucket;
             result.sourceCachePath = QStringLiteral("/cache/preview.png");

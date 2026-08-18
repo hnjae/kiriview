@@ -519,7 +519,7 @@ void TestApplicationActionRuntime::unavailableImageToolbarClearsRetainedAppearan
     QVERIFY(!unavailable.fitMode.appearanceEnabled);
     QVERIFY(!unavailable.fitMode.appearanceChecked);
     QVERIFY(!unavailable.fitMode.interactionEnabled);
-    QCOMPARE(unavailable.presentedFitActionId, ActionId::ViewFitAction);
+    QCOMPARE(unavailable.presentedFitActionId, ActionId::ViewFitHeightAction);
     QVERIFY(!unavailable.zoom.appearanceEnabled);
     QVERIFY(!unavailable.zoom.interactionEnabled);
     QVERIFY(!unavailable.zoom.available);

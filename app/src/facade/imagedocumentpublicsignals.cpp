@@ -183,6 +183,8 @@ std::vector<ImageDocumentPublicSignal> imageDocumentPublicSignals(ImageDocumentC
             ImageDocumentPublicSignal::ZoomPercentKnown };
     case ImageDocumentChange::EmbeddedMetadata:
         return { ImageDocumentPublicSignal::EmbeddedMetadata };
+    case ImageDocumentChange::FitModeSelection:
+        return { ImageDocumentPublicSignal::ZoomMode };
     case ImageDocumentChange::ViewportProjection:
         return {
             ImageDocumentPublicSignal::Status,

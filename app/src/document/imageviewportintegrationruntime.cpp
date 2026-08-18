@@ -4,6 +4,7 @@
 #include "imageviewportintegrationruntime.h"
 
 #include "async/imagecallback.h"
+#include "localization/imageerrortext.h"
 #include "rendering/imageviewportsequenceprovider.h"
 
 #include <ImageViewport/imagesequence.h>
@@ -20,6 +21,11 @@ bool finitePoint(QPointF point) { return std::isfinite(point.x()) && std::isfini
 bool accepted(ImageViewportCommandResult result)
 {
     return result.outcome() == ImageViewportCommandOutcome::Accepted;
+}
+
+QString imageDataReadError()
+{
+    return kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData);
 }
 
 qreal normalizedScrollPosition(bool pannable, qreal position, qreal maximum)
@@ -641,11 +647,16 @@ void ImageViewportIntegrationRuntime::acceptSnapshot(const ImageViewportStateSna
     projection.failure = resolveFailure(*m_activeRecord, componentFailure);
     if (projection.failure.has_value()) {
         if (projection.failure->userMessage.isEmpty()) {
-            projection.failure->userMessage = snapshot.diagnostics().errorString();
+            projection.failure->userMessage = imageDataReadError();
+        }
+        if (projection.failure->diagnosticDetail.isEmpty()) {
+            projection.failure->diagnosticDetail = snapshot.diagnostics().errorString();
         }
         projection.errorString = projection.failure->userMessage;
-    } else {
-        projection.errorString = snapshot.diagnostics().errorString();
+        projection.diagnosticDetail = projection.failure->diagnosticDetail;
+    } else if (projection.status == ImageDocumentStatus::Error) {
+        projection.errorString = imageDataReadError();
+        projection.diagnosticDetail = snapshot.diagnostics().errorString();
     }
     TargetRecord* correlatedRecord = m_activeRecord;
     pruneRecords(acceptedGeneration, snapshot.display().displayedPresentationTargetGeneration());

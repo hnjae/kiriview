@@ -58,7 +58,6 @@ public:
     [[nodiscard]] bool activeImageOpenedCollectionScopeActive() const;
     [[nodiscard]] bool activeImageRightToLeftReadingActive() const;
     [[nodiscard]] bool activeVideoReady() const;
-    [[nodiscard]] bool activeVideoControlsReady() const;
     [[nodiscard]] const DocumentSessionActionStateSnapshot& actionStateSnapshot() const;
     [[nodiscard]] const DocumentSessionActionAvailabilityFacts& actionAvailabilityFacts() const;
     [[nodiscard]] bool activeNavigationAvailable() const;

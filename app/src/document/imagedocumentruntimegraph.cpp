@@ -1172,6 +1172,9 @@ void ImageDocumentRuntimeGraph::handleViewportProjection(
 
         PendingViewportImageLoad completedLoad = std::move(*m_pendingViewportImageLoad);
         m_pendingViewportImageLoad.reset();
+        if (!completedLoad.session.request().sameScopePageNavigation()) {
+            m_state.setFitModeSelection(ImageZoomMode::Fit);
+        }
         EmbeddedMetadata metadata
             = completedLoad.metadata ? completedLoad.metadata() : EmbeddedMetadata {};
         m_openController->finishViewportImageLoadReady(
@@ -1186,9 +1189,10 @@ void ImageDocumentRuntimeGraph::handleViewportProjection(
         << "viewport image load failed"
         << "url" << diagnosticSourceReference(m_pendingViewportImageLoad->session.imageUrl())
         << "sourceGeneration" << projection.sourceGeneration << "displayedUrl"
-        << diagnosticSourceReference(projection.displayedUrl) << "errorString"
-        << diagnosticDetailReference(projection.errorString) << "errorStringAvailable"
-        << !projection.errorString.isEmpty() << "viewportFailureAvailable"
+        << diagnosticSourceReference(projection.displayedUrl) << "diagnosticDetail"
+        << diagnosticDetailReference(projection.diagnosticDetail) << "userMessageAvailable"
+        << !projection.errorString.isEmpty() << "diagnosticDetailAvailable"
+        << !projection.diagnosticDetail.isEmpty() << "viewportFailureAvailable"
         << projection.viewportFailureAvailable << "failureContext"
         << static_cast<int>(projection.viewportFailureContext) << "failureReason"
         << static_cast<int>(projection.viewportFailureReason) << "failureRole"
@@ -1219,7 +1223,7 @@ void ImageDocumentRuntimeGraph::handleViewportProjection(
         m_spreadController->cancelPageReplacementPairing(replacement->selectedSession.id());
     }
     ImageLoadFailure failure = projection.failure.value_or(viewportPresentationFailure(
-        completedLoad.session, projection.errorString, projection.errorString));
+        completedLoad.session, projection.errorString, projection.diagnosticDetail));
     m_openController->finishViewportImageLoadWithError(completedLoad.session, std::move(failure));
 }
 

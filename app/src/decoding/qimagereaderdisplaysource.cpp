@@ -115,9 +115,10 @@ void appendDisplayDecodeFailure(
         return;
     }
 
-    const QString message = errorString.isEmpty() ? imageDataReadError() : errorString;
-    diagnostics->userMessage = message;
-    diagnostics->diagnosticDetail = message;
+    diagnostics->userMessage = imageDataReadError();
+    diagnostics->diagnosticDetail = errorString.isEmpty()
+        ? QStringLiteral("Qt image reader returned no diagnostic detail")
+        : errorString;
 }
 
 template <typename ConfigureReader>
@@ -126,7 +127,8 @@ QImage readBufferedImage(const QByteArray& data, const QByteArray& format, bool 
 {
     kiriview::BufferedImageReader reader(data, format, autoTransform);
     if (!reader) {
-        kiriview::setStaticImageDisplaySourceError(errorString, imageDataReadError());
+        kiriview::setStaticImageDisplaySourceError(
+            errorString, QStringLiteral("Qt image reader could not be initialized"));
         return {};
     }
 
@@ -146,12 +148,13 @@ QImage readBufferedImage(const QByteArray& data, const QByteArray& format, bool 
 }
 
 namespace kiriview {
-std::shared_ptr<QImageReaderDisplaySource> QImageReaderDisplaySource::open(
-    const QByteArray& data, const QByteArray& format, QString* errorString)
+std::shared_ptr<QImageReaderDisplaySource> QImageReaderDisplaySource::open(const QByteArray& data,
+    const QByteArray& format, StaticImageDisplayDecodeDiagnostics* diagnostics)
 {
     BufferedImageReader reader(data, format);
     if (!reader) {
-        setStaticImageDisplaySourceError(errorString, imageDataReadError());
+        appendDisplayDecodeFailure(
+            diagnostics, QStringLiteral("Qt image reader could not be initialized"));
         return {};
     }
 
@@ -159,7 +162,7 @@ std::shared_ptr<QImageReaderDisplaySource> QImageReaderDisplaySource::open(
     const QSize readerImageSize = reader.size();
     const QSize imageSize = transformedImageSize(readerImageSize, transformations);
     if (imageSize.isEmpty()) {
-        setStaticImageDisplaySourceError(errorString, reader.errorString());
+        appendDisplayDecodeFailure(diagnostics, reader.errorString());
         return {};
     }
 

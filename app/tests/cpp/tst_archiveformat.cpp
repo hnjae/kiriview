@@ -15,6 +15,7 @@ class TestArchiveFormat : public QObject
 private Q_SLOTS:
     void comicBookArchiveFileNamesAreCaseInsensitive();
     void directArchiveOpenMatchesExposeArchiveKind();
+    void advertisedComicExtensionsAreCanonicalAndRoutable();
     void advertisedComicMimeTypesAreRoutableAndExcludeGeneralArchives();
     void archiveRootSchemesReportKioFuseSupportByBackend();
 };
@@ -68,6 +69,28 @@ void TestArchiveFormat::directArchiveOpenMatchesExposeArchiveKind()
     QVERIFY(rarUrlMatch.has_value());
     QCOMPARE(rarUrlMatch->scheme, QStringLiteral("rar"));
     QVERIFY(rarUrlMatch->kind == kiriview::ArchiveOpenMatchKind::GeneralArchive);
+}
+
+void TestArchiveFormat::advertisedComicExtensionsAreCanonicalAndRoutable()
+{
+    const QStringList extensions = kiriview::supportedComicBookArchiveExtensions();
+    QCOMPARE(extensions,
+        QStringList({ QStringLiteral("cb7"), QStringLiteral("cbr"), QStringLiteral("cbt"),
+            QStringLiteral("cbz") }));
+
+    QStringList sortedExtensions = extensions;
+    sortedExtensions.sort();
+    sortedExtensions.removeDuplicates();
+    QCOMPARE(extensions, sortedExtensions);
+
+    for (const QString& extension : extensions) {
+        const std::optional<kiriview::ArchiveOpenMatch> match
+            = kiriview::directArchiveOpenMatchForFileName(QStringLiteral("book.") + extension);
+        QVERIFY2(match.has_value(), qPrintable(extension));
+        QVERIFY(match->kind == kiriview::ArchiveOpenMatchKind::ComicBook);
+        QVERIFY(kiriview::archiveStorageBackendForRootScheme(match->scheme)
+            != kiriview::ArchiveStorageBackend::None);
+    }
 }
 
 void TestArchiveFormat::advertisedComicMimeTypesAreRoutableAndExcludeGeneralArchives()

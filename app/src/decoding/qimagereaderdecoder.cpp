@@ -101,14 +101,16 @@ kiriview::DecodedImageResult openedStaticImageResult(const QByteArray& data,
     const kiriview::ImageDecodeRequest& request, const QByteArray& format,
     std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> workspaceBudget)
 {
-    QString errorString;
+    kiriview::StaticImageDisplayDecodeDiagnostics diagnostics;
     std::shared_ptr<kiriview::StaticImageDisplaySource> source
-        = kiriview::QImageReaderDisplaySource::open(data, format, &errorString);
+        = kiriview::QImageReaderDisplaySource::open(data, format, &diagnostics);
     if (source == nullptr) {
-        return failedQtRasterDecodedImageResult(errorString,
-            kiriview::DecodedImageFailureOperation::OpenStaticImageSource, format, errorString);
+        return failedQtRasterDecodedImageResult(std::move(diagnostics.userMessage),
+            kiriview::DecodedImageFailureOperation::OpenStaticImageSource, format,
+            diagnostics.diagnosticDetail);
     }
 
+    QString errorString;
     kiriview::DecodedImageResult result = kiriview::staticDecodedImageResult(
         std::move(source), request, &errorString, std::move(workspaceBudget));
     stampQtRasterFailure(result, format);
@@ -182,7 +184,7 @@ DecodedImageResult decodeQImageReaderImageData(const QByteArray& data,
     }
     if (catalog->logicalSize != firstFrame.size()) {
         const QString catalogFailure = QStringLiteral("animation source catalog size mismatch");
-        return failedQtRasterDecodedImageResult(catalogFailure,
+        return failedQtRasterDecodedImageResult(imageErrorText(ImageErrorTextId::ReadImageData),
             DecodedImageFailureOperation::DecodeAnimationOpen, readerFormat, catalogFailure);
     }
     return successfulDecodedImageResult(ReaderAnimationImage {

@@ -7,6 +7,7 @@
 #include "decoding/apnganimationreader.h"
 #include "decoding/heifsequencereader.h"
 #include "decoding/imageanimationrequest.h"
+#include "decoding/imageanimationsourcelimits_p.h"
 #include "decoding/imagedecodeworkspace.h"
 
 #include <QByteArray>
@@ -42,6 +43,18 @@ QByteArray finiteLoopGifData()
     return QByteArray::fromBase64(
         QByteArrayLiteral("R0lGODlhAQABAIAAAP8AAAAA/yH/C05FVFNDQVBFMi4wAwECAAAh+QQAAQAAACwAAAAAAQAB"
                           "AAACAkQBACH5BAACAAAALAAAAAABAAEAAAICTAEAOw=="));
+}
+
+QByteArray gifDataWithFrameCount(int frameCount)
+{
+    QByteArray data = QByteArray::fromHex("47494638396101000100800000000000ffffff");
+    const QByteArray frame = QByteArray::fromHex("2c0000000001000100000202440100");
+    data.reserve(data.size() + (frameCount * frame.size()) + 1);
+    for (int index = 0; index < frameCount; ++index) {
+        data.append(frame);
+    }
+    data.append('\x3b');
+    return data;
 }
 
 kiriview::ImageAnimationPlaybackRequest playbackRequest(PlaybackKind kind, QByteArray data,
@@ -117,6 +130,29 @@ QByteArray apngWithUndecodableLaterRaster()
     }
     return {};
 }
+
+QByteArray apngWithDeclaredFrameCount(quint32 frameCount)
+{
+    QByteArray data = fixtureData(QStringLiteral("animated-smoke.apng"));
+    qsizetype offset = 8;
+    while (offset + 12 <= data.size()) {
+        const quint32 payloadSize = readBigEndian32(data, offset);
+        if (payloadSize > static_cast<quint32>(data.size() - offset - 12)) {
+            return {};
+        }
+
+        const qsizetype typeOffset = offset + 4;
+        const qsizetype payloadOffset = typeOffset + 4;
+        const qsizetype crcOffset = payloadOffset + static_cast<qsizetype>(payloadSize);
+        if (data.mid(typeOffset, 4) == QByteArrayLiteral("acTL") && payloadSize == 8) {
+            writeBigEndian32(&data, payloadOffset, frameCount);
+            writeBigEndian32(&data, crcOffset, crc32(data.mid(typeOffset, 4 + payloadSize)));
+            return data;
+        }
+        offset = crcOffset + 4;
+    }
+    return {};
+}
 }
 
 class TestImageAnimationSourceCatalog : public QObject
@@ -127,6 +163,7 @@ private Q_SLOTS:
     void realAnimationSourcesExposeNormalizedCatalogs_data();
     void realAnimationSourcesExposeNormalizedCatalogs();
     void apngCatalogDoesNotRequireLaterRasterDecode();
+    void animationFrameCountLimitIsSourceNeutralAndTyped();
     void catalogWorkspaceFailureIsTyped_data();
     void catalogWorkspaceFailureIsTyped();
     void heifCatalogChargesRetainedFirstFrameSeparately();
@@ -200,6 +237,36 @@ void TestImageAnimationSourceCatalog::apngCatalogDoesNotRequireLaterRasterDecode
         QVERIFY(duration > 0);
         QCOMPARE(duration, kiriview::normalizedAnimationFrameDelay(duration));
     }
+}
+
+void TestImageAnimationSourceCatalog::animationFrameCountLimitIsSourceNeutralAndTyped()
+{
+    const int maximumFrameCount = kiriview::maximumImageAnimationSourceFrameCount();
+    QVERIFY(maximumFrameCount >= 2);
+
+    const kiriview::ImageAnimationSourceCatalogResult accepted
+        = kiriview::readImageAnimationSourceCatalog(kiriview::readerAnimationPlaybackRequest(
+            gifDataWithFrameCount(maximumFrameCount), QByteArrayLiteral("gif")));
+    QVERIFY2(accepted.has_value(),
+        qPrintable(accepted.has_value() ? QString() : accepted.error().errorString));
+    QCOMPARE(accepted->frameDurations.size(), maximumFrameCount);
+
+    const kiriview::ImageAnimationSourceCatalogResult rejected
+        = kiriview::readImageAnimationSourceCatalog(kiriview::readerAnimationPlaybackRequest(
+            gifDataWithFrameCount(maximumFrameCount + 1), QByteArrayLiteral("gif")));
+    QVERIFY(!rejected.has_value());
+    QCOMPARE(rejected.error().cause,
+        kiriview::ImageAnimationSourceCatalogFailureCause::ResourceLimitExceeded);
+
+    const QByteArray apngData
+        = apngWithDeclaredFrameCount(static_cast<quint32>(maximumFrameCount + 1));
+    QVERIFY(!apngData.isEmpty());
+    const kiriview::ImageAnimationSourceCatalogResult rejectedApng
+        = kiriview::readImageAnimationSourceCatalog(
+            kiriview::apngAnimationPlaybackRequest(apngData));
+    QVERIFY(!rejectedApng.has_value());
+    QCOMPARE(rejectedApng.error().cause,
+        kiriview::ImageAnimationSourceCatalogFailureCause::ResourceLimitExceeded);
 }
 
 void TestImageAnimationSourceCatalog::catalogWorkspaceFailureIsTyped_data()

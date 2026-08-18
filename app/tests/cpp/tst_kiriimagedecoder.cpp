@@ -6,10 +6,10 @@
 #include "decoding/heifcontainer.h"
 #include "decoding/heifdisplaysource.h"
 #include "decoding/heifsequencereader.h"
+#include "decoding/imageanimationsourcelimits_p.h"
 #include "decoding/qimagereaderdisplaysource.h"
 #include "image_test_support.h"
 
-#include <ImageViewport/imagesequence.h>
 #include <libheif/heif.h>
 #include <libheif/heif_sequences.h>
 
@@ -531,7 +531,7 @@ void TestKiriImageDecoder::animationWorkspaceBudgetRejectsUnadmittedFrames()
 void TestKiriImageDecoder::gifFrameCountLimitIsEnforced()
 {
     const QByteArray imageData
-        = gifDataWithFrameCount(ImageSequenceLimits::maximumFrameCount() + 1);
+        = gifDataWithFrameCount(kiriview::maximumImageAnimationSourceFrameCount() + 1);
     QVERIFY(!imageData.isEmpty());
     constexpr qsizetype budgetByteCount = qsizetype { 256 } * 1024 * 1024;
     auto budget

@@ -71,8 +71,6 @@ class KiriDocumentSession : public QObject
     Q_PROPERTY(bool activeImageRightToLeftReadingActive READ activeImageRightToLeftReadingActive
             NOTIFY publicProjectionRevisionChanged)
     Q_PROPERTY(bool activeVideoReady READ activeVideoReady NOTIFY publicProjectionRevisionChanged)
-    Q_PROPERTY(bool activeVideoControlsReady READ activeVideoControlsReady NOTIFY
-            publicProjectionRevisionChanged)
     Q_PROPERTY(bool activeNavigationAvailable READ activeNavigationAvailable NOTIFY
             activeNavigationChanged)
     Q_PROPERTY(bool activeNavigationKnown READ activeNavigationKnown NOTIFY activeNavigationChanged)
@@ -192,7 +190,6 @@ public:
     [[nodiscard]] bool activeImageOpenedCollectionScopeActive() const;
     [[nodiscard]] bool activeImageRightToLeftReadingActive() const;
     [[nodiscard]] bool activeVideoReady() const;
-    [[nodiscard]] bool activeVideoControlsReady() const;
     [[nodiscard]] bool activeNavigationAvailable() const;
     [[nodiscard]] bool activeNavigationKnown() const;
     [[nodiscard]] bool activeNavigationEditable() const;

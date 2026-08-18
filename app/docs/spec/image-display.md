@@ -110,7 +110,7 @@ Within the same directly opened archive or directory collection, KiriView preser
 
 Switching between single-page display and Two-Page Spread preserves the user's active fit mode or preferred manual zoom. A target-specific maximum may temporarily lower the effective manual zoom, but changing presentation shape does not replace the preferred percentage with that temporary value.
 
-If the user has selected Fit, Fit Height, or Fit Width, that fit mode remains selected and recalculates for each page, viewport size, and rotation change.
+If the user has selected Fit, Fit Height, or Fit Width, that fit mode remains selected and recalculates for each page, viewport size, and rotation change within the same directly opened archive or directory collection and across single-page and Two-Page Spread changes.
 
 If the user has entered a manual zoom value, that exact percentage remains the preferred manual zoom while users navigate within the collection or switch between single-page and Two-Page Spread display. If the current image or spread has a lower dynamic maximum, KiriView temporarily uses that maximum as the effective zoom and returns to the preferred percentage when a later image or spread permits it.
 
@@ -118,7 +118,7 @@ When the displayed page changes inside the archive or directory collection throu
 
 The scan-backward shortcut may open the previous image at its final scan position instead: bottom-right normally and bottom-left in Right-to-Left Reading mode.
 
-Starting KiriView, opening an ordinary direct image, moving between ordinary direct images in a direct media URL scope, opening a KDE archive URL image directly, opening a different archive or directory collection, or moving to a sibling archive resets zoom to Fit mode when the new image is displayed.
+Starting KiriView, opening an ordinary direct image, moving between ordinary direct images in a direct media URL scope, opening a KDE archive URL image directly, opening a different archive or directory collection, or moving to a sibling archive resets zoom and the toolbar-selected fit preference to Fit mode when the new image is displayed. A replacement that fails before displaying the new image does not reset the prior selection.
 
 ## Rotation
 

@@ -342,11 +342,12 @@ std::optional<StaticDisplayImagePayload> xdgThumbnailPreviewDisplayPayload(
     const ImageDecodeRequest& request, const XdgThumbnailPreviewResult& result)
 {
     if (result.status != ThumbnailCacheLookupStatus::Ready || result.image.isNull()
+        || result.image.format() != QImage::Format_RGBA8888_Premultiplied
         || !validImageSize(result.originalSize)) {
         return std::nullopt;
     }
 
-    QImage image = displayReadyImage(result.image);
+    QImage image = result.image;
     return StaticDisplayImagePayload {
         sourceKeyForUrl(request.imageUrl()).identity,
         {},

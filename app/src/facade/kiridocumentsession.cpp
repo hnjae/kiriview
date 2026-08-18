@@ -662,11 +662,6 @@ bool KiriDocumentSession::activeImageRightToLeftReadingActive() const
 
 bool KiriDocumentSession::activeVideoReady() const { return m_runtime->activeVideoReady(); }
 
-bool KiriDocumentSession::activeVideoControlsReady() const
-{
-    return m_runtime->activeVideoControlsReady();
-}
-
 bool KiriDocumentSession::activeNavigationAvailable() const
 {
     return m_runtime->activeNavigationAvailable();

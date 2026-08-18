@@ -22,6 +22,20 @@ std::unique_ptr<ImageFrame> providerDetailFrame(
         ImageFrame::OrientationPolicy::Identity, QString {});
 }
 
+QSGImageNode* imageNodeInSubtree(QSGNode* node)
+{
+    if (auto* imageNode = dynamic_cast<QSGImageNode*>(node)) {
+        return imageNode;
+    }
+    for (QSGNode* child = node == nullptr ? nullptr : node->firstChild(); child != nullptr;
+        child = child->nextSibling()) {
+        if (QSGImageNode* imageNode = imageNodeInSubtree(child)) {
+            return imageNode;
+        }
+    }
+    return nullptr;
+}
+
 struct PendingProvisionalReplacementFixture
 {
     PendingProvisionalReplacementFixture()
@@ -550,7 +564,7 @@ void ImageViewportProviderFrameAdmissionTest::providerStillFrameUsesDeviceIndepe
     QCOMPARE(contentRect(item), QRectF(0.0, 5.0, 20.0, 10.0));
     QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 2.0, 1.0));
 
-    auto* imageNode = dynamic_cast<QSGImageNode*>(root->lastChild());
+    auto* imageNode = imageNodeInSubtree(root->lastChild());
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
     QCOMPARE(imageNode->sourceRect(), QRectF(0.0, 0.0, 4.0, 2.0));
@@ -1581,7 +1595,7 @@ void ImageViewportProviderFrameAdmissionTest::
 
     QScopedPointer<QSGNode> root(item->takePaintNode());
     QVERIFY(root);
-    auto* imageNode = dynamic_cast<QSGImageNode*>(root->lastChild());
+    auto* imageNode = imageNodeInSubtree(root->lastChild());
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
     QCOMPARE(*releaseCount, 0);
@@ -1644,7 +1658,7 @@ void ImageViewportProviderFrameAdmissionTest::
 
     QScopedPointer<QSGNode> root(item->takePaintNode());
     QVERIFY(root);
-    QVERIFY(dynamic_cast<QSGImageNode*>(root->lastChild()));
+    QVERIFY(imageNodeInSubtree(root->lastChild()));
     QCOMPARE(*releaseCount, 0);
 
     QEventLoop applicationLoop;

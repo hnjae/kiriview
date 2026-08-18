@@ -60,6 +60,7 @@ struct ImageViewportIntegrationProjection
     ImageDocumentStatus status = ImageDocumentStatus::Null;
     ImageViewportFitMode fitMode = ImageViewportFitMode::Contain;
     QString errorString;
+    QString diagnosticDetail;
     std::optional<ImageLoadFailure> failure;
     ImageViewportFailureContext viewportFailureContext = ImageViewportFailureContext::Unavailable;
     ImageViewportRequestReason viewportFailureReason = ImageViewportRequestReason::NoRequest;

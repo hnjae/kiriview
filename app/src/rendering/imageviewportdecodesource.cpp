@@ -1941,32 +1941,36 @@ void ImageViewportDecodeProviderSource::finishAnimationFrame(const PendingFrame&
           });
     if (!result.has_value() || result->image.isNull()
         || result->image.size() != animation.metadata.sourceLogicalSize().toSize()) {
-        QString errorString = result.has_value()
+        QString diagnosticDetail = result.has_value()
             ? QStringLiteral("requested animation frame is unavailable")
             : std::move(result.error().errorString);
-        if (errorString.isEmpty()) {
-            errorString = QStringLiteral("requested animation frame is unavailable");
+        if (diagnosticDetail.isEmpty()) {
+            diagnosticDetail = QStringLiteral("requested animation frame is unavailable");
         }
         const ImageSequenceProviderFailureCause failureCause = !result.has_value()
                 && result.error().cause == AnimationSourceFrameFailureCause::ResourceLimitExceeded
             ? ImageSequenceProviderFailureCause::ResourceExhausted
             : ImageSequenceProviderFailureCause::Decode;
+        ImageLoadFailure failure = loadFailure(resolvedSession(), ImageLoadFailureKind::Decode,
+            imageErrorText(ImageErrorTextId::DecodeImageAnimation), std::move(diagnosticDetail));
+        if (failureCause == ImageSequenceProviderFailureCause::ResourceExhausted) {
+            failure.decodeCause = DecodedImageFailureCause::ResourceLimitExceeded;
+        }
         pending.completion(pending.identity,
-            ImageViewportProviderFrameResult::failed(failureCause,
-                loadFailure(
-                    resolvedSession(), ImageLoadFailureKind::Decode, errorString, errorString)));
+            ImageViewportProviderFrameResult::failed(failureCause, std::move(failure)));
         return;
     }
 
     QImage retainedImage
         = imageRetainingDecodeWorkspace(std::move(result->image), std::move(result->workspaceHold));
     if (retainedImage.isNull()) {
-        const QString errorString = imageDecodeWorkspaceResourceLimitDiagnostic();
+        ImageLoadFailure failure = loadFailure(resolvedSession(), ImageLoadFailureKind::Decode,
+            imageErrorText(ImageErrorTextId::DecodeImageAnimation),
+            imageDecodeWorkspaceResourceLimitDiagnostic());
+        failure.decodeCause = DecodedImageFailureCause::ResourceLimitExceeded;
         pending.completion(pending.identity,
             ImageViewportProviderFrameResult::failed(
-                ImageSequenceProviderFailureCause::ResourceExhausted,
-                loadFailure(
-                    resolvedSession(), ImageLoadFailureKind::Decode, errorString, errorString)));
+                ImageSequenceProviderFailureCause::ResourceExhausted, std::move(failure)));
         return;
     }
     if (outputAdmission != nullptr && !outputAdmission->retainOnly(imageByteCost(retainedImage))) {

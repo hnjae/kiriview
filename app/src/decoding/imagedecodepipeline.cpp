@@ -427,6 +427,39 @@ kiriview::DecodedImageResult failedAdapterDecodedImageResult(QString errorString
     });
 }
 
+kiriview::DecodedImageResult failedAdapterDecodedImageResult(
+    kiriview::StaticImageDisplayDecodeDiagnostics diagnostics,
+    kiriview::DecodedImageFailureRoute route, kiriview::DecodedImageFailureOperation operation,
+    const QString& adapterName,
+    kiriview::DecodedImageFailureCause cause = kiriview::DecodedImageFailureCause::Unknown)
+{
+    return kiriview::failedDecodedImageResult(kiriview::DecodedImageFailure {
+        std::move(diagnostics.userMessage),
+        route,
+        operation,
+        adapterFailureDiagnosticDetail(adapterName, operation, diagnostics.diagnosticDetail),
+        kiriview::DecodedImageFailureSeverity::Error,
+        false,
+        cause,
+    });
+}
+
+kiriview::DecodedImageResult failedApngCatalogDecodedImageResult(
+    kiriview::ImageAnimationSourceCatalogFailure failure)
+{
+    const kiriview::DecodedImageFailureCause cause
+        = failure.cause == kiriview::ImageAnimationSourceCatalogFailureCause::ResourceLimitExceeded
+        ? kiriview::DecodedImageFailureCause::ResourceLimitExceeded
+        : kiriview::DecodedImageFailureCause::Unknown;
+    kiriview::StaticImageDisplayDecodeDiagnostics diagnostics {
+        kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeApngAnimation),
+        std::move(failure.errorString),
+    };
+    return failedAdapterDecodedImageResult(std::move(diagnostics),
+        kiriview::DecodedImageFailureRoute::Apng,
+        kiriview::DecodedImageFailureOperation::DecodeAnimationOpen, QStringLiteral("APNG"), cause);
+}
+
 void stampAdapterFailure(kiriview::DecodedImageResult& result,
     kiriview::DecodedImageFailureRoute route, const QString& adapterName)
 {
@@ -501,9 +534,7 @@ kiriview::DecodedImageResult decodeApngImageData(const kiriview::ImageDecodeRout
     kiriview::ImageAnimationSourceCatalogResult catalog = kiriview::readImageAnimationSourceCatalog(
         kiriview::apngAnimationPlaybackRequest(input.data));
     if (!catalog.has_value()) {
-        return failedAdapterDecodedImageResult(std::move(catalog.error().errorString),
-            kiriview::DecodedImageFailureRoute::Apng,
-            kiriview::DecodedImageFailureOperation::DecodeAnimationOpen, QStringLiteral("APNG"));
+        return failedApngCatalogDecodedImageResult(std::move(catalog.error()));
     }
 
     kiriview::ApngAnimationReader apngReader(input.workspaceBudget);
@@ -1098,14 +1129,11 @@ namespace {
         ImageDecodeWorkspaceHold retainedInputWorkspace, qsizetype retainedInputWorkspaceByteCount)
     {
         const QByteArray readerFormat = qtImageReaderFormat(route.qtRasterFormat);
-        QString errorString;
+        StaticImageDisplayDecodeDiagnostics diagnostics;
         std::shared_ptr<QImageReaderDisplaySource> source
-            = QImageReaderDisplaySource::open(sourceData.data, readerFormat, &errorString);
+            = QImageReaderDisplaySource::open(sourceData.data, readerFormat, &diagnostics);
         if (source == nullptr) {
-            if (errorString.isEmpty()) {
-                errorString = imageErrorText(ImageErrorTextId::ReadImageData);
-            }
-            return failedAdapterDecodedImageResult(std::move(errorString),
+            return failedAdapterDecodedImageResult(std::move(diagnostics),
                 DecodedImageFailureRoute::QtRaster,
                 DecodedImageFailureOperation::OpenStaticImageSource,
                 QStringLiteral("Qt image reader"));
@@ -1124,9 +1152,7 @@ namespace {
         ImageAnimationSourceCatalogResult catalog
             = readImageAnimationSourceCatalog(apngAnimationPlaybackRequest(sourceData.data));
         if (!catalog.has_value()) {
-            return failedAdapterDecodedImageResult(std::move(catalog.error().errorString),
-                DecodedImageFailureRoute::Apng, DecodedImageFailureOperation::DecodeAnimationOpen,
-                QStringLiteral("APNG"));
+            return failedApngCatalogDecodedImageResult(std::move(catalog.error()));
         }
 
         const ApngAnimationWorkspacePlanResult planning = planApngAnimationOpen(sourceData.data);

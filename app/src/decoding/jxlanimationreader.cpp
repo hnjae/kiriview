@@ -5,12 +5,12 @@
 
 #include "animationtiming.h"
 #include "decoding/imagerendering.h"
+#include "imageanimationsourcelimits_p.h"
 #include "localization/imageerrortext.h"
 
 #include <jxl/decode.h>
 #include <jxl/thread_parallel_runner.h>
 
-#include <ImageViewport/imagesequence.h>
 #include <QByteArrayView>
 #include <QColorSpace>
 #include <QSize>
@@ -308,10 +308,13 @@ public:
                 continue;
             }
             if (status == JXL_DEC_FRAME) {
-                if (!haveBasicInfo
-                    || durations.size() >= ImageSequenceLimits::maximumFrameCount()) {
+                if (!haveBasicInfo) {
                     reset();
                     return failedJxlCatalog();
+                }
+                if (durations.size() >= maximumImageAnimationSourceFrameCount()) {
+                    reset();
+                    return failedJxlCatalog(true);
                 }
                 JxlFrameHeader header {};
                 if (JxlDecoderGetFrameHeader(decoder.get(), &header) != JXL_DEC_SUCCESS) {

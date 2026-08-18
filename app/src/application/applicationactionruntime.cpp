@@ -205,6 +205,7 @@ Actions::ImageToolbarPresentationSnapshot unavailableMediaToolbarPresentation(
         = toolbarActionPresentation(Actions::ActionId::ViewToggleRightToLeftReadingAction, input);
     presentation.twoPageMode
         = toolbarActionPresentation(Actions::ActionId::ViewToggleTwoPageModeAction, input);
+    presentation.presentedFitActionId = presentedFitActionId(document.imageFitModeSelection);
     presentation.fitMode = toolbarActionPresentation(presentation.presentedFitActionId, input);
     if (document.videoMode) {
         presentation.zoom = Actions::ImageToolbarZoomPresentation {

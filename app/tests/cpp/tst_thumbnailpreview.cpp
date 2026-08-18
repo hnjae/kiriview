@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #include "cache/imagebytecost.h"
+#include "decoding/imagerendering.h"
 #include "decoding/rawdecoder.h"
 #include "decoding/rawthumbnailpreview.h"
 #include "decoding/svgdisplaysource.h"
@@ -114,6 +115,10 @@ private Q_SLOTS:
     void acceptsExifRotatedProjectionOnlyWithTrustedDimensions();
     void rejectsMissingInvalidFailedAndNullLookupResults();
     void rejectsMissingMismatchedOrOversizedOriginalSize();
+    void xdgPayloadRejectsNonDisplayReadyImage();
+    void xdgPayloadRetainsAdmittedDisplayImageUntilFinalAlias();
+    void displayReadyAdmissionRequiresInputAndOutputPeak();
+    void displayReadyAdmissionRetainsChargeUntilFinalAlias();
     void rawEmbeddedPreviewPayloadUsesPreviewQualityAndOrigin();
     void rawEmbeddedPreviewPayloadRejectsInvalidImageOrOriginalSize();
     void complexTrustedSizePlanningDeclaresDemandedEnvelope();
@@ -265,6 +270,110 @@ void TestThumbnailPreview::rejectsMissingMismatchedOrOversizedOriginalSize()
                  previewRequest(), lookupResult(Status::Ready, previewImage(QSize(5000, 3750))))
                  .status,
         Status::Invalid);
+}
+
+void TestThumbnailPreview::xdgPayloadRejectsNonDisplayReadyImage()
+{
+    const kiriview::ImageDecodeRequest request = kiriview::ImageDecodeRequest::fromUrl(
+        20, QUrl::fromLocalFile(QStringLiteral("/tmp/source.png")));
+    kiriview::XdgThumbnailPreviewResult result {
+        Status::Ready,
+        previewImage(QSize(8, 6)),
+        QSize(16, 12),
+        kiriview::DisplayImageQuality::ThumbnailPreview,
+        Bucket::XXLarge,
+        Bucket::XXLarge,
+        {},
+        {},
+    };
+
+    QVERIFY(!kiriview::xdgThumbnailPreviewDisplayPayload(request, result).has_value());
+}
+
+void TestThumbnailPreview::xdgPayloadRetainsAdmittedDisplayImageUntilFinalAlias()
+{
+    const kiriview::ImageDecodeRequest request = kiriview::ImageDecodeRequest::fromUrl(
+        21, QUrl::fromLocalFile(QStringLiteral("/tmp/source.png")));
+    QImage image(QSize(8, 6), QImage::Format_RGBA8888_Premultiplied);
+    image.fill(Qt::red);
+    const qsizetype retainedByteCount = image.sizeInBytes();
+    auto workspaceBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        retainedByteCount, retainedByteCount);
+    kiriview::ImageDecodeWorkspaceLease workspaceLease
+        = kiriview::ImageDecodeWorkspaceDetail::startLease(*workspaceBudget);
+    QVERIFY(kiriview::ImageDecodeWorkspaceDetail::tryReserve(workspaceLease, retainedByteCount));
+    image = kiriview::imageRetainingDecodeWorkspace(
+        std::move(image), workspaceLease.retainOnly(retainedByteCount));
+    QVERIFY(!image.isNull());
+
+    kiriview::XdgThumbnailPreviewResult result {
+        Status::Ready,
+        std::move(image),
+        QSize(16, 12),
+        kiriview::DisplayImageQuality::ThumbnailPreview,
+        Bucket::XXLarge,
+        Bucket::XXLarge,
+        {},
+        {},
+    };
+    std::optional<kiriview::StaticDisplayImagePayload> payload
+        = kiriview::xdgThumbnailPreviewDisplayPayload(request, result);
+    QVERIFY(payload.has_value());
+    QCOMPARE(workspaceBudget->reservedByteCount(), retainedByteCount);
+
+    QImage finalAlias = payload->image;
+    result.image = {};
+    payload.reset();
+    QCOMPARE(workspaceBudget->reservedByteCount(), retainedByteCount);
+    finalAlias = {};
+    QCOMPARE(workspaceBudget->reservedByteCount(), qsizetype(0));
+}
+
+void TestThumbnailPreview::displayReadyAdmissionRequiresInputAndOutputPeak()
+{
+    QImage image(QSize(8, 6), QImage::Format_RGBA8888);
+    image.fill(Qt::red);
+    const qsizetype inputByteCount = image.sizeInBytes();
+    const qsizetype requiredPeakByteCount = inputByteCount * 2;
+    auto workspaceBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        requiredPeakByteCount - 1, requiredPeakByteCount - 1);
+    kiriview::ImageDecodeWorkspaceLease workspaceLease
+        = kiriview::ImageDecodeWorkspaceDetail::startLease(*workspaceBudget);
+    QVERIFY(kiriview::ImageDecodeWorkspaceDetail::tryReserve(
+        workspaceLease, requiredPeakByteCount - 1));
+
+    const QImage displayImage = kiriview::displayReadyImageRetainingDecodeWorkspace(
+        std::move(image), std::move(workspaceLease));
+
+    QVERIFY(displayImage.isNull());
+    QCOMPARE(workspaceBudget->reservedByteCount(), qsizetype(0));
+}
+
+void TestThumbnailPreview::displayReadyAdmissionRetainsChargeUntilFinalAlias()
+{
+    QImage image(QSize(8, 6), QImage::Format_RGBA8888);
+    image.fill(Qt::red);
+    const qsizetype inputByteCount = image.sizeInBytes();
+    const qsizetype requiredPeakByteCount = inputByteCount * 2;
+    auto workspaceBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        requiredPeakByteCount, requiredPeakByteCount);
+    kiriview::ImageDecodeWorkspaceLease workspaceLease
+        = kiriview::ImageDecodeWorkspaceDetail::startLease(*workspaceBudget);
+    QVERIFY(
+        kiriview::ImageDecodeWorkspaceDetail::tryReserve(workspaceLease, requiredPeakByteCount));
+
+    QImage displayImage = kiriview::displayReadyImageRetainingDecodeWorkspace(
+        std::move(image), std::move(workspaceLease));
+
+    QVERIFY(!displayImage.isNull());
+    QCOMPARE(displayImage.format(), QImage::Format_RGBA8888_Premultiplied);
+    const qsizetype retainedByteCount = displayImage.sizeInBytes();
+    QCOMPARE(workspaceBudget->reservedByteCount(), retainedByteCount);
+    QImage finalAlias = displayImage;
+    displayImage = {};
+    QCOMPARE(workspaceBudget->reservedByteCount(), retainedByteCount);
+    finalAlias = {};
+    QCOMPARE(workspaceBudget->reservedByteCount(), qsizetype(0));
 }
 
 void TestThumbnailPreview::rawEmbeddedPreviewPayloadUsesPreviewQualityAndOrigin()

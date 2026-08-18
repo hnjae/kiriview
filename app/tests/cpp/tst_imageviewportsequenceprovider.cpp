@@ -182,6 +182,23 @@ QByteArray apngWithUndecodableLaterRaster()
     return {};
 }
 
+QByteArray gifWithUndecodableLaterRaster()
+{
+    QByteArray data = QByteArray::fromBase64(
+        QByteArrayLiteral("R0lGODlhAQABAIAAAP8AAAAA/yH/C05FVFNDQVBFMi4wAwECAAAh+QQAAQAAACwAAAAA"
+                          "AQABAAACAkQBACH5BAACAAAALAAAAAABAAEAAAICTAEAOw=="));
+    const qsizetype firstImageSeparator = data.indexOf('\x2c');
+    const qsizetype secondImageSeparator = data.indexOf('\x2c', firstImageSeparator + 1);
+    constexpr qsizetype imageDescriptorByteCount = 10;
+    const qsizetype secondLzwMinimumCodeSize = secondImageSeparator + imageDescriptorByteCount;
+    if (firstImageSeparator < 0 || secondImageSeparator < 0
+        || secondLzwMinimumCodeSize >= data.size()) {
+        return {};
+    }
+    data[secondLzwMinimumCodeSize] = static_cast<char>(0xff);
+    return data;
+}
+
 kiriview::ImageDecodeDependencies actualDecodeDependencies(
     kiriview::TestSupport::ManualImageDataLoader& dataLoader,
     kiriview::TestSupport::ManualImageWorkerScheduler& workerScheduler)
@@ -272,7 +289,7 @@ private:
 
 kiriview::ThumbnailCacheLookupResult readyThumbnailLookup()
 {
-    QImage image(400, 300, QImage::Format_RGBA8888);
+    QImage image(400, 300, QImage::Format_RGBA8888_Premultiplied);
     image.fill(QColor(Qt::blue));
     return kiriview::ThumbnailCacheLookupResult {
         kiriview::ThumbnailCacheLookupStatus::Ready,
@@ -626,6 +643,7 @@ private Q_SLOTS:
     void providerResourceAccountsAncillaryPayload();
     void providerResourcePreservesDistinctTimedFramePixelsAndHandles();
     void apngFirstFramePublishesBeforeLaterRasterFailure();
+    void gifLaterFrameFailureSeparatesPublicAndDiagnosticText();
     void actualApngFramesPreservePixelsThroughProviderResource();
     void animationFrameWaitsForWorkspaceAdmission();
     void cancelingPendingAnimationFrameSuppressesWork();
@@ -1738,6 +1756,57 @@ void TestImageViewportSequenceProvider::apngFirstFramePublishesBeforeLaterRaster
     QVERIFY(!preparedFrames.back().isReady());
     QCOMPARE(preparedFrames.back().failureCause, ImageSequenceProviderFailureCause::Decode);
     QCOMPARE(store->size(), qsizetype(1));
+}
+
+void TestImageViewportSequenceProvider::gifLaterFrameFailureSeparatesPublicAndDiagnosticText()
+{
+    const QByteArray data = gifWithUndecodableLaterRaster();
+    QVERIFY(!data.isEmpty());
+
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    const QUrl url(QStringLiteral("file:///tmp/provider-later-frame.gif"));
+    auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
+        kiriview::ImageLoadSession(114,
+            kiriview::ImageLoadRequest::fromExternalSource(
+                kiriview::resolvedNavigationSource(url, {})),
+            kiriview::DisplayedImageLocation::fromUrl(url)),
+        actualDecodeDependencies(dataLoader, workerScheduler));
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        114,
+        ImageViewportPageRole::Primary,
+        {},
+        {},
+        QStringLiteral("provider-later-frame"),
+    };
+    std::vector<kiriview::ImageViewportProviderFrameResult> results;
+    const auto requestFrame = [&source, &identity, &results](int frame) {
+        source->requestFrame(identity, kiriview::ImageViewportProviderFrameRequest { frame, {} },
+            [&results](kiriview::ImageViewportProviderWorkIdentity,
+                kiriview::ImageViewportProviderFrameResult result) {
+                results.push_back(std::move(result));
+            });
+    };
+
+    requestFrame(0);
+    QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+    dataLoader.finishFrontLoad(data);
+    std::size_t nextSchedule = 0;
+    runOutstandingWorkerSchedules(workerScheduler, nextSchedule);
+    QCOMPARE(results.size(), std::size_t(1));
+    QVERIFY(results.front().displayImage.has_value());
+
+    requestFrame(1);
+    runOutstandingWorkerSchedules(workerScheduler, nextSchedule);
+    QCOMPARE(results.size(), std::size_t(2));
+    const kiriview::ImageViewportProviderFrameResult& failure = results.back();
+    QVERIFY(!failure.displayImage.has_value());
+    QCOMPARE(failure.failureCause, ImageSequenceProviderFailureCause::Decode);
+    QVERIFY(failure.failure.has_value());
+    QCOMPARE(failure.failure->userMessage,
+        kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeImageAnimation));
+    QVERIFY(!failure.failure->diagnosticDetail.isEmpty());
+    QVERIFY(failure.failure->diagnosticDetail != failure.failure->userMessage);
 }
 
 void TestImageViewportSequenceProvider::actualApngFramesPreservePixelsThroughProviderResource()

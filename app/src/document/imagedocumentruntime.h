@@ -151,7 +151,6 @@ private:
     ChangeCallback changeCallback;
     NavigationSourceResolver navigationSourceResolver;
     std::unique_ptr<ImageDocumentRuntimeGraph> runtimeGraph;
-    ImageZoomMode fitModeSelectionPreference = ImageZoomMode::Fit;
 };
 }
 

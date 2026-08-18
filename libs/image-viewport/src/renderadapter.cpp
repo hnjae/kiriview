@@ -10,6 +10,9 @@
 
 #include <cmath>
 #include <limits>
+#include <memory>
+#include <new>
+#include <vector>
 
 namespace {
 
@@ -146,6 +149,110 @@ QImage checkerboardImage(const RenderAdapter::RenderPlan::BackgroundLayer& backg
     return image;
 }
 
+bool payloadIdentitiesEqual(const ImageViewportInternal::PreparedPayloadIdentity& left,
+    const ImageViewportInternal::PreparedPayloadIdentity& right)
+{
+    return left.generation == right.generation && left.payloadId == right.payloadId;
+}
+
+class RenderImageLayerNode final : public QSGTransformNode
+{
+public:
+    RenderImageLayerNode(ImageViewportPageRole role,
+        ImageViewportInternal::PreparedPayloadIdentity payloadIdentity,
+        QQuickWindow::CreateTextureOptions textureOptions, QSGImageNode* imageNode)
+        : m_role(role)
+        , m_payloadIdentity(payloadIdentity)
+        , m_textureOptions(textureOptions)
+        , m_imageNode(imageNode)
+    {
+        appendChildNode(imageNode);
+    }
+
+    [[nodiscard]] ImageViewportPageRole role() const { return m_role; }
+    [[nodiscard]] ImageViewportInternal::PreparedPayloadIdentity payloadIdentity() const
+    {
+        return m_payloadIdentity;
+    }
+    [[nodiscard]] QQuickWindow::CreateTextureOptions textureOptions() const
+    {
+        return m_textureOptions;
+    }
+    [[nodiscard]] QSGImageNode* imageNode() const { return m_imageNode; }
+
+private:
+    ImageViewportPageRole m_role = ImageViewportPageRole::Primary;
+    ImageViewportInternal::PreparedPayloadIdentity m_payloadIdentity;
+    QQuickWindow::CreateTextureOptions m_textureOptions;
+    QSGImageNode* m_imageNode = nullptr;
+};
+
+class RenderRootNode final : public QSGNode
+{
+public:
+    explicit RenderRootNode(QQuickWindow* window)
+        : m_window(window)
+    {
+    }
+
+    [[nodiscard]] QQuickWindow* window() const { return m_window; }
+
+    void reserveImageLayers(std::size_t layerCount) { m_imageLayers.reserve(layerCount); }
+
+    void appendImageLayer(RenderImageLayerNode* layer)
+    {
+        appendChildNode(layer);
+        m_imageLayers.push_back(layer);
+    }
+
+    [[nodiscard]] RenderImageLayerNode* reusableImageLayer(ImageViewportPageRole role,
+        const ImageViewportInternal::PreparedPayloadIdentity& payloadIdentity,
+        QQuickWindow::CreateTextureOptions textureOptions) const
+    {
+        for (RenderImageLayerNode* layer : m_imageLayers) {
+            if (layer->role() == role
+                && payloadIdentitiesEqual(layer->payloadIdentity(), payloadIdentity)
+                && layer->textureOptions() == textureOptions) {
+                return layer;
+            }
+        }
+        return nullptr;
+    }
+
+private:
+    QQuickWindow* m_window = nullptr;
+    std::vector<RenderImageLayerNode*> m_imageLayers;
+};
+
+QQuickWindow::CreateTextureOptions textureOptionsForPlan(const RenderAdapter::RenderPlan& plan)
+{
+    QQuickWindow::CreateTextureOptions options;
+    if (plan.mipmap) {
+        options |= QQuickWindow::TextureHasMipmaps;
+    }
+    return options;
+}
+
+void configureImageLayerNode(RenderImageLayerNode& node,
+    const RenderAdapter::RenderPlan::ImageLayer& layer, const RenderAdapter::RenderPlan& plan)
+{
+    QSGImageNode* const imageNode = node.imageNode();
+    imageNode->setRect(layer.unrotatedTargetRect);
+    imageNode->setSourceRect(layer.physicalSourceRect);
+    imageNode->setFiltering(plan.smoothing ? QSGTexture::Linear : QSGTexture::Nearest);
+    imageNode->setMipmapFiltering(
+        plan.mipmap && imageNode->texture()->hasMipmaps() ? QSGTexture::Linear : QSGTexture::None);
+    QSGImageNode::TextureCoordinatesTransformMode transform = {};
+    if (layer.mirrorTextureHorizontally) {
+        transform |= QSGImageNode::MirrorHorizontally;
+    }
+    if (layer.mirrorTextureVertically) {
+        transform |= QSGImageNode::MirrorVertically;
+    }
+    imageNode->setTextureCoordinatesTransform(transform);
+    node.setMatrix(rotationTransform(layer.targetRect, layer.rotationDegrees));
+}
+
 }
 
 QSGTexture* RenderAdapterSceneGraph::Factory::createTexture(
@@ -267,14 +374,14 @@ RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
         return { nullptr, plan.result, plan.rolePayloads, plan.failedRole, plan.failureCause };
     }
 
-    auto* root = new QSGNode;
+    std::unique_ptr<RenderRootNode> root = std::make_unique<RenderRootNode>(input.window);
+    root->reserveImageLayers(static_cast<std::size_t>(plan.imageLayers.size()));
     if (plan.backgroundLayer) {
         const auto& background = *plan.backgroundLayer;
         if (background.mode == ImageViewportBackgroundMode::SolidColor) {
             root->appendChildNode(new QSGSimpleRectNode(background.bounds, background.solidColor));
         } else if (background.mode == ImageViewportBackgroundMode::Checkerboard) {
             if (!input.window) {
-                delete root;
                 if (plan.imageLayers.isEmpty()) {
                     delete oldNode;
                     return { nullptr, RenderAdapter::CommitResult::Empty, plan.rolePayloads,
@@ -289,7 +396,6 @@ RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
             QSGTexture* texture
                 = sceneGraphFactory.createTexture(input.window, checkerboardImage(background), {});
             if (!texture) {
-                delete root;
                 if (plan.imageLayers.isEmpty()) {
                     delete oldNode;
                     return { nullptr, RenderAdapter::CommitResult::Empty, plan.rolePayloads,
@@ -315,11 +421,11 @@ RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
 
     if (plan.imageLayers.isEmpty()) {
         delete oldNode;
-        return { root, plan.result, plan.rolePayloads, plan.failedRole, plan.failureCause };
+        return { root.release(), plan.result, plan.rolePayloads, plan.failedRole,
+            plan.failureCause };
     }
 
     if (!input.window) {
-        delete root;
         return { oldNode, RenderAdapter::CommitResult::Empty, plan.rolePayloads,
             ImageViewportPageRole::Primary, RenderFailureCause::None };
     }
@@ -327,56 +433,72 @@ RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
     const Factory defaultSceneGraphFactory;
     const Factory& sceneGraphFactory
         = input.sceneGraphFactory ? *input.sceneGraphFactory : defaultSceneGraphFactory;
+    RenderRootNode* const reusableRoot = dynamic_cast<RenderRootNode*>(oldNode);
+    const bool compatibleSceneGraph
+        = reusableRoot != nullptr && reusableRoot->window() == input.window;
+    const QQuickWindow::CreateTextureOptions textureOptions = textureOptionsForPlan(plan);
+
+    struct StagedImageLayer
+    {
+        const RenderAdapter::RenderPlan::ImageLayer* planLayer = nullptr;
+        RenderImageLayerNode* reusable = nullptr;
+        std::unique_ptr<RenderImageLayerNode> replacement;
+    };
+    std::vector<StagedImageLayer> stagedLayers;
+    stagedLayers.reserve(static_cast<std::size_t>(plan.imageLayers.size()));
     bool mipmapUnavailable = false;
     for (const RenderAdapter::RenderPlan::ImageLayer& layer : plan.imageLayers) {
         const auto& payload = layer.preparedPayload;
         const ImageViewportInternal::PreparedPayloadIdentity payloadIdentity
             = layer.preparedPayloadIdentity;
-        QQuickWindow::CreateTextureOptions textureOptions;
-        if (plan.mipmap) {
-            textureOptions |= QQuickWindow::TextureHasMipmaps;
+        RenderImageLayerNode* const reusable = compatibleSceneGraph
+            ? reusableRoot->reusableImageLayer(layer.role, payloadIdentity, textureOptions)
+            : nullptr;
+        if (reusable != nullptr) {
+            stagedLayers.push_back({ &layer, reusable, {} });
+            continue;
         }
-        QSGTexture* texture
-            = sceneGraphFactory.createTexture(input.window, payload.image, textureOptions);
+
+        std::unique_ptr<QSGTexture> texture(
+            sceneGraphFactory.createTexture(input.window, payload.image, textureOptions));
         if (!texture) {
-            delete root;
             return { oldNode, RenderAdapter::CommitResult::Failed, plan.rolePayloads, layer.role,
                 RenderFailureCause::TextureCreationFailure };
         }
-        mipmapUnavailable = mipmapUnavailable || (plan.mipmap && !texture->hasMipmaps());
-        QSGImageNode* imageNode = sceneGraphFactory.createImageNode(input.window);
+        std::unique_ptr<QSGImageNode> imageNode(sceneGraphFactory.createImageNode(input.window));
         if (!imageNode) {
-            delete texture;
-            delete root;
             return { oldNode, RenderAdapter::CommitResult::Failed, plan.rolePayloads, layer.role,
                 RenderFailureCause::ImageNodeCreationFailure };
         }
 
-        imageNode->setTexture(texture);
+        imageNode->setTexture(texture.release());
         imageNode->setOwnsTexture(true);
-        imageNode->setRect(layer.unrotatedTargetRect);
-        imageNode->setSourceRect(layer.physicalSourceRect);
-        imageNode->setFiltering(plan.smoothing ? QSGTexture::Linear : QSGTexture::Nearest);
-        imageNode->setMipmapFiltering(
-            plan.mipmap && texture->hasMipmaps() ? QSGTexture::Linear : QSGTexture::None);
-        QSGImageNode::TextureCoordinatesTransformMode transform = {};
-        if (layer.mirrorTextureHorizontally) {
-            transform |= QSGImageNode::MirrorHorizontally;
+        std::unique_ptr<RenderImageLayerNode> replacement(new (std::nothrow)
+                RenderImageLayerNode(layer.role, payloadIdentity, textureOptions, imageNode.get()));
+        if (!replacement) {
+            imageNode->setOwnsTexture(false);
+            delete imageNode->texture();
+            return { oldNode, RenderAdapter::CommitResult::Failed, plan.rolePayloads, layer.role,
+                RenderFailureCause::ImageNodeCreationFailure };
         }
-        if (layer.mirrorTextureVertically) {
-            transform |= QSGImageNode::MirrorVertically;
-        }
-        imageNode->setTextureCoordinatesTransform(transform);
-        if (layer.rotationDegrees == 0) {
-            root->appendChildNode(imageNode);
+        [[maybe_unused]] QSGImageNode* const attachedImageNode = imageNode.release();
+        Q_ASSERT(attachedImageNode != nullptr);
+        stagedLayers.push_back({ &layer, nullptr, std::move(replacement) });
+    }
+
+    for (StagedImageLayer& staged : stagedLayers) {
+        RenderImageLayerNode* layerNode = staged.reusable;
+        if (layerNode != nullptr) {
+            reusableRoot->removeChildNode(layerNode);
         } else {
-            auto* transformNode = new QSGTransformNode;
-            transformNode->setMatrix(rotationTransform(layer.targetRect, layer.rotationDegrees));
-            transformNode->appendChildNode(imageNode);
-            root->appendChildNode(transformNode);
+            layerNode = staged.replacement.release();
         }
+        configureImageLayerNode(*layerNode, *staged.planLayer, plan);
+        mipmapUnavailable = mipmapUnavailable
+            || (plan.mipmap && !layerNode->imageNode()->texture()->hasMipmaps());
+        root->appendImageLayer(layerNode);
     }
     delete oldNode;
-    return { root, plan.result, plan.rolePayloads, ImageViewportPageRole::Primary,
+    return { root.release(), plan.result, plan.rolePayloads, ImageViewportPageRole::Primary,
         RenderFailureCause::None, false, mipmapUnavailable };
 }

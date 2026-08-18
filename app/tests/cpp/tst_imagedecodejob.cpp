@@ -68,7 +68,7 @@ QByteArray encodedPngData(const QSize& size)
 
 QImage thumbnailImage(const QSize& size = QSize(400, 300))
 {
-    QImage image(size, QImage::Format_RGBA8888);
+    QImage image(size, QImage::Format_RGBA8888_Premultiplied);
     image.fill(QColor(Qt::blue));
     return image;
 }

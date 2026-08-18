@@ -61,6 +61,7 @@ public:
     [[nodiscard]] bool containerNavigationAvailable() const;
     [[nodiscard]] bool unsupportedOpenedCollectionVideo() const;
     [[nodiscard]] const EmbeddedMetadata& embeddedMetadata() const;
+    [[nodiscard]] ImageZoomMode fitModeSelection() const;
 
     void setSelectedTarget(const ImageDocumentSelectedTarget& target);
     void setDisplayedImageLocation(const DisplayedImageLocation& location);
@@ -75,6 +76,7 @@ public:
     void clearLoadingContainerNavigationUrl();
     void setUnsupportedOpenedCollectionVideo(bool unsupported);
     void setEmbeddedMetadata(EmbeddedMetadata metadata);
+    void setFitModeSelection(ImageZoomMode selection);
 
 private:
     void replaceDisplayedImageLocation(const DisplayedImageLocation& location);
@@ -89,6 +91,7 @@ private:
     quint64 m_presentationLifecycleRevision = 0;
     bool m_unsupportedOpenedCollectionVideo = false;
     EmbeddedMetadata m_embeddedMetadata;
+    ImageZoomMode m_fitModeSelection = ImageZoomMode::Fit;
     QString m_errorString;
     std::optional<ImageLoadFailure> m_loadFailure;
     QUrl m_containerNavigationUrl;

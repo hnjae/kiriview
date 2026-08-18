@@ -134,7 +134,6 @@ struct DocumentSessionPublicSnapshot
     bool activeImageOpenedCollectionScopeActive = false;
     bool activeImageRightToLeftReadingActive = false;
     bool activeVideoReady = false;
-    bool activeVideoControlsReady = false;
     DocumentSessionActionAvailabilityFacts actionAvailability;
     DocumentSessionPublicProjection projection;
     DocumentSessionActionStateSnapshot actionState;

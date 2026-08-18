@@ -147,11 +147,6 @@ bool activeVideoReadyForInput(const kiriview::DocumentSessionPublicSnapshotInput
     return input.session.documentKind == kiriview::DocumentSessionKind::Video && input.video.ready;
 }
 
-bool activeVideoControlsReadyForInput(const kiriview::DocumentSessionPublicSnapshotInput& input)
-{
-    return activeVideoReadyForInput(input) && input.video.hasVideo;
-}
-
 kiriview::DocumentSessionActionAvailabilityFacts actionAvailabilityFactsForInput(
     const kiriview::DocumentSessionPublicSnapshotInput& input)
 {
@@ -320,7 +315,6 @@ DocumentSessionPublicSnapshot projectDocumentSessionPublicSnapshot(
     snapshot.activeImageRightToLeftReadingActive
         = activeImageRightToLeftReadingActiveForInput(input);
     snapshot.activeVideoReady = activeVideoReadyForInput(input);
-    snapshot.activeVideoControlsReady = activeVideoControlsReadyForInput(input);
     snapshot.actionAvailability = actionAvailabilityFactsForInput(input);
     snapshot.projection = projectDocumentSessionPublicState(projectionInputForSnapshotInput(input));
     snapshot.actionState = actionStateSnapshotForInput(input, snapshot);

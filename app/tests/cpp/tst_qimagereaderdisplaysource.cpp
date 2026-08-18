@@ -3,6 +3,8 @@
 
 #include "decoding/qimagereaderdisplaysource.h"
 
+#include "localization/imageerrortext.h"
+
 #include <QBuffer>
 #include <QByteArrayList>
 #include <QColor>
@@ -55,8 +57,10 @@ QByteArray jpegWriterFormat()
 void verifyDisplayFailure(const kiriview::StaticImageDisplayDecodeResult& result)
 {
     QVERIFY(result.image.isNull());
-    QVERIFY(!result.diagnostics.userMessage.isEmpty());
+    QCOMPARE(result.diagnostics.userMessage,
+        kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData));
     QVERIFY(!result.diagnostics.diagnosticDetail.isEmpty());
+    QVERIFY(result.diagnostics.diagnosticDetail != result.diagnostics.userMessage);
 }
 }
 
@@ -70,6 +74,7 @@ private Q_SLOTS:
     void pngRefinementPreflightIncludesFullSourceFallback();
     void grayscalePngRefinementPreflightIncludesSmoothScaleConversion();
     void initialPreflightAccountsOnlyForSelectedDisplayPath();
+    void failedOpenSeparatesUserMessageFromBackendDiagnostic();
     void failedDisplayDecodePreservesDiagnostics();
     void jpegSourceDecodesFirstDisplayToViewport();
     void jpegSourceSkipsFirstDisplayWhenImageFitsViewport();
@@ -103,9 +108,10 @@ void TestQImageReaderDisplaySource::pngRefinementPreflightIncludesFullSourceFall
     const QByteArray data = encodedImageData(image, QByteArrayLiteral("png"), &errorString);
     QVERIFY2(!data.isEmpty(), qPrintable(errorString));
 
+    kiriview::StaticImageDisplayDecodeDiagnostics diagnostics;
     const std::shared_ptr<kiriview::QImageReaderDisplaySource> source
-        = kiriview::QImageReaderDisplaySource::open(data, QByteArrayLiteral("png"), &errorString);
-    QVERIFY2(source != nullptr, qPrintable(errorString));
+        = kiriview::QImageReaderDisplaySource::open(data, QByteArrayLiteral("png"), &diagnostics);
+    QVERIFY2(source != nullptr, qPrintable(diagnostics.diagnosticDetail));
 
     const QSize rasterSize(8, 4);
     const std::optional<qsizetype> peak = source->rasterDisplayRefinementPeakByteCost(rasterSize);
@@ -124,9 +130,10 @@ void TestQImageReaderDisplaySource::grayscalePngRefinementPreflightIncludesSmoot
     const QByteArray data = encodedImageData(image, QByteArrayLiteral("png"), &errorString);
     QVERIFY2(!data.isEmpty(), qPrintable(errorString));
 
+    kiriview::StaticImageDisplayDecodeDiagnostics diagnostics;
     const std::shared_ptr<kiriview::QImageReaderDisplaySource> source
-        = kiriview::QImageReaderDisplaySource::open(data, QByteArrayLiteral("png"), &errorString);
-    QVERIFY2(source != nullptr, qPrintable(errorString));
+        = kiriview::QImageReaderDisplaySource::open(data, QByteArrayLiteral("png"), &diagnostics);
+    QVERIFY2(source != nullptr, qPrintable(diagnostics.diagnosticDetail));
 
     const QSize rasterSize(8, 4);
     const std::optional<qsizetype> peak = source->rasterDisplayRefinementPeakByteCost(rasterSize);
@@ -159,11 +166,11 @@ void TestQImageReaderDisplaySource::initialPreflightAccountsOnlyForSelectedDispl
 
 void TestQImageReaderDisplaySource::sourceDecodesBlockingAndRasterDisplayImages()
 {
-    QString errorString;
+    kiriview::StaticImageDisplayDecodeDiagnostics diagnostics;
     std::shared_ptr<kiriview::QImageReaderDisplaySource> source
         = kiriview::QImageReaderDisplaySource::open(
-            pngData(), QByteArrayLiteral("png"), &errorString);
-    QVERIFY2(source != nullptr, qPrintable(errorString));
+            pngData(), QByteArrayLiteral("png"), &diagnostics);
+    QVERIFY2(source != nullptr, qPrintable(diagnostics.diagnosticDetail));
     QCOMPARE(source->imageSize(), QSize(4, 4));
 
     const kiriview::StaticImageDisplayDecodeResult preview = source->decodeBlockingDisplayImage(2);
@@ -176,6 +183,20 @@ void TestQImageReaderDisplaySource::sourceDecodesBlockingAndRasterDisplayImages(
     QCOMPARE(raster.image.size(), QSize(4, 4));
     QCOMPARE(raster.image.pixelColor(0, 0), QColor(Qt::red));
     QCOMPARE(raster.image.pixelColor(3, 3), QColor(Qt::blue));
+}
+
+void TestQImageReaderDisplaySource::failedOpenSeparatesUserMessageFromBackendDiagnostic()
+{
+    kiriview::StaticImageDisplayDecodeDiagnostics diagnostics;
+    const std::shared_ptr<kiriview::QImageReaderDisplaySource> source
+        = kiriview::QImageReaderDisplaySource::open(
+            QByteArrayLiteral("not image data"), QByteArrayLiteral("png"), &diagnostics);
+
+    QVERIFY(source == nullptr);
+    QCOMPARE(diagnostics.userMessage,
+        kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData));
+    QVERIFY(!diagnostics.diagnosticDetail.isEmpty());
+    QVERIFY(diagnostics.diagnosticDetail != diagnostics.userMessage);
 }
 
 void TestQImageReaderDisplaySource::failedDisplayDecodePreservesDiagnostics()
@@ -205,9 +226,10 @@ void TestQImageReaderDisplaySource::jpegSourceDecodesFirstDisplayToViewport()
     const QByteArray data = encodedImageData(image, jpegWriterFormat(), &errorString);
     QVERIFY2(!data.isEmpty(), qPrintable(errorString));
 
+    kiriview::StaticImageDisplayDecodeDiagnostics diagnostics;
     std::shared_ptr<kiriview::QImageReaderDisplaySource> source
-        = kiriview::QImageReaderDisplaySource::open(data, QByteArrayLiteral("jpeg"), &errorString);
-    QVERIFY2(source != nullptr, qPrintable(errorString));
+        = kiriview::QImageReaderDisplaySource::open(data, QByteArrayLiteral("jpeg"), &diagnostics);
+    QVERIFY2(source != nullptr, qPrintable(diagnostics.diagnosticDetail));
 
     const kiriview::StaticImageFirstDisplayDecodeResult decoded = source->decodeFirstDisplayImage(
         kiriview::ImageFirstDisplayDecodeContext { QSize(400, 300) });
@@ -232,9 +254,10 @@ void TestQImageReaderDisplaySource::jpegSourceSkipsFirstDisplayWhenImageFitsView
     const QByteArray data = encodedImageData(image, jpegWriterFormat(), &errorString);
     QVERIFY2(!data.isEmpty(), qPrintable(errorString));
 
+    kiriview::StaticImageDisplayDecodeDiagnostics diagnostics;
     std::shared_ptr<kiriview::QImageReaderDisplaySource> source
-        = kiriview::QImageReaderDisplaySource::open(data, QByteArrayLiteral("jpeg"), &errorString);
-    QVERIFY2(source != nullptr, qPrintable(errorString));
+        = kiriview::QImageReaderDisplaySource::open(data, QByteArrayLiteral("jpeg"), &diagnostics);
+    QVERIFY2(source != nullptr, qPrintable(diagnostics.diagnosticDetail));
 
     const kiriview::FirstDisplayImageDecodeResult result
         = source
@@ -248,11 +271,11 @@ void TestQImageReaderDisplaySource::jpegSourceSkipsFirstDisplayWhenImageFitsView
 
 void TestQImageReaderDisplaySource::pngSourceLeavesFirstDisplayNotImplemented()
 {
-    QString errorString;
+    kiriview::StaticImageDisplayDecodeDiagnostics diagnostics;
     std::shared_ptr<kiriview::QImageReaderDisplaySource> source
         = kiriview::QImageReaderDisplaySource::open(
-            pngData(), QByteArrayLiteral("png"), &errorString);
-    QVERIFY2(source != nullptr, qPrintable(errorString));
+            pngData(), QByteArrayLiteral("png"), &diagnostics);
+    QVERIFY2(source != nullptr, qPrintable(diagnostics.diagnosticDetail));
 
     const kiriview::FirstDisplayImageDecodeResult result
         = source->decodeFirstDisplayImage(kiriview::ImageFirstDisplayDecodeContext { QSize(2, 2) })

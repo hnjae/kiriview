@@ -109,8 +109,14 @@ bool archiveRootSchemeUsesKioFuse(const QString& scheme)
 
 QStringList supportedComicBookArchiveExtensions()
 {
-    return { QStringLiteral("cbz"), QStringLiteral("cbt"), QStringLiteral("cb7"),
-        QStringLiteral("cbr") };
+    QStringList extensions;
+    extensions.reserve(static_cast<qsizetype>(archiveFormats().size()));
+    for (const ArchiveFormat& format : archiveFormats()) {
+        extensions.append(format.comicExtension.toString());
+    }
+    extensions.sort();
+    extensions.removeDuplicates();
+    return extensions;
 }
 
 QStringList supportedComicBookArchiveMimeTypes()

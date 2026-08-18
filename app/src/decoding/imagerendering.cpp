@@ -10,6 +10,7 @@
 #include <QtMath>
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <memory>
 #include <new>
 #include <utility>
@@ -114,6 +115,49 @@ QImage imageRetainingDecodeWorkspace(QImage image, ImageDecodeWorkspaceHold work
     return admitted;
 }
 
+QImage displayReadyImageRetainingDecodeWorkspace(
+    QImage image, ImageDecodeWorkspaceLease workspaceLease)
+{
+    if (image.isNull() || !workspaceLease.isManaged()
+        || (image.format() != QImage::Format_RGBA8888
+            && image.format() != QImage::Format_RGBA8888_Premultiplied)) {
+        return {};
+    }
+
+    const qsizetype inputByteCount = image.sizeInBytes();
+    if (inputByteCount <= 0) {
+        return {};
+    }
+    qsizetype requiredPeakByteCount = inputByteCount;
+    if (image.format() != QImage::Format_RGBA8888_Premultiplied) {
+        if (inputByteCount > std::numeric_limits<qsizetype>::max() - inputByteCount) {
+            return {};
+        }
+        requiredPeakByteCount += inputByteCount;
+    }
+    if (workspaceLease.reservedByteCount() < requiredPeakByteCount) {
+        return {};
+    }
+
+    QImage displayImage;
+    try {
+        displayImage = displayReadyImage(image);
+    } catch (const std::bad_alloc&) {
+        return {};
+    }
+    if (displayImage.isNull() || displayImage.format() != QImage::Format_RGBA8888_Premultiplied) {
+        return {};
+    }
+    image = {};
+
+    const qsizetype retainedByteCount = displayImage.sizeInBytes();
+    ImageDecodeWorkspaceHold retainedWorkspace = workspaceLease.retainOnly(retainedByteCount);
+    if (!retainedWorkspace.isManaged()) {
+        return {};
+    }
+    return imageRetainingDecodeWorkspace(std::move(displayImage), std::move(retainedWorkspace));
+}
+
 QImage copiedImageFromBytes(
     const QByteArray& bytes, QSize size, qsizetype bytesPerLine, QImage::Format format)
 {
@@ -128,5 +172,4 @@ QImage copiedImageFromBytes(
         bytesPerLine, format);
     return borrowedImage.copy();
 }
-
 }

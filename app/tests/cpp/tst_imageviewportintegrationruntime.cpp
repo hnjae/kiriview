@@ -3,6 +3,8 @@
 
 #include "document/imageviewportintegrationruntime.h"
 
+#include "localization/imageerrortext.h"
+
 #include <ImageViewport/imageviewport.h>
 
 #include <QQuickWindow>
@@ -139,6 +141,17 @@ public:
                 ImageSequenceProviderFrameEnvelope::stillFrame(), QStringLiteral("png")));
     }
 
+    void completeNextWithInvalidEnvelope(QString sourceIdentity)
+    {
+        QVERIFY(!pendingFrames.empty());
+        PendingFrame pending = std::move(pendingFrames.front());
+        pendingFrames.pop_front();
+        kiriview::StaticDisplayImagePayload payload = displayPayload(std::move(sourceIdentity));
+        pending.completion(pending.identity,
+            kiriview::ImageViewportProviderFrameResult::ready(
+                std::move(payload), {}, QStringLiteral("png")));
+    }
+
     void emitNextProvisional(QString sourceIdentity)
     {
         QVERIFY(!pendingFrames.empty());
@@ -250,7 +263,8 @@ private Q_SLOTS:
     void gesturesAndScrollbarsUseMatchedComponentProjection();
     void targetAnchorAtEndAppliesThroughTransition();
     void failureReferenceResolvesOnlyForMatchingTarget();
-    void emptyApplicationFailureMessageUsesProviderFallback();
+    void emptyApplicationFailureMessageUsesLocalizedApplicationFallback();
+    void componentFailureUsesLocalizedApplicationMessageAndRecovers();
     void targetTransitionsApplyIntentSpecificFallbackPolicy_data();
     void targetTransitionsApplyIntentSpecificFallbackPolicy();
     void presentationShapeChangeResetsSinglePageTransforms();
@@ -805,6 +819,7 @@ void TestImageViewportIntegrationRuntime::failureReferenceResolvesOnlyForMatchin
     QVERIFY(runtime.projection().failure.has_value());
     QCOMPARE(runtime.projection().failure->sessionId, quint64(510));
     QCOMPARE(runtime.projection().errorString, QStringLiteral("Could not decode the image"));
+    QCOMPARE(runtime.projection().diagnosticDetail, QStringLiteral("fake provider failure"));
 
     TargetFixture replacement;
     replacement.generation = 52;
@@ -812,9 +827,12 @@ void TestImageViewportIntegrationRuntime::failureReferenceResolvesOnlyForMatchin
     QVERIFY(runtime.submitTarget(replacement.target()));
     QCOMPARE(runtime.projection().sourceGeneration, quint64(52));
     QVERIFY(!runtime.projection().failure.has_value());
+    QVERIFY(runtime.projection().errorString.isEmpty());
+    QVERIFY(runtime.projection().diagnosticDetail.isEmpty());
 }
 
-void TestImageViewportIntegrationRuntime::emptyApplicationFailureMessageUsesProviderFallback()
+void TestImageViewportIntegrationRuntime::
+    emptyApplicationFailureMessageUsesLocalizedApplicationFallback()
 {
     kiriview::ImageViewportIntegrationRuntime runtime;
     ImageViewport viewport;
@@ -831,14 +849,60 @@ void TestImageViewportIntegrationRuntime::emptyApplicationFailureMessageUsesProv
     failure.decodeRoute = kiriview::DecodedImageFailureRoute::Unknown;
     failure.decodeOperation = kiriview::DecodedImageFailureOperation::Unknown;
     failure.userMessage.clear();
+    failure.diagnosticDetail.clear();
     fixture.primarySource->failNext(
         std::move(failure), ImageSequenceProviderFailureCause::ResourceExhausted);
 
     QTRY_COMPARE(runtime.projection().status, kiriview::ImageDocumentStatus::Error);
     QVERIFY(runtime.projection().failure.has_value());
-    QVERIFY(!runtime.projection().failure->userMessage.isEmpty());
-    QVERIFY(!runtime.projection().errorString.isEmpty());
+    const QString expectedUserMessage
+        = kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData);
+    QCOMPARE(runtime.projection().failure->userMessage, expectedUserMessage);
+    const QString componentDiagnostic = viewport.state().diagnostics().errorString();
+    QVERIFY(!componentDiagnostic.isEmpty());
+    QCOMPARE(runtime.projection().failure->diagnosticDetail, componentDiagnostic);
     QCOMPARE(runtime.projection().errorString, runtime.projection().failure->userMessage);
+    QCOMPARE(runtime.projection().diagnosticDetail, runtime.projection().failure->diagnosticDetail);
+    QVERIFY(runtime.projection().diagnosticDetail != runtime.projection().errorString);
+}
+
+void TestImageViewportIntegrationRuntime::
+    componentFailureUsesLocalizedApplicationMessageAndRecovers()
+{
+    kiriview::ImageViewportIntegrationRuntime runtime;
+    QQuickWindow window;
+    ImageViewport viewport;
+    hostViewport(window, viewport);
+    runtime.attach(&viewport);
+
+    TargetFixture failing;
+    failing.generation = 54;
+    failing.primaryUrl = QUrl(QStringLiteral("file:///tmp/component-failure.png"));
+    QVERIFY(runtime.submitTarget(failing.target()));
+    QTRY_COMPARE(failing.primarySource->pendingFrames.size(), std::size_t(1));
+    failing.primarySource->completeNextWithInvalidEnvelope(QStringLiteral("invalid-envelope"));
+
+    QTRY_COMPARE(runtime.projection().status, kiriview::ImageDocumentStatus::Error);
+    QVERIFY(runtime.projection().viewportFailureAvailable);
+    QVERIFY(!runtime.projection().failure.has_value());
+    QCOMPARE(runtime.projection().errorString,
+        kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData));
+    QVERIFY(!runtime.projection().diagnosticDetail.isEmpty());
+    QCOMPARE(runtime.projection().diagnosticDetail, viewport.state().diagnostics().errorString());
+    QVERIFY(runtime.projection().diagnosticDetail != runtime.projection().errorString);
+
+    TargetFixture recovered;
+    recovered.generation = 55;
+    recovered.primaryUrl = QUrl(QStringLiteral("file:///tmp/component-recovered.png"));
+    QVERIFY(runtime.submitTarget(recovered.target()));
+    QTRY_COMPARE(recovered.primarySource->pendingFrames.size(), std::size_t(1));
+    recovered.primarySource->completeNext(QStringLiteral("component-recovered"));
+    QVERIFY(driveRenderUntil(window, [&runtime]() {
+        return runtime.projection().status == kiriview::ImageDocumentStatus::Ready;
+    }));
+    QVERIFY(runtime.projection().errorString.isEmpty());
+    QVERIFY(runtime.projection().diagnosticDetail.isEmpty());
+    QVERIFY(!runtime.projection().failure.has_value());
 }
 
 void TestImageViewportIntegrationRuntime::targetTransitionsApplyIntentSpecificFallbackPolicy_data()

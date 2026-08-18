@@ -5,10 +5,10 @@
 
 #include "animationtiming.h"
 #include "heifsequencereader.h"
+#include "imageanimationsourcelimits_p.h"
 #include "jxlanimationreader.h"
 #include "webpanimationreader.h"
 
-#include <ImageViewport/imagesequence.h>
 #include <webp/demux.h>
 
 #include <QByteArrayView>
@@ -82,8 +82,6 @@ std::uint32_t readBigEndian32(const QByteArray& data, qsizetype offset)
 
 int normalizedDelay(int delay) { return kiriview::normalizedAnimationFrameDelay(delay); }
 
-int maximumFrameCount() { return ImageSequenceLimits::maximumFrameCount(); }
-
 bool skipGifSubBlocks(const QByteArray& data, qsizetype* offset)
 {
     while (hasBytes(data, *offset, 1)) {
@@ -155,7 +153,7 @@ CatalogResult gifCatalog(const kiriview::ReaderAnimationPlaybackRequest& request
             if (!skipGifSubBlocks(data, &offset)) {
                 return failedCatalog();
             }
-            if (durations.size() >= maximumFrameCount()) {
+            if (durations.size() >= kiriview::maximumImageAnimationSourceFrameCount()) {
                 return resourceLimitCatalog();
             }
             durations.append(normalizedDelay(pendingDelay));
@@ -274,14 +272,18 @@ CatalogResult apngCatalog(const kiriview::ApngAnimationPlaybackRequest& request)
                 return failedCatalog();
             }
             declaredFrameCount = readBigEndian32(data, payloadOffset);
-            if (std::cmp_greater(*declaredFrameCount, maximumFrameCount())) {
-                return failedCatalog();
+            if (std::cmp_greater(
+                    *declaredFrameCount, kiriview::maximumImageAnimationSourceFrameCount())) {
+                return resourceLimitCatalog();
             }
             repeatCount = kiriview::animationLoopCountForPlayCount(
                 readBigEndian32(data, payloadOffset + 4));
         } else if (type == QByteArrayView("fcTL", 4)) {
-            if (payloadSize != 26 || durations.size() >= maximumFrameCount()) {
+            if (payloadSize != 26) {
                 return failedCatalog();
+            }
+            if (durations.size() >= kiriview::maximumImageAnimationSourceFrameCount()) {
+                return resourceLimitCatalog();
             }
             const int delay = kiriview::apngFrameDelay(readBigEndian16(data, payloadOffset + 20),
                 readBigEndian16(data, payloadOffset + 22));
@@ -353,9 +355,11 @@ CatalogResult webpCatalog(const kiriview::WebPAnimationPlaybackRequest& request)
     const std::uint32_t frameCount = WebPDemuxGetI(demuxer.get(), WEBP_FF_FRAME_COUNT);
     if (width == 0 || height == 0
         || width > static_cast<std::uint32_t>(std::numeric_limits<int>::max())
-        || height > static_cast<std::uint32_t>(std::numeric_limits<int>::max())
-        || std::cmp_greater(frameCount, maximumFrameCount())) {
+        || height > static_cast<std::uint32_t>(std::numeric_limits<int>::max())) {
         return failedCatalog();
+    }
+    if (std::cmp_greater(frameCount, kiriview::maximumImageAnimationSourceFrameCount())) {
+        return resourceLimitCatalog();
     }
 
     WebPIterator iterator;
@@ -365,7 +369,8 @@ CatalogResult webpCatalog(const kiriview::WebPAnimationPlaybackRequest& request)
     QVector<int> durations;
     do {
         durations.append(normalizedDelay(iterator.duration));
-    } while (durations.size() < maximumFrameCount() && WebPDemuxNextFrame(&iterator) != 0);
+    } while (durations.size() < kiriview::maximumImageAnimationSourceFrameCount()
+        && WebPDemuxNextFrame(&iterator) != 0);
     WebPDemuxReleaseIterator(&iterator);
 
     kiriview::ImageAnimationSourceCatalog catalog {
@@ -441,7 +446,7 @@ namespace kiriview {
 bool ImageAnimationSourceCatalog::isValid() const
 {
     return !logicalSize.isEmpty() && frameDurations.size() >= 2
-        && frameDurations.size() <= ImageSequenceLimits::maximumFrameCount() && repeatCount >= -1
+        && frameDurations.size() <= maximumImageAnimationSourceFrameCount() && repeatCount >= -1
         && std::ranges::all_of(frameDurations, [](int duration) { return duration > 0; });
 }
 
@@ -462,7 +467,7 @@ ImageAnimationSourceCatalogResult readHeifSequenceAnimationSourceCatalog(
     QVector<int> durations {
         normalizedDelay(firstFrame.delay),
     };
-    while (durations.size() < maximumFrameCount()) {
+    while (durations.size() < maximumImageAnimationSourceFrameCount()) {
         AnimationFrameReadResult frame = reader.readNextFrame();
         if (!frame.has_value()) {
             return reader.lastReadResourceLimitExceeded() ? resourceLimitCatalog()
@@ -476,12 +481,14 @@ ImageAnimationSourceCatalogResult readHeifSequenceAnimationSourceCatalog(
         }
         durations.append(normalizedDelay((**frame).delay));
     }
-    if (durations.size() == maximumFrameCount()) {
+    if (durations.size() == maximumImageAnimationSourceFrameCount()) {
         AnimationFrameReadResult extra = reader.readNextFrame();
-        if (!extra.has_value() || extra->has_value()) {
-            return !extra.has_value() && reader.lastReadResourceLimitExceeded()
-                ? resourceLimitCatalog()
-                : failedCatalog(extra.has_value() ? catalogError() : std::move(extra.error()));
+        if (!extra.has_value()) {
+            return reader.lastReadResourceLimitExceeded() ? resourceLimitCatalog()
+                                                          : failedCatalog(std::move(extra.error()));
+        }
+        if (extra->has_value()) {
+            return resourceLimitCatalog();
         }
     }
 
