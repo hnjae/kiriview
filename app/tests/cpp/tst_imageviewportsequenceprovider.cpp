@@ -365,14 +365,10 @@ public:
         ++refinementCount;
         lastRefinementSize = rasterSize;
         if (failRefinement) {
-            return { {},
-                { QStringLiteral("Could not refine the image"),
-                    QStringLiteral("fake refinement failed") } };
+            return { {}, { QStringLiteral("fake refinement failed") } };
         }
         if (exhaustResources) {
-            return { {},
-                { QStringLiteral("Could not allocate the refined image"),
-                    QStringLiteral("fake refinement allocation failed") },
+            return { {}, { QStringLiteral("fake refinement allocation failed") },
                 kiriview::StaticImageDisplayDecodeFailureCause::ResourceExhausted };
         }
         const QSize resultSize = refinementResultSize.isEmpty() ? rasterSize : refinementResultSize;
@@ -1031,11 +1027,11 @@ void TestImageViewportSequenceProvider::decodeResourceFailurePreservesTypedCause
         = kiriview::TestSupport::imageDecodeDependenciesFor(
             dataLoader, [](const QByteArray&, const kiriview::ImageDecodeRequest&) {
                 kiriview::DecodedImageFailure failure;
-                failure.errorString = QStringLiteral("Image workspace limit exceeded");
                 failure.diagnosticDetail
                     = QStringLiteral("synthetic decode workspace admission failure");
                 failure.route = kiriview::DecodedImageFailureRoute::Apng;
                 failure.operation = kiriview::DecodedImageFailureOperation::DecodeAnimationOpen;
+                failure.retryable = true;
                 failure.cause = kiriview::DecodedImageFailureCause::ResourceLimitExceeded;
                 return kiriview::failedDecodedImageResult(std::move(failure));
             });
@@ -1064,10 +1060,18 @@ void TestImageViewportSequenceProvider::decodeResourceFailurePreservesTypedCause
     dataLoader.finishFrontLoad(QByteArrayLiteral("synthetic image data"));
 
     QTRY_VERIFY(result.has_value());
-    QCOMPARE(result->failureCause, ImageSequenceProviderFailureCause::Decode);
+    QCOMPARE(result->failureCause, ImageSequenceProviderFailureCause::ResourceExhausted);
     QVERIFY(result->failure.has_value());
     QCOMPARE(
         result->failure->decodeCause, kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
+    QCOMPARE(result->failure->decodeRoute, kiriview::DecodedImageFailureRoute::Apng);
+    QCOMPARE(result->failure->decodeOperation,
+        kiriview::DecodedImageFailureOperation::DecodeAnimationOpen);
+    QCOMPARE(result->failure->severity, kiriview::ImageLoadFailureSeverity::Error);
+    QVERIFY(result->failure->retryable);
+    QCOMPARE(result->failure->userMessage,
+        kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeImageResourceLimitExceeded));
+    QVERIFY(result->failure->userMessage != result->failure->diagnosticDetail);
     QCOMPARE(result->failure->diagnosticDetail,
         QStringLiteral("synthetic decode workspace admission failure"));
 }
@@ -2919,13 +2923,14 @@ void TestImageViewportSequenceProvider::refinementFailureIsNotReclassifiedAsReso
     auto refinementSource = std::make_shared<RefiningDisplaySource>();
     refinementSource->failRefinement = true;
     const QUrl url(QStringLiteral("file:///tmp/refinement-failure-cause.jpg"));
+    kiriview::StaticDisplayImagePayload seed = firstDisplayPayload(refinementSource);
+    seed.decodeRoute = kiriview::DecodedImageFailureRoute::Svg;
     auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
         kiriview::ImageLoadSession(82,
             kiriview::ImageLoadRequest::fromExternalSource(
                 kiriview::resolvedNavigationSource(url, {})),
             kiriview::DisplayedImageLocation::fromUrl(url)),
-        std::move(dependencies),
-        authoritativeSeedForUrl(url, firstDisplayPayload(refinementSource)));
+        std::move(dependencies), authoritativeSeedForUrl(url, std::move(seed)));
     const kiriview::ImageViewportProviderWorkIdentity identity {
         82,
         ImageViewportPageRole::Primary,
@@ -2958,6 +2963,12 @@ void TestImageViewportSequenceProvider::refinementFailureIsNotReclassifiedAsReso
     QCOMPARE(results.front().failureCause, ImageSequenceProviderFailureCause::Decode);
     QVERIFY(results.front().failure.has_value());
     QCOMPARE(results.front().failure->kind, kiriview::ImageLoadFailureKind::Decode);
+    QCOMPARE(results.front().failure->decodeRoute, kiriview::DecodedImageFailureRoute::Svg);
+    QCOMPARE(results.front().failure->decodeOperation,
+        kiriview::DecodedImageFailureOperation::DecodeRasterDisplayImage);
+    QCOMPARE(results.front().failure->userMessage,
+        kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeSvgImage));
+    QVERIFY(results.front().failure->userMessage != results.front().failure->diagnosticDetail);
     QCOMPARE(results.front().failure->diagnosticDetail, QStringLiteral("fake refinement failed"));
 }
 
@@ -3510,13 +3521,14 @@ void TestImageViewportSequenceProvider::refinementAllocationFailureIsResourceExh
     auto refinementSource = std::make_shared<RefiningDisplaySource>();
     refinementSource->exhaustResources = true;
     const QUrl url(QStringLiteral("file:///tmp/refinement-allocation-failure.jpg"));
+    kiriview::StaticDisplayImagePayload seed = firstDisplayPayload(refinementSource);
+    seed.decodeRoute = kiriview::DecodedImageFailureRoute::HeifFamily;
     auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
         kiriview::ImageLoadSession(764,
             kiriview::ImageLoadRequest::fromExternalSource(
                 kiriview::resolvedNavigationSource(url, {})),
             kiriview::DisplayedImageLocation::fromUrl(url)),
-        std::move(dependencies),
-        authoritativeSeedForUrl(url, firstDisplayPayload(refinementSource)));
+        std::move(dependencies), authoritativeSeedForUrl(url, std::move(seed)));
     const kiriview::ImageViewportProviderWorkIdentity identity {
         764,
         ImageViewportPageRole::Primary,
@@ -3548,6 +3560,13 @@ void TestImageViewportSequenceProvider::refinementAllocationFailureIsResourceExh
     QCOMPARE(results.front().failureCause, ImageSequenceProviderFailureCause::ResourceExhausted);
     QVERIFY(results.front().failure.has_value());
     QCOMPARE(results.front().failure->kind, kiriview::ImageLoadFailureKind::Presentation);
+    QCOMPARE(results.front().failure->decodeRoute, kiriview::DecodedImageFailureRoute::HeifFamily);
+    QCOMPARE(results.front().failure->decodeOperation,
+        kiriview::DecodedImageFailureOperation::DecodeRasterDisplayImage);
+    QCOMPARE(results.front().failure->decodeCause,
+        kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
+    QCOMPARE(results.front().failure->userMessage,
+        kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeImageResourceLimitExceeded));
 }
 
 void TestImageViewportSequenceProvider::refinementSharesAggregateBudgetWithRetainedDisplayOutput()

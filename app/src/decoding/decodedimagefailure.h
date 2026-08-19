@@ -21,6 +21,7 @@ enum class DecodedImageFailureOperation {
     OpenStaticImageSource,
     DecodeFirstDisplayImage,
     DecodeBlockingDisplayImage,
+    DecodeRasterDisplayImage,
     DecodeAnimationOpen,
     DecodeRawImage,
     DecodeHeifSequenceOpen,
@@ -38,7 +39,6 @@ enum class DecodedImageFailureCause {
 
 struct DecodedImageFailure
 {
-    QString errorString;
     DecodedImageFailureRoute route = DecodedImageFailureRoute::Unknown;
     DecodedImageFailureOperation operation = DecodedImageFailureOperation::Unknown;
     QString diagnosticDetail;

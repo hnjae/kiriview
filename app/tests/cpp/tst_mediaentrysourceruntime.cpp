@@ -17,7 +17,7 @@
 #include <vector>
 
 namespace {
-using kiriview::ImageDocumentPageCandidate;
+using kiriview::MediaEntrySourceEntry;
 using kiriview::TestSupport::addInstrumentedMediaEntrySourceFixture;
 using kiriview::TestSupport::archiveCollectionForLocalArchiveUrl;
 using kiriview::TestSupport::archivePageUrl;
@@ -88,6 +88,8 @@ private Q_SLOTS:
     void candidateLoadAddedDuringActiveBatchSharesWorker();
     void candidateBatchCancellationPreventsStaleCallbacks();
     void candidateBatchCancellationRequestsBackendStop();
+    void reentrantClearSuppressesRemainingBatchCallbacks();
+    void destructionRejectsLateEntryAndDataCompletions();
     void dataCompletionAfterOpenedCollectionSwitchIsIgnored();
     void sameRequestedCollectionWithFreshResolvedSourceReplacesRuntime();
     void nonCurrentScopeAccessIsRejectedWithoutReplacingCurrentSnapshot();
@@ -106,13 +108,13 @@ void TestMediaEntrySourceRuntime::synchronousLoadsShareLazyOpenAndCandidateCache
         { imageDocumentPageCandidate(firstUrl), imageDocumentPageCandidate(secondUrl) });
 
     kiriview::MediaEntrySourceRuntime runtime(this, instrumentedMediaEntrySourceFactory(state));
-    std::vector<ImageDocumentPageCandidate> firstCandidates;
-    std::vector<ImageDocumentPageCandidate> cachedCandidates;
+    std::vector<MediaEntrySourceEntry> firstCandidates;
+    std::vector<MediaEntrySourceEntry> cachedCandidates;
     QByteArray data;
 
-    runtime.loadOpenedCollectionCandidates(nullptr, *archiveCollection,
+    runtime.loadOpenedCollectionEntries(nullptr, *archiveCollection,
         [&firstCandidates](auto loaded) { firstCandidates = std::move(loaded); }, {});
-    runtime.loadOpenedCollectionCandidates(nullptr, *archiveCollection,
+    runtime.loadOpenedCollectionEntries(nullptr, *archiveCollection,
         [&cachedCandidates](auto loaded) { cachedCandidates = std::move(loaded); }, {});
     runtime.loadOpenedCollectionImageData(nullptr,
         kiriview::ImageDecodeRequest::fromLocation(1,
@@ -141,11 +143,10 @@ void TestMediaEntrySourceRuntime::simultaneousCandidateLoadsSharePendingBatch()
 
     kiriview::MediaEntrySourceRuntime runtime(this, instrumentedMediaEntrySourceFactory(state));
     int callbackCount = 0;
-    kiriview::ImageIoJob firstJob = runtime.loadOpenedCollectionCandidates(this, *archiveCollection,
-        [&callbackCount](std::vector<ImageDocumentPageCandidate>) { ++callbackCount; }, {});
-    kiriview::ImageIoJob secondJob
-        = runtime.loadOpenedCollectionCandidates(this, *archiveCollection,
-            [&callbackCount](std::vector<ImageDocumentPageCandidate>) { ++callbackCount; }, {});
+    kiriview::ImageIoJob firstJob = runtime.loadOpenedCollectionEntries(this, *archiveCollection,
+        [&callbackCount](std::vector<MediaEntrySourceEntry>) { ++callbackCount; }, {});
+    kiriview::ImageIoJob secondJob = runtime.loadOpenedCollectionEntries(this, *archiveCollection,
+        [&callbackCount](std::vector<MediaEntrySourceEntry>) { ++callbackCount; }, {});
     QTRY_COMPARE(state->waitingCandidateLoadCount.load(), 1);
 
     releaseInstrumentedMediaEntrySourceLoads(state);
@@ -169,12 +170,11 @@ void TestMediaEntrySourceRuntime::candidateLoadAddedDuringActiveBatchSharesWorke
     kiriview::MediaEntrySourceRuntime runtime(
         this, instrumentedMediaEntrySourceFactory(state), workerScheduler.scheduler());
     int callbackCount = 0;
-    kiriview::ImageIoJob firstJob = runtime.loadOpenedCollectionCandidates(this, *archiveCollection,
-        [&callbackCount](std::vector<ImageDocumentPageCandidate>) { ++callbackCount; }, {});
+    kiriview::ImageIoJob firstJob = runtime.loadOpenedCollectionEntries(this, *archiveCollection,
+        [&callbackCount](std::vector<MediaEntrySourceEntry>) { ++callbackCount; }, {});
 
-    kiriview::ImageIoJob secondJob
-        = runtime.loadOpenedCollectionCandidates(this, *archiveCollection,
-            [&callbackCount](std::vector<ImageDocumentPageCandidate>) { ++callbackCount; }, {});
+    kiriview::ImageIoJob secondJob = runtime.loadOpenedCollectionEntries(this, *archiveCollection,
+        [&callbackCount](std::vector<MediaEntrySourceEntry>) { ++callbackCount; }, {});
 
     QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
     QCOMPARE(state->candidateLoadCount.load(), 0);
@@ -219,10 +219,9 @@ void TestMediaEntrySourceRuntime::candidateBatchCancellationPreventsStaleCallbac
 
     kiriview::MediaEntrySourceRuntime runtime(this, instrumentedMediaEntrySourceFactory(state));
     int staleCallbackCount = 0;
-    kiriview::ImageIoJob staleJob = runtime.loadOpenedCollectionCandidates(this,
+    kiriview::ImageIoJob staleJob = runtime.loadOpenedCollectionEntries(this,
         *firstArchiveCollection,
-        [&staleCallbackCount](std::vector<ImageDocumentPageCandidate>) { ++staleCallbackCount; },
-        {});
+        [&staleCallbackCount](std::vector<MediaEntrySourceEntry>) { ++staleCallbackCount; }, {});
     QTRY_COMPARE(state->waitingCandidateLoadCount.load(), 1);
 
     runtime.switchToOpenedCollectionScope(*secondArchiveCollection);
@@ -255,15 +254,15 @@ void TestMediaEntrySourceRuntime::candidateBatchCancellationRequestsBackendStop(
         return std::unexpected(kiriview::MediaEntrySourceError {
             kiriview::MediaEntrySourceErrorCause::OperationCancelled,
             kiriview::MediaEntrySourceBackendKind::Unknown,
-            kiriview::MediaEntrySourceOperation::ListCandidates, scope.fileUrl(), {},
+            kiriview::MediaEntrySourceOperation::ListEntries, scope.fileUrl(), {},
             QStringLiteral("test collection enumeration canceled") });
     };
 
     kiriview::MediaEntrySourceRuntime runtime(this, std::move(sourceFactory));
     int completionCount = 0;
-    kiriview::ImageIoJob load = runtime.loadOpenedCollectionCandidates(
+    kiriview::ImageIoJob load = runtime.loadOpenedCollectionEntries(
         this, *archiveCollection,
-        [&completionCount](std::vector<ImageDocumentPageCandidate>) { ++completionCount; },
+        [&completionCount](std::vector<MediaEntrySourceEntry>) { ++completionCount; },
         [&completionCount](kiriview::MediaEntrySourceError) { ++completionCount; });
 
     QTRY_VERIFY_WITH_TIMEOUT(openStarted.available() > 0, 1000);
@@ -272,6 +271,74 @@ void TestMediaEntrySourceRuntime::candidateBatchCancellationRequestsBackendStop(
 
     QCOMPARE(completionCount, 0);
     QVERIFY(!load.isActive());
+}
+
+void TestMediaEntrySourceRuntime::reentrantClearSuppressesRemainingBatchCallbacks()
+{
+    auto state = std::make_shared<InstrumentedMediaEntrySourceState>();
+    const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
+        = archiveCollectionForLocalArchiveUrl(localUrl(QStringLiteral("/books/book.cbz")));
+    QVERIFY(archiveCollection.has_value());
+    const QUrl pageUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.png"));
+    addInstrumentedMediaEntrySourceFixture(
+        state, *archiveCollection, { imageDocumentPageCandidate(pageUrl) });
+
+    ManualImageWorkerScheduler workerScheduler;
+    kiriview::MediaEntrySourceRuntime runtime(
+        this, instrumentedMediaEntrySourceFactory(state), workerScheduler.scheduler());
+    int callbackCount = 0;
+    auto clearOnDelivery = [&runtime, &callbackCount](std::vector<MediaEntrySourceEntry>) {
+        ++callbackCount;
+        runtime.clear();
+    };
+    kiriview::ImageIoJob firstJob
+        = runtime.loadOpenedCollectionEntries(this, *archiveCollection, clearOnDelivery, {});
+    kiriview::ImageIoJob secondJob
+        = runtime.loadOpenedCollectionEntries(this, *archiveCollection, clearOnDelivery, {});
+
+    workerScheduler.runWork(0);
+    workerScheduler.finish(0);
+
+    QCOMPARE(callbackCount, 1);
+    QVERIFY(!firstJob.isActive());
+    QVERIFY(!secondJob.isActive());
+    QVERIFY(!runtime.hasCurrentOpenedCollectionScope());
+}
+
+void TestMediaEntrySourceRuntime::destructionRejectsLateEntryAndDataCompletions()
+{
+    auto state = std::make_shared<InstrumentedMediaEntrySourceState>();
+    const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
+        = archiveCollectionForLocalArchiveUrl(localUrl(QStringLiteral("/books/book.cbz")));
+    QVERIFY(archiveCollection.has_value());
+    const QUrl pageUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.png"));
+    addInstrumentedMediaEntrySourceFixture(
+        state, *archiveCollection, { imageDocumentPageCandidate(pageUrl) });
+
+    ManualImageWorkerScheduler workerScheduler;
+    auto runtime = std::make_unique<kiriview::MediaEntrySourceRuntime>(
+        this, instrumentedMediaEntrySourceFactory(state), workerScheduler.scheduler());
+    int callbackCount = 0;
+    kiriview::ImageIoJob entryJob = runtime->loadOpenedCollectionEntries(this, *archiveCollection,
+        [&callbackCount](std::vector<MediaEntrySourceEntry>) { ++callbackCount; }, {});
+    kiriview::ImageIoJob dataJob = runtime->loadOpenedCollectionImageData(
+        this,
+        kiriview::ImageDecodeRequest::fromLocation(1,
+            kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
+                pageUrl, *archiveCollection)),
+        [&callbackCount](kiriview::ImageSourceData) { ++callbackCount; },
+        [&callbackCount](kiriview::MediaEntrySourceError) { ++callbackCount; });
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(2));
+
+    runtime.reset();
+    for (std::size_t index = 0; index < workerScheduler.scheduleCount(); ++index) {
+        workerScheduler.runWork(index);
+        workerScheduler.finish(index);
+    }
+
+    QCOMPARE(callbackCount, 0);
+    QVERIFY(!entryJob.isActive());
+    QVERIFY(!dataJob.isActive());
 }
 
 void TestMediaEntrySourceRuntime::dataCompletionAfterOpenedCollectionSwitchIsIgnored()
@@ -381,8 +448,8 @@ void TestMediaEntrySourceRuntime::sameRequestedCollectionWithFreshResolvedSource
         QCOMPARE(staleCallbackCount, 0);
         QVERIFY(!staleJob.isActive());
 
-        std::vector<ImageDocumentPageCandidate> reassignedCandidates;
-        runtime.loadOpenedCollectionCandidates(nullptr, reassignedCollection,
+        std::vector<MediaEntrySourceEntry> reassignedCandidates;
+        runtime.loadOpenedCollectionEntries(nullptr, reassignedCollection,
             [&reassignedCandidates](
                 auto candidates) { reassignedCandidates = std::move(candidates); },
             {});
@@ -412,8 +479,8 @@ void TestMediaEntrySourceRuntime::nonCurrentScopeAccessIsRejectedWithoutReplacin
         { imageDocumentPageCandidate(foreignImageUrl), videoCandidate(foreignVideoUrl) });
 
     kiriview::MediaEntrySourceRuntime runtime(this, instrumentedMediaEntrySourceFactory(state));
-    std::vector<ImageDocumentPageCandidate> initialCandidates;
-    runtime.loadOpenedCollectionCandidates(nullptr, *currentCollection,
+    std::vector<MediaEntrySourceEntry> initialCandidates;
+    runtime.loadOpenedCollectionEntries(nullptr, *currentCollection,
         [&initialCandidates](auto candidates) { initialCandidates = std::move(candidates); }, {});
     QCOMPARE(initialCandidates.size(), std::size_t(1));
     QCOMPARE(state->openCount.load(), 1);
@@ -438,8 +505,8 @@ void TestMediaEntrySourceRuntime::nonCurrentScopeAccessIsRejectedWithoutReplacin
 
     const bool currentScopePreserved = runtime.hasCurrentOpenedCollectionScope(*currentCollection)
         && !runtime.hasCurrentOpenedCollectionScope(*foreignCollection);
-    std::vector<ImageDocumentPageCandidate> candidatesAfterRejectedAccess;
-    runtime.loadOpenedCollectionCandidates(nullptr, *currentCollection,
+    std::vector<MediaEntrySourceEntry> candidatesAfterRejectedAccess;
+    runtime.loadOpenedCollectionEntries(nullptr, *currentCollection,
         [&candidatesAfterRejectedAccess](
             auto candidates) { candidatesAfterRejectedAccess = std::move(candidates); },
         {});
@@ -486,9 +553,9 @@ void TestMediaEntrySourceRuntime::errorsRemainTypedThroughRuntimeCallbacks()
         [diagnostic](const kiriview::OpenedCollectionScopeLocation& openedCollectionScope,
             const kiriview::MediaEntrySourceOpenContext&) -> kiriview::MediaEntrySourceOpenResult {
             return std::unexpected(kiriview::MediaEntrySourceError {
-                kiriview::MediaEntrySourceErrorCause::CandidateListingFailed,
+                kiriview::MediaEntrySourceErrorCause::EntryListingFailed,
                 kiriview::MediaEntrySourceBackendKind::LibArchive,
-                kiriview::MediaEntrySourceOperation::ListCandidates,
+                kiriview::MediaEntrySourceOperation::ListEntries,
                 openedCollectionScope.fileUrl(),
                 {},
                 diagnostic,
@@ -497,17 +564,17 @@ void TestMediaEntrySourceRuntime::errorsRemainTypedThroughRuntimeCallbacks()
 
     bool candidatesReported = false;
     std::optional<kiriview::MediaEntrySourceError> failure;
-    runtime.loadOpenedCollectionCandidates(
+    runtime.loadOpenedCollectionEntries(
         nullptr, *archiveCollection,
         [&candidatesReported](
-            std::vector<kiriview::ImageDocumentPageCandidate>) { candidatesReported = true; },
+            std::vector<kiriview::MediaEntrySourceEntry>) { candidatesReported = true; },
         [&failure](kiriview::MediaEntrySourceError error) { failure = std::move(error); });
 
     QVERIFY(!candidatesReported);
     QVERIFY(failure.has_value());
-    QCOMPARE(failure->cause, kiriview::MediaEntrySourceErrorCause::CandidateListingFailed);
+    QCOMPARE(failure->cause, kiriview::MediaEntrySourceErrorCause::EntryListingFailed);
     QCOMPARE(failure->backend, kiriview::MediaEntrySourceBackendKind::LibArchive);
-    QCOMPARE(failure->operation, kiriview::MediaEntrySourceOperation::ListCandidates);
+    QCOMPARE(failure->operation, kiriview::MediaEntrySourceOperation::ListEntries);
     QCOMPARE(failure->collectionUrl, archiveCollection->fileUrl());
     QVERIFY(failure->entryPath.isEmpty());
     QCOMPARE(failure->diagnosticDetail, diagnostic);

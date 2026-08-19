@@ -2,6 +2,8 @@
 
 Provider integration adapts application-owned page sources into the same sequence and request model used by built-in frame lists. Providers own source-specific production behind the adapter boundary; the viewport engine owns request identity, token matching, stale-result filtering, display-demand projection, status projection, diagnostics, playback ordering, retained display, and render readiness.
 
+The component owns the provider diagnostic category and exposes its actual category object across the supported host boundary. Host diagnostic modes enable that object rather than owning or duplicating the component's logging identity.
+
 ## Descriptor And Sessions
 
 Provider-backed sequence construction captures an `ImageSequenceProviderDescriptor` containing construction metadata, threading contract, and a stored session factory. Every available construction-metadata field is authoritative, and unknown facts use explicit unavailable values. Descriptor construction and storage are side-effect-free; expensive source work starts only when the provider boundary invokes the factory for a role within an accepted presentation-target generation.

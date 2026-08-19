@@ -19,7 +19,6 @@
 #include "imagedecodelogging.h"
 #include "imagedecodeworkspace.h"
 #include "jxlanimationreader.h"
-#include "localization/imageerrortext.h"
 #include "location/sourcekey.h"
 #include "metadata/embeddedmetadata.h"
 #include "qimagereaderdecoder.h"
@@ -142,6 +141,25 @@ kiriview::DecodedImageFailureRoute decodedFailureRouteForHandlerKind(
     }
 
     return kiriview::DecodedImageFailureRoute::Unknown;
+}
+
+void stampSelectedDecodeRoute(
+    kiriview::DecodedImageResult& result, kiriview::ImageDecodeHandlerKind handlerKind)
+{
+    const kiriview::DecodedImageFailureRoute selectedRoute
+        = decodedFailureRouteForHandlerKind(handlerKind);
+    kiriview::DecodedImageFailure* failure = kiriview::decodedImageResultFailure(result);
+    if (failure != nullptr && failure->route == kiriview::DecodedImageFailureRoute::Unknown) {
+        failure->route = selectedRoute;
+    }
+
+    kiriview::DecodedImage* image = kiriview::decodedImageResultImage(result);
+    auto* staticImage
+        = image == nullptr ? nullptr : std::get_if<kiriview::StaticDecodedImage>(image);
+    if (staticImage != nullptr
+        && staticImage->displayImage.decodeRoute == kiriview::DecodedImageFailureRoute::Unknown) {
+        staticImage->displayImage.decodeRoute = selectedRoute;
+    }
 }
 
 const char* imageDecodeDataSourceName(kiriview::ImageDecodeDataSource source)
@@ -302,14 +320,13 @@ private:
 kiriview::DecodedImageResult failedReadImageDataResult()
 {
     return kiriview::failedDecodedImageResult(
-        kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData));
+        QStringLiteral("no image decoder route accepted the source data"));
 }
 
 kiriview::DecodedImageFailure compatibleDataWorkspaceFailure(
     kiriview::ImageDecodeHandlerKind handlerKind)
 {
     return kiriview::DecodedImageFailure {
-        kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData),
         decodedFailureRouteForHandlerKind(handlerKind),
         kiriview::DecodedImageFailureOperation::OpenStaticImageSource,
         kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
@@ -350,7 +367,6 @@ kiriview::DecodedImageFailure preparedHardLimitFailure(kiriview::ImageDecodeHand
     }
 
     return kiriview::DecodedImageFailure {
-        kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData),
         decodedFailureRouteForHandlerKind(handlerKind),
         operation,
         kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
@@ -390,6 +406,8 @@ QString decodedFailureOperationName(kiriview::DecodedImageFailureOperation opera
         return QStringLiteral("decode first display image");
     case kiriview::DecodedImageFailureOperation::DecodeBlockingDisplayImage:
         return QStringLiteral("decode blocking display image");
+    case kiriview::DecodedImageFailureOperation::DecodeRasterDisplayImage:
+        return QStringLiteral("decode raster display image");
     case kiriview::DecodedImageFailureOperation::DecodeAnimationOpen:
         return QStringLiteral("decode animation open");
     case kiriview::DecodedImageFailureOperation::DecodeRawImage:
@@ -410,14 +428,12 @@ QString adapterFailureDiagnosticDetail(const QString& adapterName,
             backendError.isEmpty() ? QStringLiteral("<empty>") : backendError);
 }
 
-kiriview::DecodedImageResult failedAdapterDecodedImageResult(QString errorString,
+kiriview::DecodedImageResult failedAdapterDecodedImageResult(const QString& backendError,
     kiriview::DecodedImageFailureRoute route, kiriview::DecodedImageFailureOperation operation,
     const QString& adapterName,
     kiriview::DecodedImageFailureCause cause = kiriview::DecodedImageFailureCause::Unknown)
 {
-    const QString backendError = errorString;
     return kiriview::failedDecodedImageResult(kiriview::DecodedImageFailure {
-        std::move(errorString),
         route,
         operation,
         adapterFailureDiagnosticDetail(adapterName, operation, backendError),
@@ -428,13 +444,12 @@ kiriview::DecodedImageResult failedAdapterDecodedImageResult(QString errorString
 }
 
 kiriview::DecodedImageResult failedAdapterDecodedImageResult(
-    kiriview::StaticImageDisplayDecodeDiagnostics diagnostics,
+    const kiriview::StaticImageDisplayDecodeDiagnostics& diagnostics,
     kiriview::DecodedImageFailureRoute route, kiriview::DecodedImageFailureOperation operation,
     const QString& adapterName,
     kiriview::DecodedImageFailureCause cause = kiriview::DecodedImageFailureCause::Unknown)
 {
     return kiriview::failedDecodedImageResult(kiriview::DecodedImageFailure {
-        std::move(diagnostics.userMessage),
         route,
         operation,
         adapterFailureDiagnosticDetail(adapterName, operation, diagnostics.diagnosticDetail),
@@ -451,12 +466,8 @@ kiriview::DecodedImageResult failedApngCatalogDecodedImageResult(
         = failure.cause == kiriview::ImageAnimationSourceCatalogFailureCause::ResourceLimitExceeded
         ? kiriview::DecodedImageFailureCause::ResourceLimitExceeded
         : kiriview::DecodedImageFailureCause::Unknown;
-    kiriview::StaticImageDisplayDecodeDiagnostics diagnostics {
-        kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeApngAnimation),
-        std::move(failure.errorString),
-    };
-    return failedAdapterDecodedImageResult(std::move(diagnostics),
-        kiriview::DecodedImageFailureRoute::Apng,
+    kiriview::StaticImageDisplayDecodeDiagnostics diagnostics { std::move(failure.errorString) };
+    return failedAdapterDecodedImageResult(diagnostics, kiriview::DecodedImageFailureRoute::Apng,
         kiriview::DecodedImageFailureOperation::DecodeAnimationOpen, QStringLiteral("APNG"), cause);
 }
 
@@ -473,11 +484,9 @@ void stampAdapterFailure(kiriview::DecodedImageResult& result,
 }
 
 kiriview::DecodedImageResult failedAnimationOpenResult(
-    QString errorString, const QString& adapterName)
+    const QString& backendError, const QString& adapterName)
 {
-    const QString backendError = errorString;
     return kiriview::failedDecodedImageResult(kiriview::DecodedImageFailure {
-        std::move(errorString),
         kiriview::DecodedImageFailureRoute::QtRaster,
         kiriview::DecodedImageFailureOperation::DecodeAnimationOpen,
         QStringLiteral("%1 animation open failed: %2")
@@ -490,7 +499,6 @@ kiriview::DecodedImageResult failedAnimationOpenResult(
 kiriview::DecodedImageResult failedAnimationWorkspaceResult(const QString& adapterName)
 {
     return kiriview::failedDecodedImageResult(kiriview::DecodedImageFailure {
-        kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeImageAnimation),
         kiriview::DecodedImageFailureRoute::QtRaster,
         kiriview::DecodedImageFailureOperation::DecodeAnimationOpen,
         QStringLiteral("%1 decoder workspace admission failed: %2")
@@ -514,17 +522,17 @@ kiriview::DecodedImageResult decodeSvgImageData(const kiriview::ImageDecodeRoute
         input.data, &errorString, input.workspaceBudget, &resourceExhausted);
     if (source == nullptr) {
         if (errorString.isEmpty()) {
-            errorString = kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData);
+            errorString = QStringLiteral("SVG source could not be opened");
         }
-        return failedAdapterDecodedImageResult(std::move(errorString),
-            kiriview::DecodedImageFailureRoute::Svg,
+        return failedAdapterDecodedImageResult(errorString, kiriview::DecodedImageFailureRoute::Svg,
             kiriview::DecodedImageFailureOperation::OpenStaticImageSource, QStringLiteral("SVG"),
             resourceExhausted ? kiriview::DecodedImageFailureCause::ResourceLimitExceeded
                               : kiriview::DecodedImageFailureCause::Unknown);
     }
 
-    kiriview::DecodedImageResult result = kiriview::staticDecodedImageResult(
-        std::move(source), input.request, &errorString, input.workspaceBudget);
+    kiriview::DecodedImageResult result
+        = kiriview::staticDecodedImageResult(std::move(source), input.request, &errorString,
+            input.workspaceBudget, {}, kiriview::DecodedImageFailureRoute::Svg);
     stampAdapterFailure(result, kiriview::DecodedImageFailureRoute::Svg, QStringLiteral("SVG"));
     return result;
 }
@@ -541,18 +549,17 @@ kiriview::DecodedImageResult decodeApngImageData(const kiriview::ImageDecodeRout
     kiriview::ApngOpenResult apngResult = apngReader.open(input.data);
     if (apngResult.status == kiriview::ApngOpenStatus::NotApng) {
         return failedAdapterDecodedImageResult(
-            kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeApngAnimation),
+            QStringLiteral("selected APNG route rejected the source data"),
             kiriview::DecodedImageFailureRoute::Apng,
             kiriview::DecodedImageFailureOperation::DecodeAnimationOpen, QStringLiteral("APNG"));
     }
     if (apngResult.status == kiriview::ApngOpenStatus::Error) {
-        return failedAdapterDecodedImageResult(std::move(apngResult.errorString),
+        return failedAdapterDecodedImageResult(apngResult.errorString,
             kiriview::DecodedImageFailureRoute::Apng,
             kiriview::DecodedImageFailureOperation::DecodeAnimationOpen, QStringLiteral("APNG"));
     }
     if (apngResult.status == kiriview::ApngOpenStatus::ResourceLimitExceeded) {
         return kiriview::failedDecodedImageResult(kiriview::DecodedImageFailure {
-            kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeApngAnimation),
             kiriview::DecodedImageFailureRoute::Apng,
             kiriview::DecodedImageFailureOperation::DecodeAnimationOpen,
             QStringLiteral("APNG decoder workspace admission failed: %1")
@@ -573,7 +580,6 @@ kiriview::DecodedImageResult decodeApngImageData(const kiriview::ImageDecodeRout
         = std::move(apngResult.workspaceHold);
     if (!firstFrameWorkspaceHold.isManaged()) {
         return kiriview::failedDecodedImageResult(kiriview::DecodedImageFailure {
-            kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeApngAnimation),
             kiriview::DecodedImageFailureRoute::Apng,
             kiriview::DecodedImageFailureOperation::DecodeAnimationOpen,
             QStringLiteral("APNG first-frame workspace retention failed"),
@@ -629,7 +635,7 @@ kiriview::DecodedImageResult decodeQImageReaderRouterImageData(
                         == kiriview::ImageAnimationSourceCatalogFailureCause::ResourceLimitExceeded
                     ? failedAnimationWorkspaceResult(QStringLiteral("WebP"))
                     : failedAnimationOpenResult(
-                          std::move(catalog.error().errorString), QStringLiteral("WebP"));
+                          catalog.error().errorString, QStringLiteral("WebP"));
             }
             if (catalog->logicalSize != openResult.firstFrame.size()) {
                 return failedAnimationOpenResult(
@@ -671,8 +677,7 @@ kiriview::DecodedImageResult decodeQImageReaderRouterImageData(
                 return catalog.error().cause
                         == kiriview::ImageAnimationSourceCatalogFailureCause::ResourceLimitExceeded
                     ? failedAnimationWorkspaceResult(QStringLiteral("JXL"))
-                    : failedAnimationOpenResult(
-                          std::move(catalog.error().errorString), QStringLiteral("JXL"));
+                    : failedAnimationOpenResult(catalog.error().errorString, QStringLiteral("JXL"));
             }
             if (catalog->logicalSize != openResult.firstFrame.size()) {
                 return failedAnimationOpenResult(
@@ -741,14 +746,8 @@ kiriview::ImageDecodeRouterHandlers withDefaultHandlers(
 kiriview::DecodedImageResult dispatchToHandler(const kiriview::ImageDecodeRouterHandler& handler,
     const kiriview::ImageDecodeRouterInput& input, kiriview::ImageDecodeHandlerKind handlerKind)
 {
-    if (!handler) {
-        return failedReadImageDataResult();
-    }
-    kiriview::DecodedImageResult result = handler(input);
-    kiriview::DecodedImageFailure* failure = kiriview::decodedImageResultFailure(result);
-    if (failure != nullptr && failure->route == kiriview::DecodedImageFailureRoute::Unknown) {
-        failure->route = decodedFailureRouteForHandlerKind(handlerKind);
-    }
+    kiriview::DecodedImageResult result = handler ? handler(input) : failedReadImageDataResult();
+    stampSelectedDecodeRoute(result, handlerKind);
     return result;
 }
 
@@ -1051,6 +1050,7 @@ namespace {
         const std::shared_ptr<ImageDecodeWorkspaceBudget>& workspaceBudget,
         ImageDecodeWorkspacePriority priority, ImageDecodeHandlerKind handlerKind)
     {
+        stampSelectedDecodeRoute(result, handlerKind);
         if (decodedImageResultImage(result) != nullptr && retainedInputWorkspace.isManaged()
             && !retainCompatibleDataWorkspace(result, std::move(retainedInputWorkspace))) {
             return failedCompatibleDataWorkspaceResult(handlerKind);
@@ -1109,8 +1109,9 @@ namespace {
                   source = std::move(source), adapterName = std::move(adapterName)](
                   ImageDecodeWorkspaceLease lease) mutable -> PreparedImageDecodeResult {
             QString errorString;
-            DecodedImageResult result = staticDecodedImageResult(
-                std::move(source), request, &errorString, {}, std::move(lease));
+            DecodedImageResult result
+                = staticDecodedImageResult(std::move(source), request, &errorString, {},
+                    std::move(lease), decodedFailureRouteForHandlerKind(route.handlerKind));
             stampAdapterFailure(
                 result, decodedFailureRouteForHandlerKind(route.handlerKind), adapterName);
             return finishPreparedDecode(std::move(result), std::move(sourceData), metadataData,
@@ -1133,8 +1134,7 @@ namespace {
         std::shared_ptr<QImageReaderDisplaySource> source
             = QImageReaderDisplaySource::open(sourceData.data, readerFormat, &diagnostics);
         if (source == nullptr) {
-            return failedAdapterDecodedImageResult(std::move(diagnostics),
-                DecodedImageFailureRoute::QtRaster,
+            return failedAdapterDecodedImageResult(diagnostics, DecodedImageFailureRoute::QtRaster,
                 DecodedImageFailureOperation::OpenStaticImageSource,
                 QStringLiteral("Qt image reader"));
         }
@@ -1162,7 +1162,7 @@ namespace {
                     route.handlerKind, DecodedImageFailureOperation::DecodeAnimationOpen));
             }
             return failedAdapterDecodedImageResult(planning.errorString.isEmpty()
-                    ? imageErrorText(ImageErrorTextId::DecodeApngAnimation)
+                    ? QStringLiteral("APNG open planning failed without diagnostic detail")
                     : planning.errorString,
                 DecodedImageFailureRoute::Apng, DecodedImageFailureOperation::DecodeAnimationOpen,
                 QStringLiteral("APNG"));
@@ -1207,8 +1207,8 @@ namespace {
                         route.handlerKind, DecodedImageFailureOperation::DecodeAnimationOpen));
                 } else {
                     result = failedAdapterDecodedImageResult(opened.errorString.isEmpty()
-                            ? imageErrorText(ImageErrorTextId::DecodeApngAnimation)
-                            : std::move(opened.errorString),
+                            ? QStringLiteral("APNG decoder failed without diagnostic detail")
+                            : opened.errorString,
                         DecodedImageFailureRoute::Apng,
                         DecodedImageFailureOperation::DecodeAnimationOpen, QStringLiteral("APNG"));
                 }
@@ -1407,8 +1407,8 @@ namespace {
                     result = failedAnimationWorkspaceResult(QStringLiteral("JXL"));
                 } else {
                     result = failedAnimationOpenResult(opened.errorString.isEmpty()
-                            ? imageErrorText(ImageErrorTextId::DecodeImageAnimation)
-                            : std::move(opened.errorString),
+                            ? QStringLiteral("JPEG XL decoder failed without diagnostic detail")
+                            : opened.errorString,
                         QStringLiteral("JXL"));
                 }
             } else if (catalog.logicalSize != opened.firstFrame.size()) {
@@ -1524,10 +1524,9 @@ namespace {
             parserBudget->finalizePrechargedAdmission();
             if (source == nullptr) {
                 if (errorString.isEmpty()) {
-                    errorString = imageErrorText(ImageErrorTextId::ReadImageData);
+                    errorString = QStringLiteral("SVG source could not be opened");
                 }
-                return failedAdapterDecodedImageResult(std::move(errorString),
-                    DecodedImageFailureRoute::Svg,
+                return failedAdapterDecodedImageResult(errorString, DecodedImageFailureRoute::Svg,
                     DecodedImageFailureOperation::OpenStaticImageSource, QStringLiteral("SVG"),
                     resourceExhausted ? DecodedImageFailureCause::ResourceLimitExceeded
                                       : DecodedImageFailureCause::Unknown);
@@ -1651,9 +1650,9 @@ namespace {
             openBudget->finalizePrechargedAdmission();
             if (source == nullptr) {
                 if (errorString.isEmpty()) {
-                    errorString = imageErrorText(ImageErrorTextId::ReadImageData);
+                    errorString = QStringLiteral("HEIF still-image source could not be opened");
                 }
-                return failedAdapterDecodedImageResult(std::move(errorString),
+                return failedAdapterDecodedImageResult(errorString,
                     DecodedImageFailureRoute::HeifFamily,
                     DecodedImageFailureOperation::OpenStaticImageSource, QStringLiteral("HEIF"),
                     resourceExhausted ? DecodedImageFailureCause::ResourceLimitExceeded
@@ -1712,14 +1711,14 @@ namespace {
                         std::move(retainedInputWorkspace), retainedInputWorkspaceByteCount);
                 }
                 return failedAdapterDecodedImageResult(planning.errorString.isEmpty()
-                        ? imageErrorText(ImageErrorTextId::DecodeHeifSequence)
-                        : std::move(planning.errorString),
+                        ? QStringLiteral("HEIF sequence planning exceeded its resource limit")
+                        : planning.errorString,
                     DecodedImageFailureRoute::HeifFamily,
                     DecodedImageFailureOperation::DecodeHeifSequenceOpen, QStringLiteral("HEIF"));
             case HeifSequenceOpenStatus::Error:
                 return failedAdapterDecodedImageResult(planning.errorString.isEmpty()
-                        ? imageErrorText(ImageErrorTextId::DecodeHeifSequence)
-                        : std::move(planning.errorString),
+                        ? QStringLiteral("HEIF sequence planning failed without diagnostic detail")
+                        : planning.errorString,
                     DecodedImageFailureRoute::HeifFamily,
                     DecodedImageFailureOperation::DecodeHeifSequenceOpen, QStringLiteral("HEIF"));
             case HeifSequenceOpenStatus::ResourceLimitExceeded:
@@ -1772,7 +1771,7 @@ namespace {
                 DecodedImageResult result = decoded.has_value()
                     ? std::move(*decoded)
                     : failedAdapterDecodedImageResult(
-                          imageErrorText(ImageErrorTextId::DecodeHeifSequence),
+                          QStringLiteral("HEIF sequence decoder returned no result"),
                           DecodedImageFailureRoute::HeifFamily,
                           DecodedImageFailureOperation::DecodeHeifSequenceOpen,
                           QStringLiteral("HEIF"));
@@ -1808,7 +1807,8 @@ namespace {
                 priority, std::move(workspaceBudget), std::move(retainedInputWorkspace),
                 retainedInputWorkspaceByteCount);
         }
-        return failedAdapterDecodedImageResult(imageErrorText(ImageErrorTextId::ReadImageData),
+        return failedAdapterDecodedImageResult(
+            QStringLiteral("selected HEIF route rejected the source data"),
             DecodedImageFailureRoute::HeifFamily,
             DecodedImageFailureOperation::OpenStaticImageSource, QStringLiteral("HEIF"));
     }

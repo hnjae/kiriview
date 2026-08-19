@@ -8,7 +8,6 @@
 #include "decoding/imagerendering.h"
 #include "decoding/staticimagedisplaysourcehelpers_p.h"
 #include "imagedecodeworkspace.h"
-#include "localization/imageerrortext.h"
 #include "staticimagedecode.h"
 
 #include <QColorSpace>
@@ -33,26 +32,19 @@ void setRawDecodeError(QString* errorString, QString message)
     }
 }
 
-void setRawDecodeFailure(
-    QString* errorString, QString* diagnosticDetail, QString message, QString detail)
+void setRawDecodeFailure(QString* errorString, QString* diagnosticDetail, const QString& detail)
 {
-    setRawDecodeError(errorString, std::move(message));
-    setRawDecodeError(diagnosticDetail, std::move(detail));
+    setRawDecodeError(errorString, detail);
+    setRawDecodeError(diagnosticDetail, detail);
 }
 
 QString rawBackendMessage(int errorCode)
 {
-    QString message = kiriview::imageErrorText(kiriview::ImageErrorTextId::UnknownLibrawError);
+    QString message = QStringLiteral("unknown LibRaw error");
     if (const char* rawMessage = LibRaw::strerror(errorCode); rawMessage != nullptr) {
         message = QString::fromUtf8(rawMessage);
     }
     return message;
-}
-
-QString rawDecodeErrorString(const QString& action, int errorCode)
-{
-    const QString message = rawBackendMessage(errorCode);
-    return kiriview::rawDecodeErrorText(action, message);
 }
 
 QString rawDecodeDiagnosticDetail(const QString& action, int errorCode)
@@ -79,10 +71,8 @@ bool validateRawImageSize(
     QSize size, QString* errorString, QString* diagnosticDetail, bool* resourceExhausted = nullptr)
 {
     if (size.isEmpty()) {
-        const QString message
-            = kiriview::imageErrorText(kiriview::ImageErrorTextId::RawDecodedImageSizeInvalid);
-        setRawDecodeFailure(errorString, diagnosticDetail, message,
-            rawDecodeDiagnosticDetail(QStringLiteral("image size validation"), message));
+        setRawDecodeFailure(errorString, diagnosticDetail,
+            QStringLiteral("RAW image size validation failed: decoded size is invalid"));
         return false;
     }
 
@@ -90,10 +80,8 @@ bool validateRawImageSize(
         if (resourceExhausted != nullptr) {
             *resourceExhausted = true;
         }
-        const QString message
-            = kiriview::imageErrorText(kiriview::ImageErrorTextId::RawFullDecodeTooLarge);
-        setRawDecodeFailure(errorString, diagnosticDetail, message,
-            rawDecodeDiagnosticDetail(QStringLiteral("full decode size guard"), message));
+        setRawDecodeFailure(errorString, diagnosticDetail,
+            QStringLiteral("RAW full decode exceeds the raster byte limit"));
         return false;
     }
 
@@ -174,8 +162,7 @@ QImage rawDisplayImage(const QImage& source, QSize rasterSize)
 
 void setRawWorkspaceFailure(QString* errorString, QString* diagnosticDetail)
 {
-    const QString userMessage = kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData);
-    setRawDecodeFailure(errorString, diagnosticDetail, userMessage,
+    setRawDecodeFailure(errorString, diagnosticDetail,
         rawDecodeDiagnosticDetail(QStringLiteral("decoded-memory admission"),
             kiriview::imageDecodeWorkspaceResourceLimitDiagnostic()));
 }
@@ -184,20 +171,15 @@ std::optional<QImage> qImageFromRawProcessedImage(const libraw_processed_image_t
     QString* errorString, QString* diagnosticDetail, bool* resourceExhausted)
 {
     if (processedImage == nullptr) {
-        const QString message
-            = kiriview::imageErrorText(kiriview::ImageErrorTextId::RawDecodedImageInvalid);
-        setRawDecodeFailure(errorString, diagnosticDetail, message,
-            rawDecodeDiagnosticDetail(QStringLiteral("processed image validation"), message));
+        setRawDecodeFailure(errorString, diagnosticDetail,
+            QStringLiteral("RAW processed image validation failed: image is missing"));
         return std::nullopt;
     }
 
     if (processedImage->type != LIBRAW_IMAGE_BITMAP || processedImage->bits != 8
         || (processedImage->colors != 3 && processedImage->colors != 4)) {
-        const QString message = kiriview::imageErrorText(
-            kiriview::ImageErrorTextId::RawDecodedPixelFormatUnsupported);
-        setRawDecodeFailure(errorString, diagnosticDetail, message,
-            rawDecodeDiagnosticDetail(
-                QStringLiteral("processed pixel format validation"), message));
+        setRawDecodeFailure(errorString, diagnosticDetail,
+            QStringLiteral("RAW processed pixel format is unsupported"));
         return std::nullopt;
     }
 
@@ -210,10 +192,8 @@ std::optional<QImage> qImageFromRawProcessedImage(const libraw_processed_image_t
     const std::size_t minimumDataSize = static_cast<std::size_t>(processedImage->width)
         * static_cast<std::size_t>(processedImage->height) * channelCount;
     if (processedImage->data_size < minimumDataSize) {
-        const QString message
-            = kiriview::imageErrorText(kiriview::ImageErrorTextId::RawDecodedPixelDataInvalid);
-        setRawDecodeFailure(errorString, diagnosticDetail, message,
-            rawDecodeDiagnosticDetail(QStringLiteral("processed pixel data validation"), message));
+        setRawDecodeFailure(errorString, diagnosticDetail,
+            QStringLiteral("RAW processed pixel data is smaller than its declared dimensions"));
         return std::nullopt;
     }
 
@@ -222,10 +202,8 @@ std::optional<QImage> qImageFromRawProcessedImage(const libraw_processed_image_t
         if (resourceExhausted != nullptr) {
             *resourceExhausted = true;
         }
-        const QString message
-            = kiriview::imageErrorText(kiriview::ImageErrorTextId::RawDecodedImageAllocationFailed);
-        setRawDecodeFailure(errorString, diagnosticDetail, message,
-            rawDecodeDiagnosticDetail(QStringLiteral("display image allocation"), message));
+        setRawDecodeFailure(
+            errorString, diagnosticDetail, QStringLiteral("RAW display-image allocation failed"));
         return std::nullopt;
     }
 
@@ -262,20 +240,16 @@ RawImageProduction produceRawImage(
 
     int errorCode = processor.unpack();
     if (errorCode != LIBRAW_SUCCESS) {
-        const QString action
-            = kiriview::imageErrorActionText(kiriview::ImageErrorActionTextId::UnpackRawImage);
-        setRawDecodeFailure(errorString, diagnosticDetail, rawDecodeErrorString(action, errorCode),
-            rawDecodeDiagnosticDetail(action, errorCode));
+        setRawDecodeFailure(errorString, diagnosticDetail,
+            rawDecodeDiagnosticDetail(QStringLiteral("image unpack"), errorCode));
         result.resourceExhausted = errorCode == LIBRAW_UNSUFFICIENT_MEMORY;
         return result;
     }
 
     errorCode = processor.dcraw_process();
     if (errorCode != LIBRAW_SUCCESS) {
-        const QString action
-            = kiriview::imageErrorActionText(kiriview::ImageErrorActionTextId::ProcessRawImage);
-        setRawDecodeFailure(errorString, diagnosticDetail, rawDecodeErrorString(action, errorCode),
-            rawDecodeDiagnosticDetail(action, errorCode));
+        setRawDecodeFailure(errorString, diagnosticDetail,
+            rawDecodeDiagnosticDetail(QStringLiteral("image processing"), errorCode));
         result.resourceExhausted = errorCode == LIBRAW_UNSUFFICIENT_MEMORY;
         return result;
     }
@@ -284,11 +258,8 @@ RawImageProduction produceRawImage(
     ProcessedRawImage processedImage(
         processor.dcraw_make_mem_image(&memImageErrorCode), &LibRaw::dcraw_clear_mem);
     if (memImageErrorCode != LIBRAW_SUCCESS) {
-        const QString action
-            = kiriview::imageErrorActionText(kiriview::ImageErrorActionTextId::CreateDisplayImage);
         setRawDecodeFailure(errorString, diagnosticDetail,
-            rawDecodeErrorString(action, memImageErrorCode),
-            rawDecodeDiagnosticDetail(action, memImageErrorCode));
+            rawDecodeDiagnosticDetail(QStringLiteral("display-image creation"), memImageErrorCode));
         result.resourceExhausted = memImageErrorCode == LIBRAW_UNSUFFICIENT_MEMORY;
         return result;
     }
@@ -299,10 +270,9 @@ RawImageProduction produceRawImage(
 }
 
 kiriview::DecodedImageFailure rawDecodedImageFailure(
-    QString errorString, QString diagnosticDetail, kiriview::DecodedImageFailureCause cause)
+    QString diagnosticDetail, kiriview::DecodedImageFailureCause cause)
 {
     return kiriview::DecodedImageFailure {
-        std::move(errorString),
         kiriview::DecodedImageFailureRoute::Raw,
         kiriview::DecodedImageFailureOperation::DecodeRawImage,
         std::move(diagnosticDetail),
@@ -317,8 +287,8 @@ kiriview::DecodedImageFailure rawWorkspaceFailure()
     QString errorString;
     QString diagnosticDetail;
     setRawWorkspaceFailure(&errorString, &diagnosticDetail);
-    return rawDecodedImageFailure(std::move(errorString), std::move(diagnosticDetail),
-        kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
+    return rawDecodedImageFailure(
+        std::move(diagnosticDetail), kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
 }
 
 class RawStaticImageDisplaySource final : public kiriview::StaticImageDisplaySource
@@ -453,10 +423,9 @@ DecodedImageResult OpenedRawImage::decode(
     }
     d.reset();
     if (!production.image.has_value()) {
-        return failedDecodedImageResult(
-            rawDecodedImageFailure(std::move(errorString), std::move(diagnosticDetail),
-                production.resourceExhausted ? DecodedImageFailureCause::ResourceLimitExceeded
-                                             : DecodedImageFailureCause::Unknown));
+        return failedDecodedImageResult(rawDecodedImageFailure(std::move(diagnosticDetail),
+            production.resourceExhausted ? DecodedImageFailureCause::ResourceLimitExceeded
+                                         : DecodedImageFailureCause::Unknown));
     }
 
     std::shared_ptr<StaticImageDisplaySource> source
@@ -465,7 +434,6 @@ DecodedImageResult OpenedRawImage::decode(
         = producerLease.splitRetained(source->retainedRasterByteCost());
     if (!retainedSourceWorkspace.isManaged()) {
         return failedDecodedImageResult(DecodedImageFailure {
-            imageErrorText(ImageErrorTextId::ReadImageData),
             DecodedImageFailureRoute::Raw,
             DecodedImageFailureOperation::DecodeRawImage,
             QStringLiteral("RAW retained raster admission split failed"),
@@ -475,8 +443,8 @@ DecodedImageResult OpenedRawImage::decode(
         });
     }
     source->retainRasterOutputWorkspace(std::move(retainedSourceWorkspace));
-    return staticDecodedImageResult(
-        std::move(source), request, &errorString, {}, std::move(producerLease));
+    return staticDecodedImageResult(std::move(source), request, &errorString, {},
+        std::move(producerLease), DecodedImageFailureRoute::Raw);
 }
 
 OpenedRawImageResult openRawImageData(
@@ -493,9 +461,8 @@ OpenedRawImageResult openRawImageData(
     const int errorCode
         = processor->open_buffer(data.constData(), static_cast<std::size_t>(data.size()));
     if (errorCode != LIBRAW_SUCCESS) {
-        const QString action = imageErrorActionText(ImageErrorActionTextId::ReadRawImage);
-        return std::unexpected(rawDecodedImageFailure(rawDecodeErrorString(action, errorCode),
-            rawDecodeDiagnosticDetail(action, errorCode),
+        return std::unexpected(rawDecodedImageFailure(
+            rawDecodeDiagnosticDetail(QStringLiteral("source read"), errorCode),
             errorCode == LIBRAW_UNSUFFICIENT_MEMORY
                 ? DecodedImageFailureCause::ResourceLimitExceeded
                 : DecodedImageFailureCause::Unknown));
@@ -506,10 +473,9 @@ OpenedRawImageResult openRawImageData(
     const QSize imageSize = libRawImageSize(*processor);
     bool resourceExhausted = false;
     if (!validateRawImageSize(imageSize, &errorString, &diagnosticDetail, &resourceExhausted)) {
-        return std::unexpected(
-            rawDecodedImageFailure(std::move(errorString), std::move(diagnosticDetail),
-                resourceExhausted ? DecodedImageFailureCause::ResourceLimitExceeded
-                                  : DecodedImageFailureCause::Unknown));
+        return std::unexpected(rawDecodedImageFailure(std::move(diagnosticDetail),
+            resourceExhausted ? DecodedImageFailureCause::ResourceLimitExceeded
+                              : DecodedImageFailureCause::Unknown));
     }
     const std::optional<qsizetype> decoderByteLimit = rawDecoderByteLimit(imageSize);
     const std::optional<qsizetype> additionalPeakByteCount

@@ -5,8 +5,6 @@
 
 #include "decoding/imagedecodeworkspace.h"
 #include "decoding/qimagereaderdisplaysource.h"
-#include "localization/imageerrortext.h"
-
 #include <QBuffer>
 #include <QByteArrayList>
 #include <QImage>
@@ -123,12 +121,9 @@ void TestQImageReaderDecoder::invalidDataReturnsFailure()
 
     const kiriview::DecodedImageFailure* failure = kiriview::decodedImageResultFailure(result);
     QVERIFY(failure != nullptr);
-    QCOMPARE(
-        failure->errorString, kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData));
     QCOMPARE(failure->route, kiriview::DecodedImageFailureRoute::QtRaster);
     QCOMPARE(failure->operation, kiriview::DecodedImageFailureOperation::OpenStaticImageSource);
     QVERIFY(!failure->diagnosticDetail.isEmpty());
-    QVERIFY(failure->diagnosticDetail != failure->errorString);
     QVERIFY(decodedImage<kiriview::StaticDecodedImage>(result) == nullptr);
 }
 

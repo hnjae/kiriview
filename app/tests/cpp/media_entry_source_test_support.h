@@ -24,7 +24,7 @@
 namespace kiriview::TestSupport {
 struct InstrumentedMediaEntrySourceFixture
 {
-    std::vector<ImageDocumentPageCandidate> candidates;
+    std::vector<MediaEntrySourceEntry> entries;
     std::map<QString, QByteArray> dataByUrl;
 };
 
@@ -58,13 +58,13 @@ public:
 
     ~InstrumentedMediaEntrySource() override { ++m_state->sourceDestructionCount; }
 
-    MediaEntrySourceCandidatesResult loadImageDocumentPageCandidates() override
+    MediaEntrySourceEntriesResult loadEntries() override
     {
         ++m_state->candidateLoadCount;
         waitIfBlocked(InstrumentedMediaEntrySourceLoadKind::Candidate);
         std::lock_guard<std::mutex> lock(m_state->mutex);
-        return MediaEntrySourceCandidates {
-            fixture().candidates,
+        return MediaEntrySourceEntries {
+            fixture().entries,
         };
     }
 
@@ -209,8 +209,14 @@ inline void addInstrumentedMediaEntrySourceFixture(
     std::vector<ImageDocumentPageCandidate> candidates)
 {
     InstrumentedMediaEntrySourceFixture fixture;
-    fixture.candidates = std::move(candidates);
-    for (const ImageDocumentPageCandidate& candidate : fixture.candidates) {
+    fixture.entries.reserve(candidates.size());
+    for (const ImageDocumentPageCandidate& candidate : candidates) {
+        fixture.entries.push_back(MediaEntrySourceEntry {
+            candidate.url,
+            candidate.name,
+            candidate.kind == ImageDocumentPageKind::Video ? MediaEntrySourceEntryKind::Video
+                                                           : MediaEntrySourceEntryKind::Image,
+        });
         fixture.dataByUrl[keyForUrl(candidate.url)] = QByteArrayLiteral("image");
     }
 

@@ -8,14 +8,12 @@
 #include <variant>
 
 namespace kiriview {
-DecodedImageResult failedDecodedImageResult(QString errorString)
+DecodedImageResult failedDecodedImageResult(QString diagnosticDetail)
 {
-    const QString diagnosticDetail = errorString;
     return std::unexpected(DecodedImageFailure {
-        std::move(errorString),
         DecodedImageFailureRoute::Unknown,
         DecodedImageFailureOperation::Unknown,
-        diagnosticDetail,
+        std::move(diagnosticDetail),
         DecodedImageFailureSeverity::Error,
         false,
     });
@@ -23,9 +21,6 @@ DecodedImageResult failedDecodedImageResult(QString errorString)
 
 DecodedImageResult failedDecodedImageResult(DecodedImageFailure failure)
 {
-    if (failure.diagnosticDetail.isEmpty()) {
-        failure.diagnosticDetail = failure.errorString;
-    }
     return std::unexpected(std::move(failure));
 }
 

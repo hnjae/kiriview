@@ -7,9 +7,8 @@
 #include "archivepath.h"
 #include "decoding/imageformatregistry.h"
 #include "diagnostics/diagnosticlogprojection.h"
+#include "format/supportedmediaformats.h"
 #include "mediaentrysourcebackend_p.h"
-#include "navigation/imagedocumentpagenavigationpolicy.h"
-#include "navigation/mediaformatregistry.h"
 
 #include <QDebug>
 #include <algorithm>
@@ -31,7 +30,7 @@ QString defaultMediaEntrySourceDiagnostic(kiriview::MediaEntrySourceErrorCause c
         return QStringLiteral("collection access backend could not open the collection");
     case Cause::UnsupportedCollection:
         return QStringLiteral("no collection access backend supports the collection");
-    case Cause::CandidateListingFailed:
+    case Cause::EntryListingFailed:
         return QStringLiteral("collection access backend could not list media entries");
     case Cause::EntryNotFound:
         return QStringLiteral("requested collection entry was not found");
@@ -172,28 +171,26 @@ MediaEntrySourceEnumerationBudget::admitEntry(qsizetype pathCodeUnitCount, int n
     return {};
 }
 
-MediaEntrySourceWithCandidateSnapshot::MediaEntrySourceWithCandidateSnapshot(
+MediaEntrySourceWithEntrySnapshot::MediaEntrySourceWithEntrySnapshot(
     OpenedCollectionScopeLocation openedCollectionScope, MediaEntrySourceBackendKind backend,
-    std::vector<ImageDocumentPageCandidate> candidates)
+    std::vector<MediaEntrySourceEntry> entries)
     : m_openedCollectionScope(std::move(openedCollectionScope))
     , m_backend(backend)
-    , m_candidates(std::move(candidates))
+    , m_entries(std::move(entries))
 {
-    sortImageDocumentPageCandidates(&m_candidates);
 }
 
-MediaEntrySourceCandidatesResult
-MediaEntrySourceWithCandidateSnapshot::loadImageDocumentPageCandidates()
+MediaEntrySourceEntriesResult MediaEntrySourceWithEntrySnapshot::loadEntries()
 {
-    return MediaEntrySourceCandidates { m_candidates };
+    return MediaEntrySourceEntries { m_entries };
 }
 
-MediaEntrySourceImageDataResult MediaEntrySourceWithCandidateSnapshot::loadImageData(
+MediaEntrySourceImageDataResult MediaEntrySourceWithEntrySnapshot::loadImageData(
     const QUrl& imageUrl, ImageSourceDataLease lease)
 {
-    const ImageDocumentPageCandidate* candidate
-        = authorizedCandidate(imageUrl, ImageDocumentPageKind::Image);
-    if (candidate == nullptr) {
+    const MediaEntrySourceEntry* entry
+        = authorizedEntry(imageUrl, MediaEntrySourceEntryKind::Image);
+    if (entry == nullptr) {
         return mediaEntrySourceErrorResult<MediaEntrySourceImageDataResult>(
             mediaEntrySourceError(MediaEntrySourceErrorCause::EntryNotFound, m_backend,
                 MediaEntrySourceOperation::ReadImageData, m_openedCollectionScope, {},
@@ -203,102 +200,103 @@ MediaEntrySourceImageDataResult MediaEntrySourceWithCandidateSnapshot::loadImage
     if (!lease.isManaged()) {
         lease = defaultImageSourceDataBudget()->startLease();
     }
-    return loadAuthorizedImageData(*candidate, std::move(lease));
+    return loadAuthorizedImageData(*entry, std::move(lease));
 }
 
 MediaEntrySourceVideoPlaybackDeviceResult
-MediaEntrySourceWithCandidateSnapshot::loadVideoPlaybackDevice(const QUrl& videoUrl)
+MediaEntrySourceWithEntrySnapshot::loadVideoPlaybackDevice(const QUrl& videoUrl)
 {
-    const ImageDocumentPageCandidate* candidate
-        = authorizedCandidate(videoUrl, ImageDocumentPageKind::Video);
-    if (candidate == nullptr) {
+    const MediaEntrySourceEntry* entry
+        = authorizedEntry(videoUrl, MediaEntrySourceEntryKind::Video);
+    if (entry == nullptr) {
         return mediaEntrySourceErrorResult<MediaEntrySourceVideoPlaybackDeviceResult>(
             mediaEntrySourceError(MediaEntrySourceErrorCause::EntryNotFound, m_backend,
                 MediaEntrySourceOperation::OpenVideoPlaybackDevice, m_openedCollectionScope, {},
                 rejectedSelectorEntryPath(videoUrl)));
     }
 
-    return loadAuthorizedVideoPlaybackDevice(*candidate);
+    return loadAuthorizedVideoPlaybackDevice(*entry);
 }
 
-MediaEntrySourceThumbnailMetadataResult
-MediaEntrySourceWithCandidateSnapshot::loadThumbnailMetadata(const QUrl& imageUrl)
+MediaEntrySourceThumbnailMetadataResult MediaEntrySourceWithEntrySnapshot::loadThumbnailMetadata(
+    const QUrl& imageUrl)
 {
-    const ImageDocumentPageCandidate* candidate
-        = authorizedCandidate(imageUrl, ImageDocumentPageKind::Image);
-    if (candidate == nullptr) {
+    const MediaEntrySourceEntry* entry
+        = authorizedEntry(imageUrl, MediaEntrySourceEntryKind::Image);
+    if (entry == nullptr) {
         return mediaEntrySourceErrorResult<MediaEntrySourceThumbnailMetadataResult>(
             mediaEntrySourceError(MediaEntrySourceErrorCause::EntryNotFound, m_backend,
                 MediaEntrySourceOperation::LoadThumbnailMetadata, m_openedCollectionScope, {},
                 rejectedSelectorEntryPath(imageUrl)));
     }
 
-    return loadAuthorizedThumbnailMetadata(*candidate);
+    return loadAuthorizedThumbnailMetadata(*entry);
 }
 
 const OpenedCollectionScopeLocation&
-MediaEntrySourceWithCandidateSnapshot::openedCollectionScope() const
+MediaEntrySourceWithEntrySnapshot::openedCollectionScope() const
 {
     return m_openedCollectionScope;
 }
 
 MediaEntrySourceVideoPlaybackDeviceResult
-MediaEntrySourceWithCandidateSnapshot::loadAuthorizedVideoPlaybackDevice(
-    const ImageDocumentPageCandidate& candidate)
+MediaEntrySourceWithEntrySnapshot::loadAuthorizedVideoPlaybackDevice(
+    const MediaEntrySourceEntry& entry)
 {
     return mediaEntrySourceErrorResult<MediaEntrySourceVideoPlaybackDeviceResult>(
         mediaEntrySourceError(MediaEntrySourceErrorCause::VideoPlaybackUnsupported, m_backend,
             MediaEntrySourceOperation::OpenVideoPlaybackDevice, m_openedCollectionScope, {},
-            candidate.name));
+            entry.name));
 }
 
 MediaEntrySourceThumbnailMetadataResult
-MediaEntrySourceWithCandidateSnapshot::loadAuthorizedThumbnailMetadata(
-    const ImageDocumentPageCandidate& candidate)
+MediaEntrySourceWithEntrySnapshot::loadAuthorizedThumbnailMetadata(
+    const MediaEntrySourceEntry& entry)
 {
     return mediaEntrySourceErrorResult<MediaEntrySourceThumbnailMetadataResult>(
         mediaEntrySourceError(MediaEntrySourceErrorCause::ThumbnailMetadataUnsupported, m_backend,
             MediaEntrySourceOperation::LoadThumbnailMetadata, m_openedCollectionScope, {},
-            candidate.name));
+            entry.name));
 }
 
-const ImageDocumentPageCandidate* MediaEntrySourceWithCandidateSnapshot::authorizedCandidate(
-    const QUrl& url, ImageDocumentPageKind expectedKind) const
+const MediaEntrySourceEntry* MediaEntrySourceWithEntrySnapshot::authorizedEntry(
+    const QUrl& url, MediaEntrySourceEntryKind expectedKind) const
 {
     const QString entryPath = openedCollectionEntryPathForUrl(m_openedCollectionScope, url);
     if (entryPath.isEmpty()) {
         return nullptr;
     }
 
-    const auto candidate
-        = std::ranges::find_if(m_candidates, [&](const ImageDocumentPageCandidate& item) {
-              return item.kind == expectedKind && item.name == entryPath && item.url == url;
-          });
-    return candidate == m_candidates.cend() ? nullptr : &*candidate;
+    const auto entry = std::ranges::find_if(m_entries, [&](const MediaEntrySourceEntry& item) {
+        return item.kind == expectedKind && item.name == entryPath && item.url == url;
+    });
+    return entry == m_entries.cend() ? nullptr : &*entry;
 }
 
-QString MediaEntrySourceWithCandidateSnapshot::rejectedSelectorEntryPath(const QUrl& url) const
+QString MediaEntrySourceWithEntrySnapshot::rejectedSelectorEntryPath(const QUrl& url) const
 {
     const QString entryPath = openedCollectionEntryPathForUrl(m_openedCollectionScope, url);
     return entryPath.isEmpty() ? url.toString() : entryPath;
 }
 
-std::optional<ImageDocumentPageCandidate> openedCollectionImageDocumentPageCandidate(
+std::optional<MediaEntrySourceEntry> openedCollectionMediaEntry(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QString& entryPath)
 {
-    const QString candidateName = normalizedArchiveEntryPath(entryPath);
-    if (candidateName.isEmpty() || !isSupportedOrdinaryMediaFileName(candidateName)) {
+    const QString entryName = normalizedArchiveEntryPath(entryPath);
+    if (entryName.isEmpty()
+        || !SupportedMediaFormats::isSupportedOrdinaryMediaFileName(entryName)) {
         return std::nullopt;
     }
 
-    const QUrl url = openedCollectionEntryUrl(openedCollectionScope, candidateName);
+    const QUrl url = openedCollectionEntryUrl(openedCollectionScope, entryName);
     if (url.isEmpty()) {
         return std::nullopt;
     }
 
-    return ImageDocumentPageCandidate { url, candidateName,
-        isSupportedDirectVideoFileName(candidateName) ? ImageDocumentPageKind::Video
-                                                      : ImageDocumentPageKind::Image };
+    return MediaEntrySourceEntry { url, entryName,
+        SupportedMediaFormats::isSupportedDirectVideoFileName(entryName)
+            ? MediaEntrySourceEntryKind::Video
+            : MediaEntrySourceEntryKind::Image };
 }
 
 MediaEntrySourceError mediaEntrySourceError(MediaEntrySourceErrorCause cause,
@@ -318,19 +316,18 @@ MediaEntrySourceError mediaEntrySourceEnumerationError(MediaEntrySourceEnumerati
 {
     if (failure == MediaEntrySourceEnumerationFailure::OperationCancelled) {
         return mediaEntrySourceError(MediaEntrySourceErrorCause::OperationCancelled, backend,
-            MediaEntrySourceOperation::ListCandidates, openedCollectionScope,
+            MediaEntrySourceOperation::ListEntries, openedCollectionScope,
             QStringLiteral("collection enumeration was cancelled"));
     }
     return mediaEntrySourceError(MediaEntrySourceErrorCause::ResourceLimitExceeded, backend,
-        MediaEntrySourceOperation::ListCandidates, openedCollectionScope,
+        MediaEntrySourceOperation::ListEntries, openedCollectionScope,
         QStringLiteral("collection enumeration exceeds the configured resource limits"));
 }
 
-MediaEntrySourceCandidatesResult mediaEntrySourceCandidatesResult(
-    std::vector<ImageDocumentPageCandidate> candidates)
+MediaEntrySourceEntriesResult mediaEntrySourceEntriesResult(
+    std::vector<MediaEntrySourceEntry> entries)
 {
-    sortImageDocumentPageCandidates(&candidates);
-    return MediaEntrySourceCandidates { std::move(candidates) };
+    return MediaEntrySourceEntries { std::move(entries) };
 }
 
 MediaEntrySourceImageDataResult mediaEntrySourceImageDataResult(QByteArray data)
@@ -357,23 +354,23 @@ MediaEntrySourceThumbnailMetadataResult mediaEntrySourceThumbnailMetadataResult(
 }
 
 namespace kiriview {
-MediaEntrySourceCandidatesResult loadMediaEntrySourceCandidates(
+MediaEntrySourceEntriesResult loadMediaEntrySourceEntries(
     const OpenedCollectionScopeLocation& openedCollectionScope)
 {
     MediaEntrySourceOpenResult opened = openMediaEntrySource(openedCollectionScope);
     if (const auto* error = kiriview::mediaEntrySourceResultError(opened)) {
-        return Backend::mediaEntrySourceErrorResult<MediaEntrySourceCandidatesResult>(*error);
+        return Backend::mediaEntrySourceErrorResult<MediaEntrySourceEntriesResult>(*error);
     }
 
     const auto* source = kiriview::mediaEntrySourceResultValue(opened);
     if (source == nullptr || *source == nullptr) {
-        return Backend::mediaEntrySourceErrorResult<MediaEntrySourceCandidatesResult>(
+        return Backend::mediaEntrySourceErrorResult<MediaEntrySourceEntriesResult>(
             Backend::mediaEntrySourceError(MediaEntrySourceErrorCause::ProviderUnavailable,
                 MediaEntrySourceBackendKind::Unknown, MediaEntrySourceOperation::OpenCollection,
                 openedCollectionScope));
     }
 
-    return (*source)->loadImageDocumentPageCandidates();
+    return (*source)->loadEntries();
 }
 
 MediaEntrySourceImageDataResult loadMediaEntrySourceImageData(

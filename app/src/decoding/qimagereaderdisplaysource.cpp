@@ -7,7 +7,6 @@
 #include "cache/imagebytecost.h"
 #include "decoding/bufferedimagereader.h"
 #include "imagerendering.h"
-#include "localization/imageerrortext.h"
 #include "staticimagedisplaysourcehelpers_p.h"
 
 #include <QImageIOHandler>
@@ -19,11 +18,6 @@
 #include <utility>
 
 namespace {
-QString imageDataReadError()
-{
-    return kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData);
-}
-
 QSize transformedImageSize(QSize size, QImageIOHandler::Transformations transformations)
 {
     if (size.isEmpty()) {
@@ -115,7 +109,6 @@ void appendDisplayDecodeFailure(
         return;
     }
 
-    diagnostics->userMessage = imageDataReadError();
     diagnostics->diagnosticDetail = errorString.isEmpty()
         ? QStringLiteral("Qt image reader returned no diagnostic detail")
         : errorString;

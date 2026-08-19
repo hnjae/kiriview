@@ -4,8 +4,10 @@
 #include "imagedocumentpagecandidateprovider.h"
 
 #include "archive/mediaentrysourcecandidateloading.h"
+#include "async/imagecallback.h"
 #include "imagedocumentpagecandidateloading.h"
 #include "imagedocumentpagecandidatestore.h"
+#include "imagedocumentpagenavigationpolicy.h"
 
 #include <memory>
 #include <utility>
@@ -17,6 +19,24 @@ kiriview::ImageIoJob noOpImageDocumentPageCandidateChanges(QObject*, const QUrl&
 {
     return kiriview::ImageIoJob();
 }
+
+std::vector<kiriview::ImageDocumentPageCandidate> imageDocumentPageCandidatesForEntries(
+    std::vector<kiriview::MediaEntrySourceEntry> entries)
+{
+    std::vector<kiriview::ImageDocumentPageCandidate> candidates;
+    candidates.reserve(entries.size());
+    for (kiriview::MediaEntrySourceEntry& entry : entries) {
+        candidates.push_back(kiriview::ImageDocumentPageCandidate {
+            std::move(entry.url),
+            std::move(entry.name),
+            entry.kind == kiriview::MediaEntrySourceEntryKind::Video
+                ? kiriview::ImageDocumentPageKind::Video
+                : kiriview::ImageDocumentPageKind::Image,
+        });
+    }
+    kiriview::sortImageDocumentPageCandidates(&candidates);
+    return candidates;
+}
 }
 
 namespace kiriview {
@@ -24,7 +44,7 @@ ImageDocumentPageCandidateProvider defaultImageDocumentPageCandidateProvider(
     ImageWorkerScheduler workerScheduler, DirectoryItemListProvider directoryItemListProvider)
 {
     auto candidateStore = std::make_shared<ImageDocumentPageCandidateStore>();
-    return ImageDocumentPageCandidateProvider {
+    ImageDocumentPageCandidateProvider provider {
         [candidateStore](QObject* receiver, QUrl directoryUrl,
             ImageDocumentPageCandidatesCallback callback,
             ImageDocumentPageCandidateLoadErrorCallback errorCallback) {
@@ -37,13 +57,7 @@ ImageDocumentPageCandidateProvider defaultImageDocumentPageCandidateProvider(
             return startDirectoryContainerCandidateList(receiver, directoryUrl, std::move(callback),
                 std::move(errorCallback), directoryItemListProvider);
         },
-        [workerScheduler = std::move(workerScheduler)](QObject* receiver,
-            OpenedCollectionScopeLocation openedCollectionScope,
-            ImageDocumentPageCandidatesCallback callback,
-            MediaEntrySourceErrorCallback errorCallback) {
-            return startOpenedCollectionCandidateList(receiver, std::move(openedCollectionScope),
-                workerScheduler, std::move(callback), std::move(errorCallback));
-        },
+        {},
         [candidateStore](QObject* receiver, QUrl directoryUrl,
             ImageDocumentPageCandidatesCallback callback,
             ImageDocumentPageCandidateLoadErrorCallback errorCallback) {
@@ -51,6 +65,13 @@ ImageDocumentPageCandidateProvider defaultImageDocumentPageCandidateProvider(
                 receiver, std::move(directoryUrl), std::move(callback), std::move(errorCallback));
         },
     };
+    return imageDocumentPageCandidateProviderWithOpenedCollectionEntryLoader(std::move(provider),
+        [workerScheduler = std::move(workerScheduler)](QObject* receiver,
+            OpenedCollectionScopeLocation openedCollectionScope,
+            MediaEntrySourceEntriesCallback callback, MediaEntrySourceErrorCallback errorCallback) {
+            return startOpenedCollectionEntryList(receiver, std::move(openedCollectionScope),
+                workerScheduler, std::move(callback), std::move(errorCallback));
+        });
 }
 
 ImageDocumentPageCandidateProvider imageDocumentPageNavigationCandidateProviderWithDefaults(
@@ -77,6 +98,24 @@ ImageDocumentPageCandidateProvider imageDocumentPageNavigationCandidateProviderW
             : noOpImageDocumentPageCandidateChanges;
     }
 
+    return provider;
+}
+
+ImageDocumentPageCandidateProvider
+imageDocumentPageCandidateProviderWithOpenedCollectionEntryLoader(
+    ImageDocumentPageCandidateProvider provider, MediaEntrySourceEntryLoader entryLoader)
+{
+    provider.openedCollectionCandidates = [entryLoader = std::move(entryLoader)](QObject* receiver,
+                                              OpenedCollectionScopeLocation openedCollectionScope,
+                                              ImageDocumentPageCandidatesCallback callback,
+                                              MediaEntrySourceErrorCallback errorCallback) {
+        return entryLoader(
+            receiver, std::move(openedCollectionScope),
+            [callback = std::move(callback)](std::vector<MediaEntrySourceEntry> entries) mutable {
+                invokeIfSet(callback, imageDocumentPageCandidatesForEntries(std::move(entries)));
+            },
+            std::move(errorCallback));
+    };
     return provider;
 }
 }

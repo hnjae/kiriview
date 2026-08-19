@@ -75,7 +75,7 @@ struct DirectoryEntryAuthority
 
 struct DirectoryCollectionMetadata
 {
-    std::vector<kiriview::ImageDocumentPageCandidate> candidates;
+    std::vector<kiriview::MediaEntrySourceEntry> entries;
     std::map<QString, DirectoryEntryAuthority> authorityByPath;
 };
 
@@ -386,17 +386,16 @@ bool scanDirectoryCollection(ScopedFileDescriptor directoryFileDescriptor,
             continue;
         }
 
-        std::optional<kiriview::ImageDocumentPageCandidate> candidate
-            = Backend::openedCollectionImageDocumentPageCandidate(
-                scan->openedCollectionScope, relativePath);
-        if (!candidate.has_value()) {
+        std::optional<kiriview::MediaEntrySourceEntry> entry
+            = Backend::openedCollectionMediaEntry(scan->openedCollectionScope, relativePath);
+        if (!entry.has_value()) {
             continue;
         }
 
         auto [authority, inserted] = scan->metadata.authorityByPath.emplace(
-            candidate->name, DirectoryEntryAuthority { rawRelativePath, resolved.identity });
+            entry->name, DirectoryEntryAuthority { rawRelativePath, resolved.identity });
         if (inserted) {
-            scan->metadata.candidates.push_back(std::move(*candidate));
+            scan->metadata.entries.push_back(std::move(*entry));
         }
     }
 }
@@ -475,15 +474,14 @@ std::optional<DirectoryCollectionMetadata> scanDirectoryCollectionMetadata(
     return std::move(scan.metadata);
 }
 
-class DirectoryCollectionMediaEntrySource final
-    : public Backend::MediaEntrySourceWithCandidateSnapshot
+class DirectoryCollectionMediaEntrySource final : public Backend::MediaEntrySourceWithEntrySnapshot
 {
 public:
     DirectoryCollectionMediaEntrySource(
         kiriview::OpenedCollectionScopeLocation openedCollectionScope,
         ScopedFileDescriptor rootFileDescriptor, DirectoryCollectionMetadata metadata)
-        : Backend::MediaEntrySourceWithCandidateSnapshot(std::move(openedCollectionScope),
-              kiriview::MediaEntrySourceBackendKind::Directory, std::move(metadata.candidates))
+        : Backend::MediaEntrySourceWithEntrySnapshot(std::move(openedCollectionScope),
+              kiriview::MediaEntrySourceBackendKind::Directory, std::move(metadata.entries))
         , m_rootFileDescriptor(std::move(rootFileDescriptor))
         , m_authorityByPath(std::move(metadata.authorityByPath))
     {
@@ -492,13 +490,12 @@ public:
 
 protected:
     kiriview::MediaEntrySourceImageDataResult loadAuthorizedImageData(
-        const kiriview::ImageDocumentPageCandidate& candidate,
-        kiriview::ImageSourceDataLease lease) override
+        const kiriview::MediaEntrySourceEntry& entry, kiriview::ImageSourceDataLease lease) override
     {
-        const auto authority = m_authorityByPath.find(candidate.name);
+        const auto authority = m_authorityByPath.find(entry.name);
         if (authority == m_authorityByPath.cend()) {
             return entryNotFound<kiriview::MediaEntrySourceImageDataResult>(
-                kiriview::MediaEntrySourceOperation::ReadImageData, candidate.name);
+                kiriview::MediaEntrySourceOperation::ReadImageData, entry.name);
         }
 
         DirectoryPathResolution resolution = resolveDirectoryRelativePath(
@@ -509,13 +506,13 @@ protected:
                     kiriview::MediaEntrySourceErrorCause::EntryReadFailed,
                     kiriview::MediaEntrySourceBackendKind::Directory,
                     kiriview::MediaEntrySourceOperation::ReadImageData, openedCollectionScope(),
-                    std::move(resolution.diagnosticDetail), candidate.name));
+                    std::move(resolution.diagnosticDetail), entry.name));
         }
         if (!resolution.entry.has_value()
             || !sameFileIdentity(resolution.entry->identity, authority->second.identity)
             || resolution.entry->identity.type != S_IFREG) {
             return entryNotFound<kiriview::MediaEntrySourceImageDataResult>(
-                kiriview::MediaEntrySourceOperation::ReadImageData, candidate.name);
+                kiriview::MediaEntrySourceOperation::ReadImageData, entry.name);
         }
 
         ResolvedDirectoryEntry resolved = std::move(*resolution.entry);
@@ -527,7 +524,7 @@ protected:
                     kiriview::MediaEntrySourceErrorCause::EntryReadFailed,
                     kiriview::MediaEntrySourceBackendKind::Directory,
                     kiriview::MediaEntrySourceOperation::ReadImageData, openedCollectionScope(),
-                    file.errorString(), candidate.name));
+                    file.errorString(), entry.name));
         }
         static_cast<void>(resolved.fileDescriptor.release());
 
@@ -542,19 +539,19 @@ protected:
                 Backend::mediaEntrySourceError(cause,
                     kiriview::MediaEntrySourceBackendKind::Directory,
                     kiriview::MediaEntrySourceOperation::ReadImageData, openedCollectionScope(),
-                    std::move(readResult.diagnosticDetail), candidate.name));
+                    std::move(readResult.diagnosticDetail), entry.name));
         }
 
         return Backend::mediaEntrySourceImageDataResult(std::move(readResult.sourceData));
     }
 
     kiriview::MediaEntrySourceVideoPlaybackDeviceResult loadAuthorizedVideoPlaybackDevice(
-        const kiriview::ImageDocumentPageCandidate& candidate) override
+        const kiriview::MediaEntrySourceEntry& entry) override
     {
-        const auto authority = m_authorityByPath.find(candidate.name);
+        const auto authority = m_authorityByPath.find(entry.name);
         if (authority == m_authorityByPath.cend()) {
             return entryNotFound<kiriview::MediaEntrySourceVideoPlaybackDeviceResult>(
-                kiriview::MediaEntrySourceOperation::OpenVideoPlaybackDevice, candidate.name);
+                kiriview::MediaEntrySourceOperation::OpenVideoPlaybackDevice, entry.name);
         }
 
         DirectoryPathResolution resolution = resolveDirectoryRelativePath(
@@ -565,13 +562,13 @@ protected:
                 kiriview::MediaEntrySourceErrorCause::VideoPlaybackUnsupported,
                 kiriview::MediaEntrySourceBackendKind::Directory,
                 kiriview::MediaEntrySourceOperation::OpenVideoPlaybackDevice,
-                openedCollectionScope(), std::move(resolution.diagnosticDetail), candidate.name));
+                openedCollectionScope(), std::move(resolution.diagnosticDetail), entry.name));
         }
         if (!resolution.entry.has_value()
             || !sameFileIdentity(resolution.entry->identity, authority->second.identity)
             || resolution.entry->identity.type != S_IFREG) {
             return entryNotFound<kiriview::MediaEntrySourceVideoPlaybackDeviceResult>(
-                kiriview::MediaEntrySourceOperation::OpenVideoPlaybackDevice, candidate.name);
+                kiriview::MediaEntrySourceOperation::OpenVideoPlaybackDevice, entry.name);
         }
 
         ResolvedDirectoryEntry resolved = std::move(*resolution.entry);
@@ -583,7 +580,7 @@ protected:
                 kiriview::MediaEntrySourceErrorCause::VideoPlaybackUnsupported,
                 kiriview::MediaEntrySourceBackendKind::Directory,
                 kiriview::MediaEntrySourceOperation::OpenVideoPlaybackDevice,
-                openedCollectionScope(), file->errorString(), candidate.name));
+                openedCollectionScope(), file->errorString(), entry.name));
         }
         static_cast<void>(resolved.fileDescriptor.release());
 
@@ -637,10 +634,9 @@ kiriview::MediaEntrySourceOpenResult openDirectoryCollectionMediaEntrySource(
                     kiriview::MediaEntrySourceBackendKind::Directory, openedCollectionScope));
         }
         return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceOpenResult>(
-            Backend::mediaEntrySourceError(
-                kiriview::MediaEntrySourceErrorCause::CandidateListingFailed,
+            Backend::mediaEntrySourceError(kiriview::MediaEntrySourceErrorCause::EntryListingFailed,
                 kiriview::MediaEntrySourceBackendKind::Directory,
-                kiriview::MediaEntrySourceOperation::ListCandidates, openedCollectionScope,
+                kiriview::MediaEntrySourceOperation::ListEntries, openedCollectionScope,
                 diagnosticDetail));
     }
 

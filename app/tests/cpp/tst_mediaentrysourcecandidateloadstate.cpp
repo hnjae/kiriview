@@ -8,7 +8,7 @@
 #include <optional>
 #include <vector>
 
-class TestMediaEntrySourceCandidateLoadState : public QObject
+class TestMediaEntrySourceEntryLoadState : public QObject
 {
     Q_OBJECT
 
@@ -20,20 +20,20 @@ private Q_SLOTS:
     void cancelInvalidatesPendingLoads();
 };
 
-void TestMediaEntrySourceCandidateLoadState::pendingLoadsShareOneStartableBatch()
+void TestMediaEntrySourceEntryLoadState::pendingLoadsShareOneStartableBatch()
 {
-    kiriview::MediaEntrySourceCandidateLoadState state;
+    kiriview::MediaEntrySourceEntryLoadState state;
     kiriview::ImageIoJob firstJob = state.addLoad(this, {}, {});
     kiriview::ImageIoJob secondJob = state.addLoad(this, {}, {});
 
     QVERIFY(firstJob.isActive());
     QVERIFY(secondJob.isActive());
-    const std::optional<kiriview::MediaEntrySourceCandidateLoadBatch> batch = state.startBatch();
+    const std::optional<kiriview::MediaEntrySourceEntryLoadBatch> batch = state.startBatch();
     QVERIFY(batch.has_value());
     QVERIFY(state.batchInProgress());
     QVERIFY(!state.startBatch().has_value());
 
-    std::vector<kiriview::MediaEntrySourceCandidateLoad> loads = state.finishBatch(*batch);
+    std::vector<kiriview::MediaEntrySourceEntryLoad> loads = state.finishBatch(*batch);
     QCOMPARE(loads.size(), std::size_t(2));
     QVERIFY(loads[0].completion.claimAndDelete([]() { }));
     QVERIFY(loads[1].completion.claimAndDelete([]() { }));
@@ -43,12 +43,12 @@ void TestMediaEntrySourceCandidateLoadState::pendingLoadsShareOneStartableBatch(
     QVERIFY(!state.startBatch().has_value());
 }
 
-void TestMediaEntrySourceCandidateLoadState::loadAddedDuringBatchJoinsActiveBatch()
+void TestMediaEntrySourceEntryLoadState::loadAddedDuringBatchJoinsActiveBatch()
 {
-    kiriview::MediaEntrySourceCandidateLoadState state;
+    kiriview::MediaEntrySourceEntryLoadState state;
     kiriview::ImageIoJob firstJob = state.addLoad(this, {}, {});
 
-    const std::optional<kiriview::MediaEntrySourceCandidateLoadBatch> batch = state.startBatch();
+    const std::optional<kiriview::MediaEntrySourceEntryLoadBatch> batch = state.startBatch();
     QVERIFY(batch.has_value());
     QVERIFY(state.batchInProgress());
     kiriview::ImageIoJob secondJob = state.addLoad(this, {}, {});
@@ -57,7 +57,7 @@ void TestMediaEntrySourceCandidateLoadState::loadAddedDuringBatchJoinsActiveBatc
     QVERIFY(secondJob.isActive());
     QVERIFY(!state.startBatch().has_value());
 
-    std::vector<kiriview::MediaEntrySourceCandidateLoad> loads = state.finishBatch(*batch);
+    std::vector<kiriview::MediaEntrySourceEntryLoad> loads = state.finishBatch(*batch);
     QCOMPARE(loads.size(), std::size_t(2));
     QVERIFY(loads[0].completion.claimAndDelete([]() { }));
     QVERIFY(loads[1].completion.claimAndDelete([]() { }));
@@ -66,12 +66,12 @@ void TestMediaEntrySourceCandidateLoadState::loadAddedDuringBatchJoinsActiveBatc
     QVERIFY(!state.batchInProgress());
 }
 
-void TestMediaEntrySourceCandidateLoadState::cancelRejectsActiveBatch()
+void TestMediaEntrySourceEntryLoadState::cancelRejectsActiveBatch()
 {
-    kiriview::MediaEntrySourceCandidateLoadState state;
+    kiriview::MediaEntrySourceEntryLoadState state;
     kiriview::ImageIoJob job = state.addLoad(this, {}, {});
 
-    const std::optional<kiriview::MediaEntrySourceCandidateLoadBatch> batch = state.startBatch();
+    const std::optional<kiriview::MediaEntrySourceEntryLoadBatch> batch = state.startBatch();
     QVERIFY(batch.has_value());
     state.cancel();
 
@@ -81,33 +81,31 @@ void TestMediaEntrySourceCandidateLoadState::cancelRejectsActiveBatch()
     QVERIFY(!state.batchInProgress());
 }
 
-void TestMediaEntrySourceCandidateLoadState::wrongBatchCannotFinishPendingLoads()
+void TestMediaEntrySourceEntryLoadState::wrongBatchCannotFinishPendingLoads()
 {
-    kiriview::MediaEntrySourceCandidateLoadState state;
+    kiriview::MediaEntrySourceEntryLoadState state;
     kiriview::ImageIoJob staleJob = state.addLoad(this, {}, {});
-    const std::optional<kiriview::MediaEntrySourceCandidateLoadBatch> staleBatch
-        = state.startBatch();
+    const std::optional<kiriview::MediaEntrySourceEntryLoadBatch> staleBatch = state.startBatch();
     QVERIFY(staleBatch.has_value());
     state.cancel();
 
     kiriview::ImageIoJob currentJob = state.addLoad(this, {}, {});
-    const std::optional<kiriview::MediaEntrySourceCandidateLoadBatch> currentBatch
-        = state.startBatch();
+    const std::optional<kiriview::MediaEntrySourceEntryLoadBatch> currentBatch = state.startBatch();
     QVERIFY(currentBatch.has_value());
     QVERIFY(!staleJob.isActive());
     QVERIFY(currentJob.isActive());
     QCOMPARE(state.finishBatch(*staleBatch).size(), std::size_t(0));
     QVERIFY(currentJob.isActive());
 
-    std::vector<kiriview::MediaEntrySourceCandidateLoad> loads = state.finishBatch(*currentBatch);
+    std::vector<kiriview::MediaEntrySourceEntryLoad> loads = state.finishBatch(*currentBatch);
     QCOMPARE(loads.size(), std::size_t(1));
     QVERIFY(loads.front().completion.claimAndDelete([]() { }));
     QVERIFY(!currentJob.isActive());
 }
 
-void TestMediaEntrySourceCandidateLoadState::cancelInvalidatesPendingLoads()
+void TestMediaEntrySourceEntryLoadState::cancelInvalidatesPendingLoads()
 {
-    kiriview::MediaEntrySourceCandidateLoadState state;
+    kiriview::MediaEntrySourceEntryLoadState state;
     kiriview::ImageIoJob job = state.addLoad(this, {}, {});
 
     state.cancel();
@@ -117,6 +115,6 @@ void TestMediaEntrySourceCandidateLoadState::cancelInvalidatesPendingLoads()
     QCOMPARE(state.finishBatch({ 1 }).size(), std::size_t(0));
 }
 
-QTEST_GUILESS_MAIN(TestMediaEntrySourceCandidateLoadState)
+QTEST_GUILESS_MAIN(TestMediaEntrySourceEntryLoadState)
 
 #include "tst_mediaentrysourcecandidateloadstate.moc"

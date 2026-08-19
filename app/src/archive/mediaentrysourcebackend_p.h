@@ -6,7 +6,6 @@
 
 #include "location/imagelocation.h"
 #include "mediaentrysourcebackend.h"
-#include "navigation/imagedocumentpagenavigationtypes.h"
 
 #include <QByteArray>
 #include <QString>
@@ -45,14 +44,14 @@ struct MediaEntrySourceBackendOperations
     MediaEntrySourceOpener openSource;
 };
 
-class MediaEntrySourceWithCandidateSnapshot : public MediaEntrySource
+class MediaEntrySourceWithEntrySnapshot : public MediaEntrySource
 {
 public:
-    MediaEntrySourceWithCandidateSnapshot(OpenedCollectionScopeLocation openedCollectionScope,
-        MediaEntrySourceBackendKind backend, std::vector<ImageDocumentPageCandidate> candidates);
-    ~MediaEntrySourceWithCandidateSnapshot() override = default;
+    MediaEntrySourceWithEntrySnapshot(OpenedCollectionScopeLocation openedCollectionScope,
+        MediaEntrySourceBackendKind backend, std::vector<MediaEntrySourceEntry> entries);
+    ~MediaEntrySourceWithEntrySnapshot() override = default;
 
-    MediaEntrySourceCandidatesResult loadImageDocumentPageCandidates() final;
+    MediaEntrySourceEntriesResult loadEntries() final;
     MediaEntrySourceImageDataResult loadImageData(
         const QUrl& imageUrl, ImageSourceDataLease lease = {}) final;
     MediaEntrySourceVideoPlaybackDeviceResult loadVideoPlaybackDevice(const QUrl& videoUrl) final;
@@ -62,25 +61,25 @@ protected:
     [[nodiscard]] const OpenedCollectionScopeLocation& openedCollectionScope() const;
 
     virtual MediaEntrySourceImageDataResult loadAuthorizedImageData(
-        const ImageDocumentPageCandidate& candidate, ImageSourceDataLease lease)
+        const MediaEntrySourceEntry& entry, ImageSourceDataLease lease)
         = 0;
     virtual MediaEntrySourceVideoPlaybackDeviceResult loadAuthorizedVideoPlaybackDevice(
-        const ImageDocumentPageCandidate& candidate);
+        const MediaEntrySourceEntry& entry);
     virtual MediaEntrySourceThumbnailMetadataResult loadAuthorizedThumbnailMetadata(
-        const ImageDocumentPageCandidate& candidate);
+        const MediaEntrySourceEntry& entry);
 
 private:
-    [[nodiscard]] const ImageDocumentPageCandidate* authorizedCandidate(
-        const QUrl& url, ImageDocumentPageKind expectedKind) const;
+    [[nodiscard]] const MediaEntrySourceEntry* authorizedEntry(
+        const QUrl& url, MediaEntrySourceEntryKind expectedKind) const;
     [[nodiscard]] QString rejectedSelectorEntryPath(const QUrl& url) const;
 
     OpenedCollectionScopeLocation m_openedCollectionScope;
     MediaEntrySourceBackendKind m_backend = MediaEntrySourceBackendKind::Unknown;
-    std::vector<ImageDocumentPageCandidate> m_candidates;
-    Q_DISABLE_COPY_MOVE(MediaEntrySourceWithCandidateSnapshot)
+    std::vector<MediaEntrySourceEntry> m_entries;
+    Q_DISABLE_COPY_MOVE(MediaEntrySourceWithEntrySnapshot)
 };
 
-std::optional<ImageDocumentPageCandidate> openedCollectionImageDocumentPageCandidate(
+std::optional<MediaEntrySourceEntry> openedCollectionMediaEntry(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QString& entryPath);
 
 MediaEntrySourceError mediaEntrySourceError(MediaEntrySourceErrorCause cause,
@@ -96,8 +95,8 @@ template <typename Result> Result mediaEntrySourceErrorResult(MediaEntrySourceEr
     return std::unexpected(std::move(error));
 }
 
-MediaEntrySourceCandidatesResult mediaEntrySourceCandidatesResult(
-    std::vector<ImageDocumentPageCandidate> candidates);
+MediaEntrySourceEntriesResult mediaEntrySourceEntriesResult(
+    std::vector<MediaEntrySourceEntry> entries);
 MediaEntrySourceImageDataResult mediaEntrySourceImageDataResult(QByteArray data);
 MediaEntrySourceImageDataResult mediaEntrySourceImageDataResult(ImageSourceData sourceData);
 MediaEntrySourceVideoPlaybackDeviceResult mediaEntrySourceVideoPlaybackDeviceResult(

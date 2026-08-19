@@ -3,6 +3,7 @@
 
 #include "applicationdiagnostics.h"
 
+#include <ImageViewport/imagesequenceprovider.h>
 #include <QByteArray>
 #include <QChar>
 #include <QLoggingCategory>
@@ -18,7 +19,7 @@ QStringList verboseDiagnosticCategoryNames()
         QStringLiteral("org.hnjae.kiriview.navigation"),
         QStringLiteral("org.hnjae.kiriview.predecode"),
         QStringLiteral("org.hnjae.kiriview.thumbnail"),
-        QStringLiteral("org.hnjae.kiriview.display.provider"),
+        QString::fromUtf8(imageViewportProviderLog().categoryName()),
         QStringLiteral("org.hnjae.kiriview.animation"),
         QStringLiteral("org.hnjae.kiriview.video"),
     };

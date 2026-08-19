@@ -8,7 +8,6 @@
 #include "decoding/imagedecoderequest.h"
 #include "decoding/imagedecodeworkspace.h"
 #include "decoding/imagerendering.h"
-#include "localization/imageerrortext.h"
 #include "location/sourcekey.h"
 
 #include <QImage>
@@ -24,24 +23,20 @@ QString errorStringValue(QString* errorString)
 }
 
 kiriview::DecodedImageResult failedStaticDecodedImageResult(
-    kiriview::DecodedImageFailureOperation operation, QString* errorString,
+    kiriview::DecodedImageFailureRoute route, kiriview::DecodedImageFailureOperation operation,
+    QString* errorString,
     const kiriview::StaticImageDisplayDecodeDiagnostics* diagnostics = nullptr,
     kiriview::DecodedImageFailureCause cause = kiriview::DecodedImageFailureCause::Unknown)
 {
-    QString message = diagnostics == nullptr ? QString() : diagnostics->userMessage;
-    if (message.isEmpty()) {
-        message = errorStringValue(errorString);
-    }
     QString diagnosticDetail = diagnostics == nullptr ? QString() : diagnostics->diagnosticDetail;
     if (diagnosticDetail.isEmpty()) {
-        diagnosticDetail = message;
+        diagnosticDetail = errorStringValue(errorString);
     }
-    if (errorString != nullptr && !message.isEmpty()) {
-        *errorString = message;
+    if (errorString != nullptr && !diagnosticDetail.isEmpty()) {
+        *errorString = diagnosticDetail;
     }
     return kiriview::failedDecodedImageResult(kiriview::DecodedImageFailure {
-        message,
-        kiriview::DecodedImageFailureRoute::Unknown,
+        route,
         operation,
         diagnosticDetail,
         kiriview::DecodedImageFailureSeverity::Error,
@@ -50,13 +45,12 @@ kiriview::DecodedImageResult failedStaticDecodedImageResult(
     });
 }
 
-kiriview::DecodedImageResult failedStaticWorkspaceResult(
+kiriview::DecodedImageResult failedStaticWorkspaceResult(kiriview::DecodedImageFailureRoute route,
     kiriview::DecodedImageFailureOperation operation, QString* errorString)
 {
     kiriview::StaticImageDisplayDecodeDiagnostics diagnostics;
-    diagnostics.userMessage = kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData);
     diagnostics.diagnosticDetail = kiriview::imageDecodeWorkspaceResourceLimitDiagnostic();
-    return failedStaticDecodedImageResult(operation, errorString, &diagnostics,
+    return failedStaticDecodedImageResult(route, operation, errorString, &diagnostics,
         kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
 }
 
@@ -79,7 +73,8 @@ kiriview::DisplayImageQuality displayQualityForImage(
 std::optional<kiriview::StaticDisplayImagePayload> staticDisplayPayload(
     std::shared_ptr<kiriview::StaticImageDisplaySource> source,
     const kiriview::ImageDecodeRequest& request, QImage image, bool firstDisplay,
-    kiriview::ImageDecodeWorkspaceLease producerLease)
+    kiriview::ImageDecodeWorkspaceLease producerLease,
+    kiriview::DecodedImageFailureRoute decodeRoute)
 {
     QImage displayImage = kiriview::displayReadyImage(image);
     image = {};
@@ -123,6 +118,7 @@ std::optional<kiriview::StaticDisplayImagePayload> staticDisplayPayload(
         detailModel,
         request.sourceRevision(),
         kiriview::DisplayImageRasterKind::AuthoritativeStill,
+        decodeRoute,
     };
     return payload;
 }
@@ -132,11 +128,11 @@ namespace kiriview {
 DecodedImageResult staticDecodedImageResult(std::shared_ptr<StaticImageDisplaySource> source,
     const ImageDecodeRequest& request, QString* errorString,
     std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget,
-    ImageDecodeWorkspaceLease producerLease)
+    ImageDecodeWorkspaceLease producerLease, DecodedImageFailureRoute decodeRoute)
 {
     if (source == nullptr) {
         return failedStaticDecodedImageResult(
-            DecodedImageFailureOperation::OpenStaticImageSource, errorString);
+            decodeRoute, DecodedImageFailureOperation::OpenStaticImageSource, errorString);
     }
 
     const std::optional<qsizetype> peakByteCost = source->initialDisplayDecodePeakByteCost(
@@ -144,7 +140,7 @@ DecodedImageResult staticDecodedImageResult(std::shared_ptr<StaticImageDisplaySo
     if (!peakByteCost.has_value() || *peakByteCost <= 0
         || *peakByteCost == std::numeric_limits<qsizetype>::max()) {
         return failedStaticWorkspaceResult(
-            DecodedImageFailureOperation::DecodeBlockingDisplayImage, errorString);
+            decodeRoute, DecodedImageFailureOperation::DecodeBlockingDisplayImage, errorString);
     }
     if (!producerLease.isManaged()) {
         if (workspaceBudget == nullptr) {
@@ -157,7 +153,7 @@ DecodedImageResult staticDecodedImageResult(std::shared_ptr<StaticImageDisplaySo
         && !ImageDecodeWorkspaceDetail::tryReserve(
             producerLease, *peakByteCost - alreadyReservedByteCount)) {
         return failedStaticWorkspaceResult(
-            DecodedImageFailureOperation::DecodeBlockingDisplayImage, errorString);
+            decodeRoute, DecodedImageFailureOperation::DecodeBlockingDisplayImage, errorString);
     }
 
     StaticImageFirstDisplayDecodeResult firstDisplayResult
@@ -165,23 +161,24 @@ DecodedImageResult staticDecodedImageResult(std::shared_ptr<StaticImageDisplaySo
     switch (firstDisplayResult.firstDisplay.status) {
     case FirstDisplayImageDecodeStatus::Ready: {
         if (firstDisplayResult.firstDisplay.image.isNull()) {
-            return failedStaticDecodedImageResult(
+            return failedStaticDecodedImageResult(decodeRoute,
                 DecodedImageFailureOperation::DecodeFirstDisplayImage, errorString,
                 &firstDisplayResult.diagnostics);
         }
-        std::optional<StaticDisplayImagePayload> payload
-            = staticDisplayPayload(std::move(source), request,
-                std::move(firstDisplayResult.firstDisplay.image), true, std::move(producerLease));
+        std::optional<StaticDisplayImagePayload> payload = staticDisplayPayload(std::move(source),
+            request, std::move(firstDisplayResult.firstDisplay.image), true,
+            std::move(producerLease), decodeRoute);
         return payload.has_value()
             ? successfulDecodedImageResult(StaticDecodedImage { std::move(*payload), {} })
             : failedStaticWorkspaceResult(
-                  DecodedImageFailureOperation::DecodeFirstDisplayImage, errorString);
+                  decodeRoute, DecodedImageFailureOperation::DecodeFirstDisplayImage, errorString);
     }
     case FirstDisplayImageDecodeStatus::NotImplemented:
         break;
     case FirstDisplayImageDecodeStatus::Error:
-        return failedStaticDecodedImageResult(DecodedImageFailureOperation::DecodeFirstDisplayImage,
-            errorString, &firstDisplayResult.diagnostics,
+        return failedStaticDecodedImageResult(decodeRoute,
+            DecodedImageFailureOperation::DecodeFirstDisplayImage, errorString,
+            &firstDisplayResult.diagnostics,
             firstDisplayResult.failureCause
                     == StaticImageDisplayDecodeFailureCause::ResourceExhausted
                 ? DecodedImageFailureCause::ResourceLimitExceeded
@@ -191,7 +188,7 @@ DecodedImageResult staticDecodedImageResult(std::shared_ptr<StaticImageDisplaySo
     StaticImageDisplayDecodeResult previewResult
         = source->decodeBlockingDisplayImage(imageBlockingDisplayLongEdgeMax);
     if (previewResult.image.isNull()) {
-        return failedStaticDecodedImageResult(
+        return failedStaticDecodedImageResult(decodeRoute,
             DecodedImageFailureOperation::DecodeBlockingDisplayImage, errorString,
             &previewResult.diagnostics,
             previewResult.failureCause == StaticImageDisplayDecodeFailureCause::ResourceExhausted
@@ -200,10 +197,10 @@ DecodedImageResult staticDecodedImageResult(std::shared_ptr<StaticImageDisplaySo
     }
 
     std::optional<StaticDisplayImagePayload> payload = staticDisplayPayload(std::move(source),
-        request, std::move(previewResult.image), false, std::move(producerLease));
+        request, std::move(previewResult.image), false, std::move(producerLease), decodeRoute);
     return payload.has_value()
         ? successfulDecodedImageResult(StaticDecodedImage { std::move(*payload), {} })
         : failedStaticWorkspaceResult(
-              DecodedImageFailureOperation::DecodeBlockingDisplayImage, errorString);
+              decodeRoute, DecodedImageFailureOperation::DecodeBlockingDisplayImage, errorString);
 }
 }

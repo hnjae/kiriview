@@ -7,7 +7,6 @@
 #include "cache/imagebytecost.h"
 #include "decoding/imagerendering.h"
 #include "imageinputclassification.h"
-#include "localization/imageerrortext.h"
 #include "location/sourcekey.h"
 #include "rawdecoder.h"
 
@@ -41,25 +40,26 @@ void setError(QString* errorString, QString message)
     }
 }
 
-QString rawDecodeErrorString(const QString& action, int errorCode)
+QString rawDecodeDiagnosticDetail(const QString& action, int errorCode)
 {
-    QString message = kiriview::imageErrorText(kiriview::ImageErrorTextId::UnknownLibrawError);
+    QString message = QStringLiteral("unknown LibRaw error");
     if (const char* rawMessage = LibRaw::strerror(errorCode); rawMessage != nullptr) {
         message = QString::fromUtf8(rawMessage);
     }
 
-    return kiriview::rawDecodeErrorText(action, message);
+    return QStringLiteral("LibRaw %1 failed with code %2: %3")
+        .arg(action, QString::number(errorCode), message);
 }
 
 kiriview::RawEmbeddedThumbnailPreviewResult rawResult(
     kiriview::RawEmbeddedThumbnailPreviewStatus status, QImage image = {}, QSize originalSize = {},
-    QString errorString = {})
+    QString diagnosticDetail = {})
 {
     return kiriview::RawEmbeddedThumbnailPreviewResult {
         status,
         std::move(image),
         originalSize,
-        std::move(errorString),
+        std::move(diagnosticDetail),
     };
 }
 
@@ -131,17 +131,14 @@ std::optional<QSize> trustedOriginalSizeFromRawData(const QByteArray& data,
     const int errorCode
         = processor.open_buffer(data.constData(), static_cast<std::size_t>(data.size()));
     if (errorCode != LIBRAW_SUCCESS) {
-        setError(errorString,
-            rawDecodeErrorString(
-                kiriview::imageErrorActionText(kiriview::ImageErrorActionTextId::ReadRawImage),
-                errorCode));
+        setError(errorString, rawDecodeDiagnosticDetail(QStringLiteral("source read"), errorCode));
         return std::nullopt;
     }
 
     const QSize originalSize = libRawImageSize(processor);
     if (!validateTrustedOriginalSize(originalSize)) {
         setError(errorString,
-            kiriview::imageErrorText(kiriview::ImageErrorTextId::RawDecodedImageSizeInvalid));
+            QStringLiteral("RAW image size validation failed: decoded size is invalid"));
         return std::nullopt;
     }
     return originalSize;
@@ -174,13 +171,12 @@ bool aspectCompatible(QSize thumbnailSize, QSize originalSize)
 bool validateRawPreviewImage(const QImage& image, QSize originalSize, QString* errorString)
 {
     if (image.isNull() || !validImageSize(image.size())) {
-        setError(errorString,
-            kiriview::imageErrorText(kiriview::ImageErrorTextId::RawDecodedImageInvalid));
+        setError(errorString, QStringLiteral("RAW embedded thumbnail raster is invalid"));
         return false;
     }
     if (!validateTrustedOriginalSize(originalSize)) {
         setError(errorString,
-            kiriview::imageErrorText(kiriview::ImageErrorTextId::RawDecodedImageSizeInvalid));
+            QStringLiteral("RAW image size validation failed: decoded size is invalid"));
         return false;
     }
     if (!thumbnailFitsOriginal(image.size(), originalSize)) {
@@ -194,8 +190,8 @@ bool validateRawPreviewImage(const QImage& image, QSize originalSize, QString* e
     }
     const qsizetype byteCost = kiriview::imageByteCost(image);
     if (byteCost <= 0 || byteCost > rawEmbeddedThumbnailPreviewRasterByteLimit) {
-        setError(errorString,
-            kiriview::imageErrorText(kiriview::ImageErrorTextId::RawFullDecodeTooLarge));
+        setError(
+            errorString, QStringLiteral("RAW embedded thumbnail exceeds its raster byte limit"));
         return false;
     }
 
@@ -224,7 +220,7 @@ std::optional<QImage> jpegThumbnailImage(
 {
     if (!rawProcessedDataSizeFitsQByteArray(processedImage->data_size)) {
         setError(errorString,
-            kiriview::imageErrorText(kiriview::ImageErrorTextId::RawDecodedPixelDataInvalid));
+            QStringLiteral("RAW embedded thumbnail data exceeds its bounded input size"));
         return std::nullopt;
     }
 
@@ -236,7 +232,7 @@ std::optional<QImage> jpegThumbnailImage(
     if (!reader.canRead()) {
         setError(errorString,
             reader.errorString().isEmpty()
-                ? kiriview::imageErrorText(kiriview::ImageErrorTextId::RawDecodedImageInvalid)
+                ? QStringLiteral("RAW embedded JPEG thumbnail is invalid")
                 : reader.errorString());
         return std::nullopt;
     }
@@ -247,7 +243,7 @@ std::optional<QImage> jpegThumbnailImage(
         : reader.size();
     if (!rawEmbeddedThumbnailRasterFitsAdmission(decodedSize)) {
         setError(errorString,
-            kiriview::imageErrorText(kiriview::ImageErrorTextId::RawDecodedImageSizeInvalid));
+            QStringLiteral("RAW embedded JPEG thumbnail exceeds its raster admission limit"));
         return std::nullopt;
     }
 
@@ -255,7 +251,7 @@ std::optional<QImage> jpegThumbnailImage(
     if (image.isNull()) {
         setError(errorString,
             reader.errorString().isEmpty()
-                ? kiriview::imageErrorText(kiriview::ImageErrorTextId::RawDecodedImageInvalid)
+                ? QStringLiteral("RAW embedded JPEG thumbnail decode failed")
                 : reader.errorString());
         return std::nullopt;
     }
@@ -266,15 +262,14 @@ std::optional<QImage> bitmapThumbnailImage(
     const libraw_processed_image_t* processedImage, QString* errorString)
 {
     if (processedImage->bits != 8 || (processedImage->colors != 3 && processedImage->colors != 4)) {
-        setError(errorString,
-            kiriview::imageErrorText(kiriview::ImageErrorTextId::RawDecodedPixelFormatUnsupported));
+        setError(errorString, QStringLiteral("RAW embedded thumbnail pixel format is unsupported"));
         return std::nullopt;
     }
 
     const QSize imageSize(processedImage->width, processedImage->height);
     if (!validImageSize(imageSize) || !rawEmbeddedThumbnailRasterFitsAdmission(imageSize)) {
         setError(errorString,
-            kiriview::imageErrorText(kiriview::ImageErrorTextId::RawDecodedImageSizeInvalid));
+            QStringLiteral("RAW embedded thumbnail dimensions exceed raster admission"));
         return std::nullopt;
     }
 
@@ -283,14 +278,13 @@ std::optional<QImage> bitmapThumbnailImage(
         * static_cast<std::size_t>(processedImage->height) * channelCount;
     if (processedImage->data_size < minimumDataSize) {
         setError(errorString,
-            kiriview::imageErrorText(kiriview::ImageErrorTextId::RawDecodedPixelDataInvalid));
+            QStringLiteral("RAW embedded thumbnail pixel data is smaller than its dimensions"));
         return std::nullopt;
     }
 
     QImage image(imageSize, QImage::Format_RGBA8888);
     if (image.isNull()) {
-        setError(errorString,
-            kiriview::imageErrorText(kiriview::ImageErrorTextId::RawDecodedImageAllocationFailed));
+        setError(errorString, QStringLiteral("RAW embedded thumbnail allocation failed"));
         return std::nullopt;
     }
 
@@ -320,8 +314,7 @@ std::optional<QImage> thumbnailImageFromProcessedRaw(
         *unsupported = false;
     }
     if (processedImage == nullptr) {
-        setError(errorString,
-            kiriview::imageErrorText(kiriview::ImageErrorTextId::RawDecodedImageInvalid));
+        setError(errorString, QStringLiteral("LibRaw returned no embedded thumbnail image"));
         return std::nullopt;
     }
 
@@ -401,14 +394,13 @@ RawEmbeddedThumbnailPreviewResult admittedRawEmbeddedThumbnailPreviewResult(cons
     int errorCode = processor.open_buffer(data.constData(), static_cast<std::size_t>(data.size()));
     if (errorCode != LIBRAW_SUCCESS) {
         return rawResult(RawEmbeddedThumbnailPreviewStatus::Failed, {}, {},
-            rawDecodeErrorString(
-                imageErrorActionText(ImageErrorActionTextId::ReadRawImage), errorCode));
+            rawDecodeDiagnosticDetail(QStringLiteral("source read"), errorCode));
     }
 
     const QSize originalSize = libRawImageSize(processor);
     if (!validateTrustedOriginalSize(originalSize)) {
         return rawResult(RawEmbeddedThumbnailPreviewStatus::Invalid, {}, originalSize,
-            imageErrorText(ImageErrorTextId::RawDecodedImageSizeInvalid));
+            QStringLiteral("RAW image size validation failed: decoded size is invalid"));
     }
 
     errorCode = processor.unpack_thumb();
@@ -417,8 +409,7 @@ RawEmbeddedThumbnailPreviewResult admittedRawEmbeddedThumbnailPreviewResult(cons
     }
     if (errorCode != LIBRAW_SUCCESS) {
         return rawResult(RawEmbeddedThumbnailPreviewStatus::Failed, {}, originalSize,
-            rawDecodeErrorString(
-                imageErrorActionText(ImageErrorActionTextId::UnpackRawImage), errorCode));
+            rawDecodeDiagnosticDetail(QStringLiteral("embedded thumbnail unpack"), errorCode));
     }
 
     int memImageErrorCode = LIBRAW_SUCCESS;
@@ -429,8 +420,8 @@ RawEmbeddedThumbnailPreviewResult admittedRawEmbeddedThumbnailPreviewResult(cons
     }
     if (memImageErrorCode != LIBRAW_SUCCESS) {
         return rawResult(RawEmbeddedThumbnailPreviewStatus::Failed, {}, originalSize,
-            rawDecodeErrorString(imageErrorActionText(ImageErrorActionTextId::CreateDisplayImage),
-                memImageErrorCode));
+            rawDecodeDiagnosticDetail(
+                QStringLiteral("embedded thumbnail display conversion"), memImageErrorCode));
     }
 
     bool unsupportedThumbnail = false;

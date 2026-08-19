@@ -77,8 +77,18 @@ ImageDocumentRuntimeDependencies resolveImageDocumentRuntimeDependencies(
         mediaEntrySourceStore
             = std::make_unique<MediaEntrySourceStore>(std::move(mediaEntrySourceFactory),
                 overrides.imageDecode.workerScheduler, overrides.imageDecode.sourceDataBudget);
+        MediaEntrySourceStore* const sourceStore = mediaEntrySourceStore.get();
         overrides.candidateProvider
-            = mediaEntrySourceStore->wrapCandidateProvider(std::move(overrides.candidateProvider));
+            = imageDocumentPageCandidateProviderWithOpenedCollectionEntryLoader(
+                std::move(overrides.candidateProvider),
+                [sourceStore](QObject* receiver,
+                    OpenedCollectionScopeLocation openedCollectionScope,
+                    MediaEntrySourceEntriesCallback callback,
+                    MediaEntrySourceErrorCallback errorCallback) {
+                    return sourceStore->loadOpenedCollectionEntries(receiver,
+                        std::move(openedCollectionScope), std::move(callback),
+                        std::move(errorCallback));
+                });
         overrides.imageDecode
             = mediaEntrySourceStore->wrapDecodeDependencies(std::move(overrides.imageDecode));
     }

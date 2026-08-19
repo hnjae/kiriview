@@ -21,6 +21,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 #include <QUrl>
+#include <algorithm>
 #include <optional>
 #include <variant>
 #include <vector>
@@ -117,10 +118,18 @@ std::optional<kiriview::OpenedCollectionScopeLocation> directoryCollectionForPat
         kiriview::NavigationSourceResolver().resolveExternalSource(localUrl(path)));
 }
 
-const kiriview::MediaEntrySourceCandidates* mediaEntrySourceCandidates(
-    const kiriview::MediaEntrySourceCandidatesResult& result)
+const kiriview::MediaEntrySourceEntries* mediaEntrySourceEntries(
+    const kiriview::MediaEntrySourceEntriesResult& result)
 {
     return kiriview::mediaEntrySourceResultValue(result);
+}
+
+const kiriview::MediaEntrySourceEntry* entryNamed(
+    const kiriview::MediaEntrySourceEntries& entries, const QString& name)
+{
+    const auto entry = std::ranges::find_if(entries.entries,
+        [&name](const kiriview::MediaEntrySourceEntry& item) { return item.name == name; });
+    return entry == entries.entries.cend() ? nullptr : &*entry;
 }
 
 const kiriview::MediaEntrySourceImageData* mediaEntrySourceImageData(
@@ -142,7 +151,7 @@ kiriview::MediaEntrySourceVideoPlaybackDevice* mediaEntrySourceVideoPlaybackDevi
 }
 
 const kiriview::MediaEntrySourceError* mediaEntrySourceError(
-    const kiriview::MediaEntrySourceCandidatesResult& result)
+    const kiriview::MediaEntrySourceEntriesResult& result)
 {
     return kiriview::mediaEntrySourceResultError(result);
 }
@@ -153,13 +162,13 @@ const kiriview::MediaEntrySourceError* mediaEntrySourceDataError(
     return kiriview::mediaEntrySourceResultError(result);
 }
 
-class CandidateSnapshotSource final : public Backend::MediaEntrySourceWithCandidateSnapshot
+class EntrySnapshotSource final : public Backend::MediaEntrySourceWithEntrySnapshot
 {
 public:
-    CandidateSnapshotSource(kiriview::OpenedCollectionScopeLocation openedCollectionScope,
-        std::vector<kiriview::ImageDocumentPageCandidate> candidates)
-        : Backend::MediaEntrySourceWithCandidateSnapshot(std::move(openedCollectionScope),
-              kiriview::MediaEntrySourceBackendKind::Unknown, std::move(candidates))
+    EntrySnapshotSource(kiriview::OpenedCollectionScopeLocation openedCollectionScope,
+        std::vector<kiriview::MediaEntrySourceEntry> entries)
+        : Backend::MediaEntrySourceWithEntrySnapshot(std::move(openedCollectionScope),
+              kiriview::MediaEntrySourceBackendKind::Unknown, std::move(entries))
     {
     }
 
@@ -174,21 +183,21 @@ public:
 
 protected:
     kiriview::MediaEntrySourceImageDataResult loadAuthorizedImageData(
-        const kiriview::ImageDocumentPageCandidate&, kiriview::ImageSourceDataLease) override
+        const kiriview::MediaEntrySourceEntry&, kiriview::ImageSourceDataLease) override
     {
         ++m_imageBackendCallCount;
         return kiriview::MediaEntrySourceImageData {};
     }
 
     kiriview::MediaEntrySourceVideoPlaybackDeviceResult loadAuthorizedVideoPlaybackDevice(
-        const kiriview::ImageDocumentPageCandidate&) override
+        const kiriview::MediaEntrySourceEntry&) override
     {
         ++m_videoBackendCallCount;
         return kiriview::MediaEntrySourceVideoPlaybackDevice {};
     }
 
     kiriview::MediaEntrySourceThumbnailMetadataResult loadAuthorizedThumbnailMetadata(
-        const kiriview::ImageDocumentPageCandidate&) override
+        const kiriview::MediaEntrySourceEntry&) override
     {
         ++m_thumbnailMetadataBackendCallCount;
         return kiriview::MediaEntrySourceThumbnailMetadata {};
@@ -212,7 +221,7 @@ private Q_SLOTS:
     void directoryCollectionAllowsRelativeFileSymlinkWithinResolvedRoot();
     void directoryCollectionTraversesRelativeDirectorySymlinkWithinResolvedRoot();
     void directoryCollectionExcludesOutsideDirectorySymlinksAndCycles();
-    void tarListingUsesSameOrdering();
+    void tarListingIncludesSupportedEntries();
     void rarListingUsesLibArchive();
     void enumerationEntryLimitRejectsWholeSnapshot_data();
     void enumerationEntryLimitRejectsWholeSnapshot();
@@ -222,9 +231,9 @@ private Q_SLOTS:
     void readingRarEntryReturnsOriginalBytes();
     void imageDataReadsEnforceSourceBudget();
     void standaloneHelpersMatchMediaEntrySourceResults();
-    void candidateSnapshotSourcesOwnSortedDefensiveListing();
-    void candidateSnapshotRejectsUnauthorizedOrWrongKindSelectors_data();
-    void candidateSnapshotRejectsUnauthorizedOrWrongKindSelectors();
+    void entrySnapshotSourcesReturnEntryFactsAndOwnDefensiveListing();
+    void entrySnapshotRejectsUnauthorizedOrWrongKindSelectors_data();
+    void entrySnapshotRejectsUnauthorizedOrWrongKindSelectors();
     void kArchiveMediaEntrySourceListsAndReadsEntries();
     void kArchiveRejectsImageReadForVideoCandidate();
     void directoryCollectionMediaEntrySourceListsAndReadsEntries();
@@ -267,20 +276,26 @@ void TestMediaEntrySourceBackend::zipListingIncludesNestedSupportedMedia()
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
         = archiveCollectionForPath(archivePath);
     QVERIFY(archiveCollection.has_value());
-    const kiriview::MediaEntrySourceCandidatesResult result
-        = kiriview::loadMediaEntrySourceCandidates(*archiveCollection);
-    const kiriview::MediaEntrySourceCandidates* success = mediaEntrySourceCandidates(result);
+    const kiriview::MediaEntrySourceEntriesResult result
+        = kiriview::loadMediaEntrySourceEntries(*archiveCollection);
+    const kiriview::MediaEntrySourceEntries* success = mediaEntrySourceEntries(result);
 
     QVERIFY(success != nullptr);
-    QCOMPARE(success->candidates.size(), std::size_t(3));
-    QCOMPARE(success->candidates.at(0).name, QStringLiteral("chapter/01.png"));
-    QCOMPARE(success->candidates.at(0).url,
-        archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("chapter/01.png")));
-    QCOMPARE(success->candidates.at(0).kind, kiriview::ImageDocumentPageKind::Image);
-    QCOMPARE(success->candidates.at(1).name, QStringLiteral("chapter/02.jpg"));
-    QCOMPARE(success->candidates.at(1).kind, kiriview::ImageDocumentPageKind::Image);
-    QCOMPARE(success->candidates.at(2).name, QStringLiteral("chapter/03.mp4"));
-    QCOMPARE(success->candidates.at(2).kind, kiriview::ImageDocumentPageKind::Video);
+    QCOMPARE(success->entries.size(), std::size_t(3));
+    const kiriview::MediaEntrySourceEntry* first
+        = entryNamed(*success, QStringLiteral("chapter/01.png"));
+    const kiriview::MediaEntrySourceEntry* second
+        = entryNamed(*success, QStringLiteral("chapter/02.jpg"));
+    const kiriview::MediaEntrySourceEntry* video
+        = entryNamed(*success, QStringLiteral("chapter/03.mp4"));
+    QVERIFY(first != nullptr);
+    QVERIFY(second != nullptr);
+    QVERIFY(video != nullptr);
+    QCOMPARE(
+        first->url, archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("chapter/01.png")));
+    QCOMPARE(first->kind, kiriview::MediaEntrySourceEntryKind::Image);
+    QCOMPARE(second->kind, kiriview::MediaEntrySourceEntryKind::Image);
+    QCOMPARE(video->kind, kiriview::MediaEntrySourceEntryKind::Video);
 }
 
 void TestMediaEntrySourceBackend::directoryListingIncludesNestedSupportedMedia()
@@ -299,20 +314,26 @@ void TestMediaEntrySourceBackend::directoryListingIncludesNestedSupportedMedia()
             kiriview::NavigationSourceResolver().resolveExternalSource(localUrl(dir.path())));
     QVERIFY(directoryCollection.has_value());
     QCOMPARE(directoryCollection->kind(), kiriview::OpenedCollectionScopeKind::Directory);
-    const kiriview::MediaEntrySourceCandidatesResult result
-        = kiriview::loadMediaEntrySourceCandidates(*directoryCollection);
-    const kiriview::MediaEntrySourceCandidates* success = mediaEntrySourceCandidates(result);
+    const kiriview::MediaEntrySourceEntriesResult result
+        = kiriview::loadMediaEntrySourceEntries(*directoryCollection);
+    const kiriview::MediaEntrySourceEntries* success = mediaEntrySourceEntries(result);
 
     QVERIFY(success != nullptr);
-    QCOMPARE(success->candidates.size(), std::size_t(3));
-    QCOMPARE(success->candidates.at(0).name, QStringLiteral("chapter/01.png"));
-    QCOMPARE(success->candidates.at(0).url,
+    QCOMPARE(success->entries.size(), std::size_t(3));
+    const kiriview::MediaEntrySourceEntry* first
+        = entryNamed(*success, QStringLiteral("chapter/01.png"));
+    const kiriview::MediaEntrySourceEntry* second
+        = entryNamed(*success, QStringLiteral("chapter/02.jpg"));
+    const kiriview::MediaEntrySourceEntry* video
+        = entryNamed(*success, QStringLiteral("chapter/03.m4v"));
+    QVERIFY(first != nullptr);
+    QVERIFY(second != nullptr);
+    QVERIFY(video != nullptr);
+    QCOMPARE(first->url,
         archivePageUrl(directoryCollection->rootUrl(), QStringLiteral("chapter/01.png")));
-    QCOMPARE(success->candidates.at(0).kind, kiriview::ImageDocumentPageKind::Image);
-    QCOMPARE(success->candidates.at(1).name, QStringLiteral("chapter/02.jpg"));
-    QCOMPARE(success->candidates.at(1).kind, kiriview::ImageDocumentPageKind::Image);
-    QCOMPARE(success->candidates.at(2).name, QStringLiteral("chapter/03.m4v"));
-    QCOMPARE(success->candidates.at(2).kind, kiriview::ImageDocumentPageKind::Video);
+    QCOMPARE(first->kind, kiriview::MediaEntrySourceEntryKind::Image);
+    QCOMPARE(second->kind, kiriview::MediaEntrySourceEntryKind::Image);
+    QCOMPARE(video->kind, kiriview::MediaEntrySourceEntryKind::Video);
 }
 
 void TestMediaEntrySourceBackend::directoryListingExcludesOutsideRootFileSymlinks()
@@ -341,13 +362,12 @@ void TestMediaEntrySourceBackend::directoryListingExcludesOutsideRootFileSymlink
     auto* source = kiriview::mediaEntrySourceResultValue(opened);
     QVERIFY(source != nullptr);
     QVERIFY(*source != nullptr);
-    const kiriview::MediaEntrySourceCandidatesResult result
-        = (*source)->loadImageDocumentPageCandidates();
-    const kiriview::MediaEntrySourceCandidates* success = mediaEntrySourceCandidates(result);
+    const kiriview::MediaEntrySourceEntriesResult result = (*source)->loadEntries();
+    const kiriview::MediaEntrySourceEntries* success = mediaEntrySourceEntries(result);
 
     QVERIFY(success != nullptr);
-    QCOMPARE(success->candidates.size(), std::size_t(1));
-    QCOMPARE(success->candidates.front().name, QStringLiteral("pages/inside.png"));
+    QCOMPARE(success->entries.size(), std::size_t(1));
+    QCOMPARE(success->entries.front().name, QStringLiteral("pages/inside.png"));
 }
 
 void TestMediaEntrySourceBackend::directoryCollectionAllowsRelativeFileSymlinkWithinResolvedRoot()
@@ -372,14 +392,12 @@ void TestMediaEntrySourceBackend::directoryCollectionAllowsRelativeFileSymlinkWi
     QVERIFY(source != nullptr);
     QVERIFY(*source != nullptr);
 
-    const kiriview::MediaEntrySourceCandidatesResult candidatesResult
-        = (*source)->loadImageDocumentPageCandidates();
-    const kiriview::MediaEntrySourceCandidates* candidates
-        = mediaEntrySourceCandidates(candidatesResult);
-    QVERIFY(candidates != nullptr);
+    const kiriview::MediaEntrySourceEntriesResult candidatesResult = (*source)->loadEntries();
+    const kiriview::MediaEntrySourceEntries* entries = mediaEntrySourceEntries(candidatesResult);
+    QVERIFY(entries != nullptr);
     QSet<QString> candidateNames;
-    for (const kiriview::ImageDocumentPageCandidate& candidate : candidates->candidates) {
-        candidateNames.insert(candidate.name);
+    for (const kiriview::MediaEntrySourceEntry& entry : entries->entries) {
+        candidateNames.insert(entry.name);
     }
     QVERIFY(candidateNames.contains(QStringLiteral("pages/linked.jpg")));
 
@@ -414,14 +432,12 @@ void TestMediaEntrySourceBackend::
     QVERIFY(source != nullptr);
     QVERIFY(*source != nullptr);
 
-    const kiriview::MediaEntrySourceCandidatesResult candidatesResult
-        = (*source)->loadImageDocumentPageCandidates();
-    const kiriview::MediaEntrySourceCandidates* candidates
-        = mediaEntrySourceCandidates(candidatesResult);
-    QVERIFY(candidates != nullptr);
+    const kiriview::MediaEntrySourceEntriesResult candidatesResult = (*source)->loadEntries();
+    const kiriview::MediaEntrySourceEntries* entries = mediaEntrySourceEntries(candidatesResult);
+    QVERIFY(entries != nullptr);
     QSet<QString> candidateNames;
-    for (const kiriview::ImageDocumentPageCandidate& candidate : candidates->candidates) {
-        candidateNames.insert(candidate.name);
+    for (const kiriview::MediaEntrySourceEntry& entry : entries->entries) {
+        candidateNames.insert(entry.name);
     }
     QVERIFY(candidateNames.contains(QStringLiteral("linked-assets/source.jpg")));
 
@@ -468,14 +484,12 @@ void TestMediaEntrySourceBackend::directoryCollectionExcludesOutsideDirectorySym
     QVERIFY(source != nullptr);
     QVERIFY(*source != nullptr);
 
-    const kiriview::MediaEntrySourceCandidatesResult candidatesResult
-        = (*source)->loadImageDocumentPageCandidates();
-    const kiriview::MediaEntrySourceCandidates* candidates
-        = mediaEntrySourceCandidates(candidatesResult);
-    QVERIFY(candidates != nullptr);
+    const kiriview::MediaEntrySourceEntriesResult candidatesResult = (*source)->loadEntries();
+    const kiriview::MediaEntrySourceEntries* entries = mediaEntrySourceEntries(candidatesResult);
+    QVERIFY(entries != nullptr);
     QSet<QString> candidateNames;
-    for (const kiriview::ImageDocumentPageCandidate& candidate : candidates->candidates) {
-        candidateNames.insert(candidate.name);
+    for (const kiriview::MediaEntrySourceEntry& entry : entries->entries) {
+        candidateNames.insert(entry.name);
     }
     const QSet<QString> expectedCandidateNames {
         QStringLiteral("loop/inside-loop.png"),
@@ -484,7 +498,7 @@ void TestMediaEntrySourceBackend::directoryCollectionExcludesOutsideDirectorySym
     QCOMPARE(candidateNames, expectedCandidateNames);
 }
 
-void TestMediaEntrySourceBackend::tarListingUsesSameOrdering()
+void TestMediaEntrySourceBackend::tarListingIncludesSupportedEntries()
 {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
@@ -499,14 +513,14 @@ void TestMediaEntrySourceBackend::tarListingUsesSameOrdering()
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
         = archiveCollectionForPath(archivePath);
     QVERIFY(archiveCollection.has_value());
-    const kiriview::MediaEntrySourceCandidatesResult result
-        = kiriview::loadMediaEntrySourceCandidates(*archiveCollection);
-    const kiriview::MediaEntrySourceCandidates* success = mediaEntrySourceCandidates(result);
+    const kiriview::MediaEntrySourceEntriesResult result
+        = kiriview::loadMediaEntrySourceEntries(*archiveCollection);
+    const kiriview::MediaEntrySourceEntries* success = mediaEntrySourceEntries(result);
 
     QVERIFY(success != nullptr);
-    QCOMPARE(success->candidates.size(), std::size_t(2));
-    QCOMPARE(success->candidates.at(0).name, QStringLiteral("pages/01.png"));
-    QCOMPARE(success->candidates.at(1).name, QStringLiteral("pages/02.webp"));
+    QCOMPARE(success->entries.size(), std::size_t(2));
+    QVERIFY(entryNamed(*success, QStringLiteral("pages/01.png")) != nullptr);
+    QVERIFY(entryNamed(*success, QStringLiteral("pages/02.webp")) != nullptr);
 }
 
 void TestMediaEntrySourceBackend::rarListingUsesLibArchive()
@@ -520,16 +534,20 @@ void TestMediaEntrySourceBackend::rarListingUsesLibArchive()
         = archiveCollectionForPath(archivePath);
     QVERIFY(archiveCollection.has_value());
     QCOMPARE(archiveCollection->rootUrl().scheme(), QStringLiteral("rar"));
-    const kiriview::MediaEntrySourceCandidatesResult result
-        = kiriview::loadMediaEntrySourceCandidates(*archiveCollection);
-    const kiriview::MediaEntrySourceCandidates* success = mediaEntrySourceCandidates(result);
+    const kiriview::MediaEntrySourceEntriesResult result
+        = kiriview::loadMediaEntrySourceEntries(*archiveCollection);
+    const kiriview::MediaEntrySourceEntries* success = mediaEntrySourceEntries(result);
 
     QVERIFY(success != nullptr);
-    QCOMPARE(success->candidates.size(), std::size_t(2));
-    QCOMPARE(success->candidates.at(0).name, QStringLiteral("chapter/01.png"));
-    QCOMPARE(success->candidates.at(0).url,
-        archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("chapter/01.png")));
-    QCOMPARE(success->candidates.at(1).name, QStringLiteral("chapter/02.jpg"));
+    QCOMPARE(success->entries.size(), std::size_t(2));
+    const kiriview::MediaEntrySourceEntry* first
+        = entryNamed(*success, QStringLiteral("chapter/01.png"));
+    const kiriview::MediaEntrySourceEntry* second
+        = entryNamed(*success, QStringLiteral("chapter/02.jpg"));
+    QVERIFY(first != nullptr);
+    QVERIFY(second != nullptr);
+    QCOMPARE(
+        first->url, archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("chapter/01.png")));
 }
 
 void TestMediaEntrySourceBackend::enumerationEntryLimitRejectsWholeSnapshot_data()
@@ -575,7 +593,7 @@ void TestMediaEntrySourceBackend::enumerationEntryLimitRejectsWholeSnapshot()
 
     QVERIFY(error != nullptr);
     QCOMPARE(error->cause, kiriview::MediaEntrySourceErrorCause::ResourceLimitExceeded);
-    QCOMPARE(error->operation, kiriview::MediaEntrySourceOperation::ListCandidates);
+    QCOMPARE(error->operation, kiriview::MediaEntrySourceOperation::ListEntries);
 }
 
 void TestMediaEntrySourceBackend::directoryEnumerationStructuralLimitsRejectWholeSnapshot()
@@ -751,19 +769,23 @@ void TestMediaEntrySourceBackend::standaloneHelpersMatchMediaEntrySourceResults(
     QVERIFY(source != nullptr);
     QVERIFY(*source != nullptr);
 
-    const kiriview::MediaEntrySourceCandidatesResult standaloneCandidatesResult
-        = kiriview::loadMediaEntrySourceCandidates(*archiveCollection);
-    const kiriview::MediaEntrySourceCandidatesResult sourceCandidatesResult
-        = (*source)->loadImageDocumentPageCandidates();
-    const kiriview::MediaEntrySourceCandidates* standaloneCandidates
-        = mediaEntrySourceCandidates(standaloneCandidatesResult);
-    const kiriview::MediaEntrySourceCandidates* sourceCandidates
-        = mediaEntrySourceCandidates(sourceCandidatesResult);
+    const kiriview::MediaEntrySourceEntriesResult standaloneCandidatesResult
+        = kiriview::loadMediaEntrySourceEntries(*archiveCollection);
+    const kiriview::MediaEntrySourceEntriesResult sourceCandidatesResult = (*source)->loadEntries();
+    const kiriview::MediaEntrySourceEntries* standaloneCandidates
+        = mediaEntrySourceEntries(standaloneCandidatesResult);
+    const kiriview::MediaEntrySourceEntries* sourceCandidates
+        = mediaEntrySourceEntries(sourceCandidatesResult);
     QVERIFY(standaloneCandidates != nullptr);
     QVERIFY(sourceCandidates != nullptr);
-    QCOMPARE(standaloneCandidates->candidates.size(), sourceCandidates->candidates.size());
-    QCOMPARE(standaloneCandidates->candidates.at(0).name, sourceCandidates->candidates.at(0).name);
-    QCOMPARE(standaloneCandidates->candidates.at(1).name, sourceCandidates->candidates.at(1).name);
+    QCOMPARE(standaloneCandidates->entries.size(), sourceCandidates->entries.size());
+    for (const kiriview::MediaEntrySourceEntry& standaloneEntry : standaloneCandidates->entries) {
+        const kiriview::MediaEntrySourceEntry* sourceEntry
+            = entryNamed(*sourceCandidates, standaloneEntry.name);
+        QVERIFY(sourceEntry != nullptr);
+        QCOMPARE(sourceEntry->url, standaloneEntry.url);
+        QCOMPARE(sourceEntry->kind, standaloneEntry.kind);
+    }
 
     const QUrl imageUrl
         = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("pages/01.png"));
@@ -780,43 +802,48 @@ void TestMediaEntrySourceBackend::standaloneHelpersMatchMediaEntrySourceResults(
     QCOMPARE(standaloneData->data, sourceData->data);
 }
 
-void TestMediaEntrySourceBackend::candidateSnapshotSourcesOwnSortedDefensiveListing()
+void TestMediaEntrySourceBackend::entrySnapshotSourcesReturnEntryFactsAndOwnDefensiveListing()
 {
     const QUrl archiveRootUrl(QStringLiteral("zip:///books/book.cbz/"));
-    CandidateSnapshotSource source(kiriview::OpenedCollectionScopeLocation::fromUrls(
-                                       localUrl(QStringLiteral("/books/book.cbz")), archiveRootUrl,
-                                       kiriview::OpenedCollectionScopeKind::GeneralArchive),
+    EntrySnapshotSource source(kiriview::OpenedCollectionScopeLocation::fromUrls(
+                                   localUrl(QStringLiteral("/books/book.cbz")), archiveRootUrl,
+                                   kiriview::OpenedCollectionScopeKind::GeneralArchive),
         {
-            kiriview::ImageDocumentPageCandidate {
-                archivePageUrl(archiveRootUrl, QStringLiteral("pages/02.jpg")),
-                QStringLiteral("pages/02.jpg"),
+            kiriview::MediaEntrySourceEntry {
+                archivePageUrl(archiveRootUrl, QStringLiteral("pages/02.mp4")),
+                QStringLiteral("pages/02.mp4"),
+                kiriview::MediaEntrySourceEntryKind::Video,
             },
-            kiriview::ImageDocumentPageCandidate {
+            kiriview::MediaEntrySourceEntry {
                 archivePageUrl(archiveRootUrl, QStringLiteral("pages/01.png")),
                 QStringLiteral("pages/01.png"),
             },
         });
 
-    kiriview::MediaEntrySourceCandidatesResult firstResult
-        = source.loadImageDocumentPageCandidates();
+    kiriview::MediaEntrySourceEntriesResult firstResult = source.loadEntries();
     auto* first = kiriview::mediaEntrySourceResultValue(firstResult);
     QVERIFY(first != nullptr);
-    QCOMPARE(first->candidates.size(), std::size_t(2));
-    QCOMPARE(first->candidates.at(0).name, QStringLiteral("pages/01.png"));
-    QCOMPARE(first->candidates.at(1).name, QStringLiteral("pages/02.jpg"));
+    QCOMPARE(first->entries.size(), std::size_t(2));
+    const kiriview::MediaEntrySourceEntry* firstVideo
+        = entryNamed(*first, QStringLiteral("pages/02.mp4"));
+    const kiriview::MediaEntrySourceEntry* firstImage
+        = entryNamed(*first, QStringLiteral("pages/01.png"));
+    QVERIFY(firstVideo != nullptr);
+    QVERIFY(firstImage != nullptr);
+    QCOMPARE(firstVideo->kind, kiriview::MediaEntrySourceEntryKind::Video);
+    QCOMPARE(firstImage->kind, kiriview::MediaEntrySourceEntryKind::Image);
 
-    first->candidates.clear();
+    first->entries.clear();
 
-    const kiriview::MediaEntrySourceCandidatesResult secondResult
-        = source.loadImageDocumentPageCandidates();
-    const kiriview::MediaEntrySourceCandidates* second = mediaEntrySourceCandidates(secondResult);
+    const kiriview::MediaEntrySourceEntriesResult secondResult = source.loadEntries();
+    const kiriview::MediaEntrySourceEntries* second = mediaEntrySourceEntries(secondResult);
     QVERIFY(second != nullptr);
-    QCOMPARE(second->candidates.size(), std::size_t(2));
-    QCOMPARE(second->candidates.at(0).name, QStringLiteral("pages/01.png"));
-    QCOMPARE(second->candidates.at(1).name, QStringLiteral("pages/02.jpg"));
+    QCOMPARE(second->entries.size(), std::size_t(2));
+    QVERIFY(entryNamed(*second, QStringLiteral("pages/02.mp4")) != nullptr);
+    QVERIFY(entryNamed(*second, QStringLiteral("pages/01.png")) != nullptr);
 }
 
-void TestMediaEntrySourceBackend::candidateSnapshotRejectsUnauthorizedOrWrongKindSelectors_data()
+void TestMediaEntrySourceBackend::entrySnapshotRejectsUnauthorizedOrWrongKindSelectors_data()
 {
     using Operation = kiriview::MediaEntrySourceOperation;
 
@@ -837,26 +864,26 @@ void TestMediaEntrySourceBackend::candidateSnapshotRejectsUnauthorizedOrWrongKin
         << static_cast<int>(Operation::LoadThumbnailMetadata) << QStringLiteral("pages/clip.mp4");
 }
 
-void TestMediaEntrySourceBackend::candidateSnapshotRejectsUnauthorizedOrWrongKindSelectors()
+void TestMediaEntrySourceBackend::entrySnapshotRejectsUnauthorizedOrWrongKindSelectors()
 {
     QFETCH(int, operation);
     QFETCH(QString, requestedEntry);
 
     using Operation = kiriview::MediaEntrySourceOperation;
     const QUrl archiveRootUrl(QStringLiteral("zip:///books/book.cbz/"));
-    CandidateSnapshotSource source(kiriview::OpenedCollectionScopeLocation::fromUrls(
-                                       localUrl(QStringLiteral("/books/book.cbz")), archiveRootUrl,
-                                       kiriview::OpenedCollectionScopeKind::GeneralArchive),
+    EntrySnapshotSource source(kiriview::OpenedCollectionScopeLocation::fromUrls(
+                                   localUrl(QStringLiteral("/books/book.cbz")), archiveRootUrl,
+                                   kiriview::OpenedCollectionScopeKind::GeneralArchive),
         {
-            kiriview::ImageDocumentPageCandidate {
+            kiriview::MediaEntrySourceEntry {
                 archivePageUrl(archiveRootUrl, QStringLiteral("pages/page.jpg")),
                 QStringLiteral("pages/page.jpg"),
-                kiriview::ImageDocumentPageKind::Image,
+                kiriview::MediaEntrySourceEntryKind::Image,
             },
-            kiriview::ImageDocumentPageCandidate {
+            kiriview::MediaEntrySourceEntry {
                 archivePageUrl(archiveRootUrl, QStringLiteral("pages/clip.mp4")),
                 QStringLiteral("pages/clip.mp4"),
-                kiriview::ImageDocumentPageKind::Video,
+                kiriview::MediaEntrySourceEntryKind::Video,
             },
         });
     const QUrl requestedUrl = archivePageUrl(archiveRootUrl, requestedEntry);
@@ -897,7 +924,7 @@ void TestMediaEntrySourceBackend::candidateSnapshotRejectsUnauthorizedOrWrongKin
         return;
     }
 
-    QFAIL("unsupported candidate snapshot operation");
+    QFAIL("unsupported entry snapshot operation");
 }
 
 void TestMediaEntrySourceBackend::kArchiveMediaEntrySourceListsAndReadsEntries()
@@ -920,13 +947,12 @@ void TestMediaEntrySourceBackend::kArchiveMediaEntrySourceListsAndReadsEntries()
     QVERIFY(source != nullptr);
     QVERIFY(*source != nullptr);
 
-    const kiriview::MediaEntrySourceCandidatesResult candidatesResult
-        = (*source)->loadImageDocumentPageCandidates();
-    const kiriview::MediaEntrySourceCandidates* candidates
-        = mediaEntrySourceCandidates(candidatesResult);
-    QVERIFY(candidates != nullptr);
-    QCOMPARE(candidates->candidates.size(), std::size_t(2));
-    QCOMPARE(candidates->candidates.at(0).name, QStringLiteral("pages/01.png"));
+    const kiriview::MediaEntrySourceEntriesResult candidatesResult = (*source)->loadEntries();
+    const kiriview::MediaEntrySourceEntries* entries = mediaEntrySourceEntries(candidatesResult);
+    QVERIFY(entries != nullptr);
+    QCOMPARE(entries->entries.size(), std::size_t(2));
+    QVERIFY(entryNamed(*entries, QStringLiteral("pages/01.png")) != nullptr);
+    QVERIFY(entryNamed(*entries, QStringLiteral("pages/02.jpg")) != nullptr);
 
     const kiriview::MediaEntrySourceImageDataResult secondDataResult = (*source)->loadImageData(
         archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("pages/02.jpg")));
@@ -962,13 +988,11 @@ void TestMediaEntrySourceBackend::kArchiveRejectsImageReadForVideoCandidate()
     QVERIFY(source != nullptr);
     QVERIFY(*source != nullptr);
 
-    const kiriview::MediaEntrySourceCandidatesResult candidatesResult
-        = (*source)->loadImageDocumentPageCandidates();
-    const kiriview::MediaEntrySourceCandidates* candidates
-        = mediaEntrySourceCandidates(candidatesResult);
-    QVERIFY(candidates != nullptr);
-    QCOMPARE(candidates->candidates.size(), std::size_t(1));
-    QCOMPARE(candidates->candidates.front().kind, kiriview::ImageDocumentPageKind::Video);
+    const kiriview::MediaEntrySourceEntriesResult candidatesResult = (*source)->loadEntries();
+    const kiriview::MediaEntrySourceEntries* entries = mediaEntrySourceEntries(candidatesResult);
+    QVERIFY(entries != nullptr);
+    QCOMPARE(entries->entries.size(), std::size_t(1));
+    QCOMPARE(entries->entries.front().kind, kiriview::MediaEntrySourceEntryKind::Video);
 
     const kiriview::MediaEntrySourceImageDataResult result = (*source)->loadImageData(
         archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("pages/clip.mp4")));
@@ -998,13 +1022,12 @@ void TestMediaEntrySourceBackend::directoryCollectionMediaEntrySourceListsAndRea
     QVERIFY(source != nullptr);
     QVERIFY(*source != nullptr);
 
-    const kiriview::MediaEntrySourceCandidatesResult candidatesResult
-        = (*source)->loadImageDocumentPageCandidates();
-    const kiriview::MediaEntrySourceCandidates* candidates
-        = mediaEntrySourceCandidates(candidatesResult);
-    QVERIFY(candidates != nullptr);
-    QCOMPARE(candidates->candidates.size(), std::size_t(2));
-    QCOMPARE(candidates->candidates.at(0).name, QStringLiteral("pages/01.png"));
+    const kiriview::MediaEntrySourceEntriesResult candidatesResult = (*source)->loadEntries();
+    const kiriview::MediaEntrySourceEntries* entries = mediaEntrySourceEntries(candidatesResult);
+    QVERIFY(entries != nullptr);
+    QCOMPARE(entries->entries.size(), std::size_t(2));
+    QVERIFY(entryNamed(*entries, QStringLiteral("pages/01.png")) != nullptr);
+    QVERIFY(entryNamed(*entries, QStringLiteral("pages/02.jpg")) != nullptr);
 
     const kiriview::MediaEntrySourceImageDataResult secondDataResult = (*source)->loadImageData(
         archivePageUrl(directoryCollection->rootUrl(), QStringLiteral("pages/02.jpg")));
@@ -1041,12 +1064,10 @@ void TestMediaEntrySourceBackend::directoryCollectionRequiresSnapshotAuthorizedM
     auto* source = kiriview::mediaEntrySourceResultValue(opened);
     QVERIFY(source != nullptr);
     QVERIFY(*source != nullptr);
-    const kiriview::MediaEntrySourceCandidatesResult candidatesResult
-        = (*source)->loadImageDocumentPageCandidates();
-    const kiriview::MediaEntrySourceCandidates* candidates
-        = mediaEntrySourceCandidates(candidatesResult);
-    QVERIFY(candidates != nullptr);
-    QCOMPARE(candidates->candidates.size(), std::size_t(1));
+    const kiriview::MediaEntrySourceEntriesResult candidatesResult = (*source)->loadEntries();
+    const kiriview::MediaEntrySourceEntries* entries = mediaEntrySourceEntries(candidatesResult);
+    QVERIFY(entries != nullptr);
+    QCOMPARE(entries->entries.size(), std::size_t(1));
 
     const QString lateEntry
         = video ? QStringLiteral("pages/late.mp4") : QStringLiteral("pages/late.jpg");
@@ -1059,7 +1080,7 @@ void TestMediaEntrySourceBackend::directoryCollectionRequiresSnapshotAuthorizedM
         const kiriview::MediaEntrySourceError* error
             = kiriview::mediaEntrySourceResultError(result);
         QVERIFY2(error != nullptr,
-            "a directory video created after the candidate snapshot must not become authorized");
+            "a directory video created after the entry snapshot must not become authorized");
         QCOMPARE(error->cause, kiriview::MediaEntrySourceErrorCause::EntryNotFound);
         QCOMPARE(error->operation, kiriview::MediaEntrySourceOperation::OpenVideoPlaybackDevice);
         return;
@@ -1068,7 +1089,7 @@ void TestMediaEntrySourceBackend::directoryCollectionRequiresSnapshotAuthorizedM
     const kiriview::MediaEntrySourceImageDataResult result = (*source)->loadImageData(lateUrl);
     const kiriview::MediaEntrySourceError* error = mediaEntrySourceDataError(result);
     QVERIFY2(error != nullptr,
-        "a directory image created after the candidate snapshot must not become authorized");
+        "a directory image created after the entry snapshot must not become authorized");
     QCOMPARE(error->cause, kiriview::MediaEntrySourceErrorCause::EntryNotFound);
     QCOMPARE(error->operation, kiriview::MediaEntrySourceOperation::ReadImageData);
 }
@@ -1105,12 +1126,10 @@ void TestMediaEntrySourceBackend::directoryCollectionRejectsPostSnapshotRegularF
     auto* source = kiriview::mediaEntrySourceResultValue(opened);
     QVERIFY(source != nullptr);
     QVERIFY(*source != nullptr);
-    const kiriview::MediaEntrySourceCandidatesResult candidatesResult
-        = (*source)->loadImageDocumentPageCandidates();
-    const kiriview::MediaEntrySourceCandidates* candidates
-        = mediaEntrySourceCandidates(candidatesResult);
-    QVERIFY(candidates != nullptr);
-    QCOMPARE(candidates->candidates.size(), std::size_t(1));
+    const kiriview::MediaEntrySourceEntriesResult candidatesResult = (*source)->loadEntries();
+    const kiriview::MediaEntrySourceEntries* entries = mediaEntrySourceEntries(candidatesResult);
+    QVERIFY(entries != nullptr);
+    QCOMPARE(entries->entries.size(), std::size_t(1));
 
     QVERIFY(QFile::remove(entryPath));
     QVERIFY(QFile::rename(replacementPath, entryPath));
@@ -1167,13 +1186,11 @@ void TestMediaEntrySourceBackend::directoryCollectionRejectsPostSnapshotOutsideS
     auto* source = kiriview::mediaEntrySourceResultValue(opened);
     QVERIFY(source != nullptr);
     QVERIFY(*source != nullptr);
-    const kiriview::MediaEntrySourceCandidatesResult candidatesResult
-        = (*source)->loadImageDocumentPageCandidates();
-    const kiriview::MediaEntrySourceCandidates* candidates
-        = mediaEntrySourceCandidates(candidatesResult);
-    QVERIFY(candidates != nullptr);
-    QCOMPARE(candidates->candidates.size(), std::size_t(1));
-    QCOMPARE(candidates->candidates.front().name, entry);
+    const kiriview::MediaEntrySourceEntriesResult candidatesResult = (*source)->loadEntries();
+    const kiriview::MediaEntrySourceEntries* entries = mediaEntrySourceEntries(candidatesResult);
+    QVERIFY(entries != nullptr);
+    QCOMPARE(entries->entries.size(), std::size_t(1));
+    QCOMPARE(entries->entries.front().name, entry);
 
     QVERIFY(QFile::remove(insidePath));
     QVERIFY(QFile::link(outsidePath, insidePath));
@@ -1209,14 +1226,12 @@ void TestMediaEntrySourceBackend::libArchiveMediaEntrySourceScansOnceAndServesRa
     QVERIFY(source != nullptr);
     QVERIFY(*source != nullptr);
 
-    const kiriview::MediaEntrySourceCandidatesResult candidatesResult
-        = (*source)->loadImageDocumentPageCandidates();
-    const kiriview::MediaEntrySourceCandidates* candidates
-        = mediaEntrySourceCandidates(candidatesResult);
-    QVERIFY(candidates != nullptr);
-    QCOMPARE(candidates->candidates.size(), std::size_t(2));
-    QCOMPARE(candidates->candidates.at(0).name, QStringLiteral("chapter/01.png"));
-    QCOMPARE(candidates->candidates.at(1).name, QStringLiteral("chapter/02.jpg"));
+    const kiriview::MediaEntrySourceEntriesResult candidatesResult = (*source)->loadEntries();
+    const kiriview::MediaEntrySourceEntries* entries = mediaEntrySourceEntries(candidatesResult);
+    QVERIFY(entries != nullptr);
+    QCOMPARE(entries->entries.size(), std::size_t(2));
+    QVERIFY(entryNamed(*entries, QStringLiteral("chapter/01.png")) != nullptr);
+    QVERIFY(entryNamed(*entries, QStringLiteral("chapter/02.jpg")) != nullptr);
 
     // The fixture stores 02.jpg before 01.png, so this read order exercises replay.
     const kiriview::MediaEntrySourceImageDataResult firstDataResult = (*source)->loadImageData(
@@ -1251,12 +1266,10 @@ void TestMediaEntrySourceBackend::
     QVERIFY(source != nullptr);
     QVERIFY(*source != nullptr);
 
-    const kiriview::MediaEntrySourceCandidatesResult candidatesResult
-        = (*source)->loadImageDocumentPageCandidates();
-    const kiriview::MediaEntrySourceCandidates* candidates
-        = mediaEntrySourceCandidates(candidatesResult);
-    QVERIFY(candidates != nullptr);
-    QCOMPARE(candidates->candidates.size(), std::size_t(2));
+    const kiriview::MediaEntrySourceEntriesResult candidatesResult = (*source)->loadEntries();
+    const kiriview::MediaEntrySourceEntries* entries = mediaEntrySourceEntries(candidatesResult);
+    QVERIFY(entries != nullptr);
+    QCOMPARE(entries->entries.size(), std::size_t(2));
 
     QVERIFY(QFile::remove(archivePath));
 
@@ -1295,15 +1308,15 @@ void TestMediaEntrySourceBackend::openedCollectionThumbnailPolicyAllowsZipBacked
             kiriview::OpenedCollectionScopeKind::ComicBookArchive);
     const QUrl cbzPage = archivePageUrl(cbzScope.rootUrl(), QStringLiteral("pages/001.png"));
     QCOMPARE(kiriview::openedCollectionThumbnailSourcePlan(
-                 cbzScope, cbzPage, kiriview::ImageDocumentPageKind::Image)
+                 cbzScope, cbzPage, kiriview::MediaEntrySourceEntryKind::Image)
                  .kind,
         Kind::CacheableOpenedCollectionEntry);
     QCOMPARE(kiriview::openedCollectionThumbnailSourcePlan(
-                 cbzScope, cbzPage, kiriview::ImageDocumentPageKind::Image)
+                 cbzScope, cbzPage, kiriview::MediaEntrySourceEntryKind::Image)
                  .openedCollectionScope,
         cbzScope);
     QCOMPARE(kiriview::openedCollectionThumbnailSourcePlan(
-                 cbzScope, cbzPage, kiriview::ImageDocumentPageKind::Video)
+                 cbzScope, cbzPage, kiriview::MediaEntrySourceEntryKind::Video)
                  .kind,
         Kind::Unsupported);
 
@@ -1314,7 +1327,7 @@ void TestMediaEntrySourceBackend::openedCollectionThumbnailPolicyAllowsZipBacked
             kiriview::OpenedCollectionScopeKind::ComicBookArchive);
     QCOMPARE(kiriview::openedCollectionThumbnailSourcePlan(cb7Scope,
                  archivePageUrl(cb7Scope.rootUrl(), QStringLiteral("pages/001.jpg")),
-                 kiriview::ImageDocumentPageKind::Image)
+                 kiriview::MediaEntrySourceEntryKind::Image)
                  .kind,
         Kind::Unsupported);
 
@@ -1325,7 +1338,7 @@ void TestMediaEntrySourceBackend::openedCollectionThumbnailPolicyAllowsZipBacked
             kiriview::OpenedCollectionScopeKind::ComicBookArchive);
     QCOMPARE(kiriview::openedCollectionThumbnailSourcePlan(cbtScope,
                  archivePageUrl(cbtScope.rootUrl(), QStringLiteral("pages/001.png")),
-                 kiriview::ImageDocumentPageKind::Image)
+                 kiriview::MediaEntrySourceEntryKind::Image)
                  .kind,
         Kind::Unsupported);
 
@@ -1336,7 +1349,7 @@ void TestMediaEntrySourceBackend::openedCollectionThumbnailPolicyAllowsZipBacked
             kiriview::OpenedCollectionScopeKind::GeneralArchive);
     QCOMPARE(kiriview::openedCollectionThumbnailSourcePlan(genericZipScope,
                  archivePageUrl(genericZipScope.rootUrl(), QStringLiteral("pages/001.png")),
-                 kiriview::ImageDocumentPageKind::Image)
+                 kiriview::MediaEntrySourceEntryKind::Image)
                  .kind,
         Kind::CacheableOpenedCollectionEntry);
 
@@ -1346,14 +1359,14 @@ void TestMediaEntrySourceBackend::openedCollectionThumbnailPolicyAllowsZipBacked
             kiriview::OpenedCollectionScopeKind::Directory);
     QCOMPARE(kiriview::openedCollectionThumbnailSourcePlan(directoryScope,
                  archivePageUrl(directoryScope.rootUrl(), QStringLiteral("pages/001.png")),
-                 kiriview::ImageDocumentPageKind::Image)
+                 kiriview::MediaEntrySourceEntryKind::Image)
                  .kind,
         Kind::Unsupported);
 
     QCOMPARE(kiriview::openedCollectionThumbnailSourcePlan(cbzScope,
                  archivePageUrl(QUrl(QStringLiteral("zip:///books/other.cbz/")),
                      QStringLiteral("pages/001.png")),
-                 kiriview::ImageDocumentPageKind::Image)
+                 kiriview::MediaEntrySourceEntryKind::Image)
                  .kind,
         Kind::Unsupported);
 }
@@ -1645,8 +1658,8 @@ void TestMediaEntrySourceBackend::sourceErrorsPreserveBackendOperationAndIdentit
             localUrl(dir.filePath(QStringLiteral("missing.cbz"))),
             QUrl(QStringLiteral("zip:///missing.cbz/")),
             kiriview::OpenedCollectionScopeKind::ComicBookArchive);
-    const kiriview::MediaEntrySourceCandidatesResult missingArchiveResult
-        = kiriview::loadMediaEntrySourceCandidates(missingArchive);
+    const kiriview::MediaEntrySourceEntriesResult missingArchiveResult
+        = kiriview::loadMediaEntrySourceEntries(missingArchive);
     const kiriview::MediaEntrySourceError* missingArchiveError
         = mediaEntrySourceError(missingArchiveResult);
 
@@ -1686,8 +1699,8 @@ void TestMediaEntrySourceBackend::sourceErrorsPreserveBackendOperationAndIdentit
     const std::optional<kiriview::OpenedCollectionScopeLocation> invalidRarCollection
         = archiveCollectionForPath(invalidRarPath);
     QVERIFY(invalidRarCollection.has_value());
-    const kiriview::MediaEntrySourceCandidatesResult invalidRarResult
-        = kiriview::loadMediaEntrySourceCandidates(*invalidRarCollection);
+    const kiriview::MediaEntrySourceEntriesResult invalidRarResult
+        = kiriview::loadMediaEntrySourceEntries(*invalidRarCollection);
     const kiriview::MediaEntrySourceError* invalidRarError
         = mediaEntrySourceError(invalidRarResult);
 
@@ -1710,8 +1723,8 @@ void TestMediaEntrySourceBackend::missingEmptyAndInvalidArchivesReportExpectedRe
             localUrl(dir.filePath(QStringLiteral("missing.cbz"))),
             QUrl(QStringLiteral("zip:///missing.cbz/")),
             kiriview::OpenedCollectionScopeKind::ComicBookArchive);
-    const kiriview::MediaEntrySourceCandidatesResult missingResult
-        = kiriview::loadMediaEntrySourceCandidates(missingArchive);
+    const kiriview::MediaEntrySourceEntriesResult missingResult
+        = kiriview::loadMediaEntrySourceEntries(missingArchive);
     const kiriview::MediaEntrySourceError* missingError = mediaEntrySourceError(missingResult);
     QVERIFY(missingError != nullptr);
     QCOMPARE(missingError->cause, kiriview::MediaEntrySourceErrorCause::CollectionOpenFailed);
@@ -1722,12 +1735,11 @@ void TestMediaEntrySourceBackend::missingEmptyAndInvalidArchivesReportExpectedRe
     const std::optional<kiriview::OpenedCollectionScopeLocation> emptyArchiveCollection
         = archiveCollectionForPath(emptyArchivePath);
     QVERIFY(emptyArchiveCollection.has_value());
-    const kiriview::MediaEntrySourceCandidatesResult emptyResult
-        = kiriview::loadMediaEntrySourceCandidates(*emptyArchiveCollection);
-    const kiriview::MediaEntrySourceCandidates* emptySuccess
-        = mediaEntrySourceCandidates(emptyResult);
+    const kiriview::MediaEntrySourceEntriesResult emptyResult
+        = kiriview::loadMediaEntrySourceEntries(*emptyArchiveCollection);
+    const kiriview::MediaEntrySourceEntries* emptySuccess = mediaEntrySourceEntries(emptyResult);
     QVERIFY(emptySuccess != nullptr);
-    QVERIFY(emptySuccess->candidates.empty());
+    QVERIFY(emptySuccess->entries.empty());
 
     const QString invalidArchivePath = dir.filePath(QStringLiteral("invalid.cbz"));
     QFile invalidArchive(invalidArchivePath);
@@ -1739,8 +1751,8 @@ void TestMediaEntrySourceBackend::missingEmptyAndInvalidArchivesReportExpectedRe
     const std::optional<kiriview::OpenedCollectionScopeLocation> invalidArchiveCollection
         = archiveCollectionForPath(invalidArchivePath);
     QVERIFY(invalidArchiveCollection.has_value());
-    const kiriview::MediaEntrySourceCandidatesResult invalidResult
-        = kiriview::loadMediaEntrySourceCandidates(*invalidArchiveCollection);
+    const kiriview::MediaEntrySourceEntriesResult invalidResult
+        = kiriview::loadMediaEntrySourceEntries(*invalidArchiveCollection);
     const kiriview::MediaEntrySourceError* invalidError = mediaEntrySourceError(invalidResult);
     QVERIFY(invalidError != nullptr);
     QCOMPARE(invalidError->cause, kiriview::MediaEntrySourceErrorCause::CollectionOpenFailed);

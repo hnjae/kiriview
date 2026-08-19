@@ -10,8 +10,8 @@
 #include <utility>
 
 namespace {
-using kiriview::MediaEntrySourceCandidates;
-using kiriview::MediaEntrySourceCandidatesResult;
+using kiriview::MediaEntrySourceEntries;
+using kiriview::MediaEntrySourceEntriesResult;
 using kiriview::MediaEntrySourceErrorCallback;
 
 template <typename Result, typename SuccessCallback>
@@ -35,29 +35,29 @@ kiriview::ImageIoJob startMediaEntrySourceWorkerJob(QObject* receiver,
 }
 
 namespace kiriview {
-ImageIoJob startOpenedCollectionCandidateList(QObject* receiver,
-    OpenedCollectionScopeLocation openedCollectionScope,
-    ImageDocumentPageCandidatesCallback callback, MediaEntrySourceErrorCallback errorCallback)
+ImageIoJob startOpenedCollectionEntryList(QObject* receiver,
+    OpenedCollectionScopeLocation openedCollectionScope, MediaEntrySourceEntriesCallback callback,
+    MediaEntrySourceErrorCallback errorCallback)
 {
-    return startOpenedCollectionCandidateList(receiver, std::move(openedCollectionScope),
+    return startOpenedCollectionEntryList(receiver, std::move(openedCollectionScope),
         ImageWorkerScheduler(), std::move(callback), std::move(errorCallback));
 }
 
-ImageIoJob startOpenedCollectionCandidateList(QObject* receiver,
+ImageIoJob startOpenedCollectionEntryList(QObject* receiver,
     OpenedCollectionScopeLocation openedCollectionScope,
-    const ImageWorkerScheduler& workerScheduler, ImageDocumentPageCandidatesCallback callback,
+    const ImageWorkerScheduler& workerScheduler, MediaEntrySourceEntriesCallback callback,
     MediaEntrySourceErrorCallback errorCallback)
 {
     return startMediaEntrySourceWorkerJob(
         receiver, workerScheduler,
         [openedCollectionScope = std::move(openedCollectionScope)]() {
-            return loadMediaEntrySourceCandidates(openedCollectionScope);
+            return loadMediaEntrySourceEntries(openedCollectionScope);
         },
         [callback = std::move(callback), errorCallback = std::move(errorCallback)](
-            MediaEntrySourceCandidatesResult result) mutable {
+            MediaEntrySourceEntriesResult result) mutable {
             finishMediaEntrySourceWorkerResult(std::move(result), std::move(errorCallback),
-                [callback = std::move(callback)](MediaEntrySourceCandidates candidates) mutable {
-                    kiriview::invokeIfSet(callback, std::move(candidates.candidates));
+                [callback = std::move(callback)](MediaEntrySourceEntries entries) mutable {
+                    kiriview::invokeIfSet(callback, std::move(entries.entries));
                 });
         });
 }

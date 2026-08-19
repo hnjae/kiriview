@@ -10,7 +10,6 @@
 #include "decoding/rawdecoder.h"
 #include "decoding/svgdisplaysource.h"
 #include "image_test_support.h"
-#include "localization/imageerrortext.h"
 
 #include <QBuffer>
 #include <QByteArray>
@@ -175,7 +174,7 @@ private Q_SLOTS:
     void compatibleDataAdmissionIsSharedAcrossLiveResults();
     void preparedCompatibleDataCarriesRetainedBaselineIntoExactRasterStage();
     void qtRasterClassificationCarriesExplicitFormat();
-    void preparedQtRasterOpenFailureSeparatesPublicAndDiagnosticText();
+    void preparedQtRasterOpenFailurePreservesTypedDiagnostic();
     void preparedQtRasterStillDeclaresExactProducerEnvelope();
     void defaultSvgDecodeUsesFirstDisplayContext();
     void preparedSvgSeparatesParserAndRasterEnvelopes();
@@ -315,7 +314,7 @@ void TestImageDecodePipeline::selectedDecoderFailureDoesNotFallback()
 
     const kiriview::DecodedImageFailure* failure = kiriview::decodedImageResultFailure(result);
     QVERIFY(failure != nullptr);
-    QCOMPARE(failure->errorString, QStringLiteral("raw failed"));
+    QCOMPARE(failure->diagnosticDetail, QStringLiteral("raw failed"));
     QCOMPARE(failure->route, kiriview::DecodedImageFailureRoute::Raw);
     QCOMPARE(calls, QStringList({ QStringLiteral("raw") }));
 }
@@ -339,6 +338,10 @@ void TestImageDecodePipeline::metadataWorkspaceAdmissionIsOptionalAndReleased()
         = router.decode(data, kiriview::ImageDecodeRequest {}, admittedBudget);
     const kiriview::DecodedImage* admittedImage = kiriview::decodedImageResultImage(admitted);
     QVERIFY(admittedImage != nullptr);
+    const auto* admittedStaticImage = std::get_if<kiriview::StaticDecodedImage>(admittedImage);
+    QVERIFY(admittedStaticImage != nullptr);
+    QCOMPARE(admittedStaticImage->displayImage.decodeRoute,
+        kiriview::DecodedImageFailureRoute::QtRaster);
     QCOMPARE(kiriview::decodedImageEmbeddedMetadata(*admittedImage).cameraMake,
         QStringLiteral("Kiri Camera Co."));
     QCOMPARE(admittedBudget->reservedByteCount(), qsizetype(0));
@@ -859,9 +862,10 @@ void TestImageDecodePipeline::preparedQtRasterStillDeclaresExactProducerEnvelope
         = kiriview::decodedImageResultImageAs<kiriview::StaticDecodedImage>(*result);
     QVERIFY(decoded != nullptr);
     QCOMPARE(decoded->displayImage.image.size(), sourceImage.size());
+    QCOMPARE(decoded->displayImage.decodeRoute, kiriview::DecodedImageFailureRoute::QtRaster);
 }
 
-void TestImageDecodePipeline::preparedQtRasterOpenFailureSeparatesPublicAndDiagnosticText()
+void TestImageDecodePipeline::preparedQtRasterOpenFailurePreservesTypedDiagnostic()
 {
     kiriview::ImageDecodeRouter router({}, [](const QByteArray&, const QString&) {
         return classification(kiriview::ImageInputKind::QtRaster, kiriview::QtRasterFormat::Png);
@@ -878,10 +882,7 @@ void TestImageDecodePipeline::preparedQtRasterOpenFailureSeparatesPublicAndDiagn
     QVERIFY(failure != nullptr);
     QCOMPARE(failure->route, kiriview::DecodedImageFailureRoute::QtRaster);
     QCOMPARE(failure->operation, kiriview::DecodedImageFailureOperation::OpenStaticImageSource);
-    QCOMPARE(
-        failure->errorString, kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData));
     QVERIFY(!failure->diagnosticDetail.isEmpty());
-    QVERIFY(failure->diagnosticDetail != failure->errorString);
 }
 
 void TestImageDecodePipeline::defaultSvgDecodeUsesFirstDisplayContext()
@@ -900,6 +901,7 @@ void TestImageDecodePipeline::defaultSvgDecodeUsesFirstDisplayContext()
     QCOMPARE(image->displayImage.quality, kiriview::DisplayImageQuality::FirstDisplay);
     QCOMPARE(image->displayImage.sourceDetailModel,
         kiriview::StaticImageSourceDetailModel::ScalableRasterization);
+    QCOMPARE(image->displayImage.decodeRoute, kiriview::DecodedImageFailureRoute::Svg);
 }
 
 void TestImageDecodePipeline::preparedSvgSeparatesParserAndRasterEnvelopes()
@@ -955,6 +957,7 @@ void TestImageDecodePipeline::preparedSvgSeparatesParserAndRasterEnvelopes()
         = kiriview::decodedImageResultImageAs<kiriview::StaticDecodedImage>(*result);
     QVERIFY(decoded != nullptr);
     QCOMPARE(decoded->displayImage.image.size(), QSize(200, 100));
+    QCOMPARE(decoded->displayImage.decodeRoute, kiriview::DecodedImageFailureRoute::Svg);
 }
 
 void TestImageDecodePipeline::preparedRawCarriesOpenHoldIntoExactProduction()
@@ -1013,6 +1016,7 @@ void TestImageDecodePipeline::preparedRawCarriesOpenHoldIntoExactProduction()
             qPrintable(failure != nullptr ? failure->diagnosticDetail
                                           : QStringLiteral("RAW fixture did not decode.")));
         QCOMPARE(decoded->displayImage.originalSize, QSize(32, 32));
+        QCOMPARE(decoded->displayImage.decodeRoute, kiriview::DecodedImageFailureRoute::Raw);
         QVERIFY(budget->reservedByteCount() > 0);
         QVERIFY(budget->reservedByteCount() < kiriview::rawImageOpenWorkspaceByteCount);
     }
@@ -1333,7 +1337,6 @@ void TestImageDecodePipeline::defaultSvgOpenFailurePreservesAdapterDiagnostics()
     QCOMPARE(failure->route, kiriview::DecodedImageFailureRoute::Svg);
     QVERIFY(failure->operation != kiriview::DecodedImageFailureOperation::Unknown);
     QVERIFY(!failure->diagnosticDetail.isEmpty());
-    QVERIFY(failure->diagnosticDetail != failure->errorString);
     QVERIFY(kiriview::decodedImageResultImage(result) == nullptr);
 }
 
@@ -1354,7 +1357,6 @@ void TestImageDecodePipeline::defaultApngOpenFailurePreservesAdapterDiagnostics(
     QCOMPARE(failure->route, kiriview::DecodedImageFailureRoute::Apng);
     QVERIFY(failure->operation != kiriview::DecodedImageFailureOperation::Unknown);
     QVERIFY(!failure->diagnosticDetail.isEmpty());
-    QVERIFY(failure->diagnosticDetail != failure->errorString);
     QVERIFY(kiriview::decodedImageResultImage(result) == nullptr);
 }
 
@@ -1386,10 +1388,7 @@ void TestImageDecodePipeline::apngCatalogResourceLimitPreservesTypedFailureAcros
         QCOMPARE(failure->route, kiriview::DecodedImageFailureRoute::Apng);
         QCOMPARE(failure->operation, kiriview::DecodedImageFailureOperation::DecodeAnimationOpen);
         QCOMPARE(failure->cause, kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
-        QCOMPARE(failure->errorString,
-            kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeApngAnimation));
         QVERIFY(!failure->diagnosticDetail.isEmpty());
-        QVERIFY(failure->diagnosticDetail != failure->errorString);
     };
     verifyFailure(direct);
     verifyFailure(*preparedResult);
@@ -1412,7 +1411,6 @@ void TestImageDecodePipeline::defaultJxlAnimationOpenFailurePreservesAdapterDiag
     QCOMPARE(failure->route, kiriview::DecodedImageFailureRoute::QtRaster);
     QVERIFY(failure->operation != kiriview::DecodedImageFailureOperation::Unknown);
     QVERIFY(!failure->diagnosticDetail.isEmpty());
-    QVERIFY(failure->diagnosticDetail != failure->errorString);
     QVERIFY(kiriview::decodedImageResultImage(result) == nullptr);
 }
 
@@ -1447,8 +1445,8 @@ void TestImageDecodePipeline::unknownClassificationFailsWithoutDecoder()
 
     const kiriview::DecodedImageFailure* failure = kiriview::decodedImageResultFailure(result);
     QVERIFY(failure != nullptr);
-    QCOMPARE(
-        failure->errorString, kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData));
+    QCOMPARE(failure->route, kiriview::DecodedImageFailureRoute::Unknown);
+    QVERIFY(!failure->diagnosticDetail.isEmpty());
     QVERIFY(calls.isEmpty());
     QCOMPARE(compatibleTransformCount, 0);
 }

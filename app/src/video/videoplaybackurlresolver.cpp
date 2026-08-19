@@ -3,6 +3,7 @@
 
 #include "video/videoplaybackurlresolver.h"
 
+#include "archive/archiveformat.h"
 #include "async/imagecallback.h"
 #include "async/imageiojob.h"
 
@@ -36,6 +37,12 @@ bool isDirectBackendScheme(const QString& scheme)
         || scheme == QLatin1String("data");
 }
 
+bool isExternallyAdmittedDirectBackendScheme(const QString& scheme)
+{
+    return scheme == QLatin1String("file") || scheme == QLatin1String("http")
+        || scheme == QLatin1String("https");
+}
+
 bool kioProtocolMayProvideLocalPath(const QUrl& url)
 {
     return KProtocolInfo::protocolClass(url.scheme()) == QLatin1String(":local");
@@ -57,13 +64,19 @@ public:
             return;
         }
 
-        if (kiriview::videoPlaybackBackendCanConsumeUrl(sourceUrl)) {
+        if (isExternallyAdmittedDirectBackendScheme(sourceUrl.scheme())) {
+            if (!kiriview::videoPlaybackBackendCanConsumeUrl(sourceUrl)) {
+                kiriview::invokeIfSet(failedCallback, operationId, sourceUrl,
+                    QStringLiteral("This video URL cannot be assigned for direct playback."));
+                return;
+            }
             kiriview::invokeIfSet(resolvedCallback,
                 kiriview::VideoPlaybackUrlResolution { operationId, sourceUrl, sourceUrl });
             return;
         }
 
-        if (!kioProtocolMayProvideLocalPath(sourceUrl)) {
+        if (!kiriview::archiveRootSchemeUsesKioFuse(sourceUrl.scheme())
+            || !kioProtocolMayProvideLocalPath(sourceUrl)) {
             kiriview::invokeIfSet(failedCallback, operationId, sourceUrl,
                 QStringLiteral("This video URL cannot be resolved to a local playback URL."));
             return;

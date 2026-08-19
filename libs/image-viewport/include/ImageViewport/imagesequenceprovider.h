@@ -8,6 +8,7 @@
 #include <ImageViewport/imagesequence.h>
 #include <ImageViewport/imageviewporttypes.h>
 
+#include <QtCore/QLoggingCategory>
 #include <QtCore/QObject>
 #include <QtCore/QPointer>
 #include <QtCore/QRectF>
@@ -17,6 +18,8 @@
 #include <functional>
 #include <memory>
 #include <optional>
+
+Q_DECLARE_LOGGING_CATEGORY(imageViewportProviderLog)
 
 class ImageSequenceProviderDescriptor;
 class ImageSequenceProviderEvent;

@@ -15,9 +15,9 @@ bool rootSchemeSupportsThumbnailContentIdentity(const QString& rootScheme)
 
 namespace kiriview {
 bool openedCollectionEntrySupportsThumbnailContentIdentity(
-    const OpenedCollectionScopeLocation& openedCollectionScope, ImageDocumentPageKind pageKind)
+    const OpenedCollectionScopeLocation& openedCollectionScope, MediaEntrySourceEntryKind entryKind)
 {
-    return pageKind == ImageDocumentPageKind::Image
+    return entryKind == MediaEntrySourceEntryKind::Image
         && rootSchemeSupportsThumbnailContentIdentity(openedCollectionScope.rootUrl().scheme());
 }
 
@@ -26,14 +26,14 @@ bool openedCollectionEntryPathSupportsThumbnailContentIdentity(
 {
     return isSupportedImageFileName(entryPath)
         && openedCollectionEntrySupportsThumbnailContentIdentity(
-            openedCollectionScope, ImageDocumentPageKind::Image);
+            openedCollectionScope, MediaEntrySourceEntryKind::Image);
 }
 
 OpenedCollectionThumbnailSourcePlan openedCollectionThumbnailSourcePlan(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& entryUrl,
-    ImageDocumentPageKind pageKind)
+    MediaEntrySourceEntryKind entryKind)
 {
-    if (!openedCollectionEntrySupportsThumbnailContentIdentity(openedCollectionScope, pageKind)
+    if (!openedCollectionEntrySupportsThumbnailContentIdentity(openedCollectionScope, entryKind)
         || !openedCollectionScopeContainsUrl(openedCollectionScope, entryUrl)) {
         return {};
     }

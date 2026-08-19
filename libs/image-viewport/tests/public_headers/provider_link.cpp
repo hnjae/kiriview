@@ -7,4 +7,10 @@
 #error "Provider-only consumers must not inherit Qt QML or Qt Quick compile requirements"
 #endif
 
-int main() { return ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)).isValid() ? 0 : 1; }
+int main()
+{
+    return imageViewportProviderLog().categoryName() != nullptr
+            && ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)).isValid()
+        ? 0
+        : 1;
+}

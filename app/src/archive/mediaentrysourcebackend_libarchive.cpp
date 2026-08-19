@@ -214,7 +214,7 @@ kiriview::MediaEntrySourceImageDataResult readLibArchiveEntryData(
 
 struct LibArchiveMediaEntrySourceMetadata
 {
-    std::vector<kiriview::ImageDocumentPageCandidate> candidates;
+    std::vector<kiriview::MediaEntrySourceEntry> entries;
     std::map<QString, int> entryOrderByPath;
 };
 
@@ -226,7 +226,7 @@ std::optional<LibArchiveMediaEntrySourceMetadata> scanLibArchiveMediaEntrySource
 {
     LibArchiveMediaEntrySourceMetadata metadata;
     Backend::MediaEntrySourceEnumerationBudget budget(context);
-    archive_entry* entry = nullptr;
+    archive_entry* archiveEntry = nullptr;
     int entryOrder = 0;
 
     while (true) {
@@ -234,7 +234,7 @@ std::optional<LibArchiveMediaEntrySourceMetadata> scanLibArchiveMediaEntrySource
             *enumerationFailure = current.error();
             return std::nullopt;
         }
-        const int status = archive_read_next_header(reader, &entry);
+        const int status = archive_read_next_header(reader, &archiveEntry);
         if (status == ARCHIVE_EOF) {
             return metadata;
         }
@@ -244,7 +244,7 @@ std::optional<LibArchiveMediaEntrySourceMetadata> scanLibArchiveMediaEntrySource
             return std::nullopt;
         }
 
-        const QString entryPath = libArchiveEntryPath(entry);
+        const QString entryPath = libArchiveEntryPath(archiveEntry);
         if (const auto admitted
             = budget.admitEntry(entryPath.size(), archiveEntryNestingDepth(entryPath));
             !admitted) {
@@ -254,13 +254,12 @@ std::optional<LibArchiveMediaEntrySourceMetadata> scanLibArchiveMediaEntrySource
         const int currentEntryOrder = entryOrder;
         ++entryOrder;
 
-        if (archive_entry_filetype(entry) == AE_IFREG) {
-            std::optional<kiriview::ImageDocumentPageCandidate> candidate
-                = Backend::openedCollectionImageDocumentPageCandidate(
-                    openedCollectionScope, entryPath);
-            if (candidate.has_value()) {
-                metadata.entryOrderByPath[candidate->name] = currentEntryOrder;
-                metadata.candidates.push_back(std::move(*candidate));
+        if (archive_entry_filetype(archiveEntry) == AE_IFREG) {
+            std::optional<kiriview::MediaEntrySourceEntry> mediaEntry
+                = Backend::openedCollectionMediaEntry(openedCollectionScope, entryPath);
+            if (mediaEntry.has_value()) {
+                metadata.entryOrderByPath[mediaEntry->name] = currentEntryOrder;
+                metadata.entries.push_back(std::move(*mediaEntry));
             }
         }
 
@@ -270,7 +269,7 @@ std::optional<LibArchiveMediaEntrySourceMetadata> scanLibArchiveMediaEntrySource
     }
 }
 
-class LibArchiveMediaEntrySource final : public Backend::MediaEntrySourceWithCandidateSnapshot
+class LibArchiveMediaEntrySource final : public Backend::MediaEntrySourceWithEntrySnapshot
 {
 public:
     static kiriview::MediaEntrySourceOpenResult create(
@@ -317,9 +316,9 @@ public:
             }
             return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceOpenResult>(
                 Backend::mediaEntrySourceError(
-                    kiriview::MediaEntrySourceErrorCause::CandidateListingFailed,
+                    kiriview::MediaEntrySourceErrorCause::EntryListingFailed,
                     kiriview::MediaEntrySourceBackendKind::LibArchive,
-                    kiriview::MediaEntrySourceOperation::ListCandidates, openedCollectionScope,
+                    kiriview::MediaEntrySourceOperation::ListEntries, openedCollectionScope,
                     diagnosticDetail));
         }
 
@@ -331,32 +330,31 @@ public:
 
 protected:
     kiriview::MediaEntrySourceImageDataResult loadAuthorizedImageData(
-        const kiriview::ImageDocumentPageCandidate& candidate,
-        kiriview::ImageSourceDataLease lease) override
+        const kiriview::MediaEntrySourceEntry& entry, kiriview::ImageSourceDataLease lease) override
     {
-        const auto entryOrder = m_entryOrderByPath.find(candidate.name);
+        const auto entryOrder = m_entryOrderByPath.find(entry.name);
         if (entryOrder == m_entryOrderByPath.cend()) {
             return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceImageDataResult>(
                 Backend::mediaEntrySourceError(kiriview::MediaEntrySourceErrorCause::EntryNotFound,
                     kiriview::MediaEntrySourceBackendKind::LibArchive,
                     kiriview::MediaEntrySourceOperation::ReadImageData, openedCollectionScope(), {},
-                    candidate.name));
+                    entry.name));
         }
 
-        return readImageDataAtOrder(entryOrder->second, candidate.name, std::move(lease));
+        return readImageDataAtOrder(entryOrder->second, entry.name, std::move(lease));
     }
 
     kiriview::MediaEntrySourceVideoPlaybackDeviceResult loadAuthorizedVideoPlaybackDevice(
-        const kiriview::ImageDocumentPageCandidate& candidate) override
+        const kiriview::MediaEntrySourceEntry& entry) override
     {
-        const auto entryOrder = m_entryOrderByPath.find(candidate.name);
+        const auto entryOrder = m_entryOrderByPath.find(entry.name);
         if (entryOrder == m_entryOrderByPath.cend()) {
             return Backend::mediaEntrySourceErrorResult<
                 kiriview::MediaEntrySourceVideoPlaybackDeviceResult>(
                 Backend::mediaEntrySourceError(kiriview::MediaEntrySourceErrorCause::EntryNotFound,
                     kiriview::MediaEntrySourceBackendKind::LibArchive,
                     kiriview::MediaEntrySourceOperation::OpenVideoPlaybackDevice,
-                    openedCollectionScope(), {}, candidate.name));
+                    openedCollectionScope(), {}, entry.name));
         }
 
         return Backend::mediaEntrySourceErrorResult<
@@ -364,14 +362,14 @@ protected:
             kiriview::MediaEntrySourceErrorCause::VideoPlaybackUnsupported,
             kiriview::MediaEntrySourceBackendKind::LibArchive,
             kiriview::MediaEntrySourceOperation::OpenVideoPlaybackDevice, openedCollectionScope(),
-            {}, candidate.name));
+            {}, entry.name));
     }
 
 private:
     LibArchiveMediaEntrySource(kiriview::OpenedCollectionScopeLocation openedCollectionScope,
         ScopedFileDescriptor archiveFile, LibArchiveMediaEntrySourceMetadata metadata)
-        : Backend::MediaEntrySourceWithCandidateSnapshot(std::move(openedCollectionScope),
-              kiriview::MediaEntrySourceBackendKind::LibArchive, std::move(metadata.candidates))
+        : Backend::MediaEntrySourceWithEntrySnapshot(std::move(openedCollectionScope),
+              kiriview::MediaEntrySourceBackendKind::LibArchive, std::move(metadata.entries))
         , m_archiveFile(std::move(archiveFile))
         , m_entryOrderByPath(std::move(metadata.entryOrderByPath))
     {

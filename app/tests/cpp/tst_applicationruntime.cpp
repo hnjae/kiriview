@@ -5,6 +5,7 @@
 #include "application/applicationruntime.h"
 #include "application/applicationstartupsource.h"
 
+#include <ImageViewport/imagesequenceprovider.h>
 #include <ImageViewport/imageviewport.h>
 #include <QByteArray>
 #include <QLoggingCategory>
@@ -39,7 +40,6 @@ QStringList diagnosticCategoryNames()
         QStringLiteral("org.hnjae.kiriview.navigation"),
         QStringLiteral("org.hnjae.kiriview.predecode"),
         QStringLiteral("org.hnjae.kiriview.thumbnail"),
-        QStringLiteral("org.hnjae.kiriview.display.provider"),
         QStringLiteral("org.hnjae.kiriview.animation"),
         QStringLiteral("org.hnjae.kiriview.video"),
     };
@@ -117,7 +117,8 @@ void TestApplicationRuntime::startupSourceCarriesVerboseMode()
 
 void TestApplicationRuntime::runtimeDiagnosticsStayDisabledWithoutVerboseStartup()
 {
-    QLoggingCategory::setFilterRules(QStringLiteral("org.hnjae.kiriview.*.debug=false"));
+    QLoggingCategory::setFilterRules(
+        QStringLiteral("org.hnjae.kiriview.*.debug=false\norg.hnjae.imageviewport.*.debug=false"));
 
     kiriview::configureApplicationRuntimeDiagnostics(
         startupSource(kiriview::ApplicationStartupSourceKind::None));
@@ -125,11 +126,13 @@ void TestApplicationRuntime::runtimeDiagnosticsStayDisabledWithoutVerboseStartup
     for (const QString& categoryName : diagnosticCategoryNames()) {
         QVERIFY2(!categoryDebugEnabled(categoryName), qPrintable(categoryName));
     }
+    QVERIFY(!imageViewportProviderLog().isDebugEnabled());
 }
 
 void TestApplicationRuntime::runtimeDiagnosticsEnableVerboseStartupCategories()
 {
-    QLoggingCategory::setFilterRules(QStringLiteral("org.hnjae.kiriview.*.debug=false"));
+    QLoggingCategory::setFilterRules(
+        QStringLiteral("org.hnjae.kiriview.*.debug=false\norg.hnjae.imageviewport.*.debug=false"));
 
     kiriview::configureApplicationRuntimeDiagnostics(
         startupSource(kiriview::ApplicationStartupSourceKind::None, {}, true));
@@ -137,6 +140,7 @@ void TestApplicationRuntime::runtimeDiagnosticsEnableVerboseStartupCategories()
     for (const QString& categoryName : diagnosticCategoryNames()) {
         QVERIFY2(categoryDebugEnabled(categoryName), qPrintable(categoryName));
     }
+    QVERIFY(imageViewportProviderLog().isDebugEnabled());
 }
 
 void TestApplicationRuntime::registersThumbnailImageProviderOnly()

@@ -28,7 +28,7 @@ struct RawEmbeddedThumbnailPreviewResult
     RawEmbeddedThumbnailPreviewStatus status = RawEmbeddedThumbnailPreviewStatus::Missing;
     QImage image;
     QSize originalSize;
-    QString errorString;
+    QString diagnosticDetail;
 };
 
 using RawEmbeddedThumbnailPreviewExtractor = std::function<RawEmbeddedThumbnailPreviewResult(

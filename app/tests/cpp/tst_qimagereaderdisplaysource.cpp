@@ -3,8 +3,6 @@
 
 #include "decoding/qimagereaderdisplaysource.h"
 
-#include "localization/imageerrortext.h"
-
 #include <QBuffer>
 #include <QByteArrayList>
 #include <QColor>
@@ -57,10 +55,7 @@ QByteArray jpegWriterFormat()
 void verifyDisplayFailure(const kiriview::StaticImageDisplayDecodeResult& result)
 {
     QVERIFY(result.image.isNull());
-    QCOMPARE(result.diagnostics.userMessage,
-        kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData));
     QVERIFY(!result.diagnostics.diagnosticDetail.isEmpty());
-    QVERIFY(result.diagnostics.diagnosticDetail != result.diagnostics.userMessage);
 }
 }
 
@@ -74,7 +69,7 @@ private Q_SLOTS:
     void pngRefinementPreflightIncludesFullSourceFallback();
     void grayscalePngRefinementPreflightIncludesSmoothScaleConversion();
     void initialPreflightAccountsOnlyForSelectedDisplayPath();
-    void failedOpenSeparatesUserMessageFromBackendDiagnostic();
+    void failedOpenPreservesBackendDiagnostic();
     void failedDisplayDecodePreservesDiagnostics();
     void jpegSourceDecodesFirstDisplayToViewport();
     void jpegSourceSkipsFirstDisplayWhenImageFitsViewport();
@@ -174,18 +169,18 @@ void TestQImageReaderDisplaySource::sourceDecodesBlockingAndRasterDisplayImages(
     QCOMPARE(source->imageSize(), QSize(4, 4));
 
     const kiriview::StaticImageDisplayDecodeResult preview = source->decodeBlockingDisplayImage(2);
-    QVERIFY2(!preview.image.isNull(), qPrintable(preview.diagnostics.userMessage));
+    QVERIFY2(!preview.image.isNull(), qPrintable(preview.diagnostics.diagnosticDetail));
     QCOMPARE(preview.image.size(), QSize(2, 2));
 
     const kiriview::StaticImageDisplayDecodeResult raster
         = source->decodeRasterDisplayImage(QSize(4, 4));
-    QVERIFY2(!raster.image.isNull(), qPrintable(raster.diagnostics.userMessage));
+    QVERIFY2(!raster.image.isNull(), qPrintable(raster.diagnostics.diagnosticDetail));
     QCOMPARE(raster.image.size(), QSize(4, 4));
     QCOMPARE(raster.image.pixelColor(0, 0), QColor(Qt::red));
     QCOMPARE(raster.image.pixelColor(3, 3), QColor(Qt::blue));
 }
 
-void TestQImageReaderDisplaySource::failedOpenSeparatesUserMessageFromBackendDiagnostic()
+void TestQImageReaderDisplaySource::failedOpenPreservesBackendDiagnostic()
 {
     kiriview::StaticImageDisplayDecodeDiagnostics diagnostics;
     const std::shared_ptr<kiriview::QImageReaderDisplaySource> source
@@ -193,10 +188,7 @@ void TestQImageReaderDisplaySource::failedOpenSeparatesUserMessageFromBackendDia
             QByteArrayLiteral("not image data"), QByteArrayLiteral("png"), &diagnostics);
 
     QVERIFY(source == nullptr);
-    QCOMPARE(diagnostics.userMessage,
-        kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData));
     QVERIFY(!diagnostics.diagnosticDetail.isEmpty());
-    QVERIFY(diagnostics.diagnosticDetail != diagnostics.userMessage);
 }
 
 void TestQImageReaderDisplaySource::failedDisplayDecodePreservesDiagnostics()
@@ -236,7 +228,7 @@ void TestQImageReaderDisplaySource::jpegSourceDecodesFirstDisplayToViewport()
     const kiriview::FirstDisplayImageDecodeResult& result = decoded.firstDisplay;
 
     QCOMPARE(result.status, kiriview::FirstDisplayImageDecodeStatus::Ready);
-    QVERIFY2(!result.image.isNull(), qPrintable(decoded.diagnostics.userMessage));
+    QVERIFY2(!result.image.isNull(), qPrintable(decoded.diagnostics.diagnosticDetail));
     QCOMPARE(result.image.size(), QSize(400, 300));
     QVERIFY(result.image.size() != source->imageSize());
 }
@@ -284,7 +276,8 @@ void TestQImageReaderDisplaySource::pngSourceLeavesFirstDisplayNotImplemented()
 
     const kiriview::StaticImageDisplayDecodeResult blockingDisplay
         = source->decodeBlockingDisplayImage(2);
-    QVERIFY2(!blockingDisplay.image.isNull(), qPrintable(blockingDisplay.diagnostics.userMessage));
+    QVERIFY2(
+        !blockingDisplay.image.isNull(), qPrintable(blockingDisplay.diagnostics.diagnosticDetail));
     QCOMPARE(blockingDisplay.image.size(), QSize(2, 2));
 }
 

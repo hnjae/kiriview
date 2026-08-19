@@ -4,7 +4,6 @@
 #include "webpanimationreader.h"
 
 #include "animationtiming.h"
-#include "localization/imageerrortext.h"
 #include <webp/decode.h>
 #include <webp/demux.h>
 
@@ -32,7 +31,7 @@ using WebPAnimDecoderPtr = std::unique_ptr<WebPAnimDecoder, WebPAnimDecoderDelet
 
 QString webpAnimationDecodeErrorString()
 {
-    return kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeImageAnimation);
+    return QStringLiteral("WebP decoder rejected the animation data");
 }
 
 kiriview::WebPAnimationOpenResult notAnimationResult()

@@ -64,7 +64,8 @@ StaticDisplayImagePayload::StaticDisplayImagePayload(QString sourceIdentity,
     ImageSourceDataLease sourceDataLease, ImageDecodeWorkspaceHold inputWorkspaceHold,
     std::shared_ptr<StaticImageDisplaySource> refinementSource,
     DisplayImagePreviewOrigin previewOrigin, StaticImageSourceDetailModel sourceDetailModel,
-    ImageSourceRevision sourceRevision, DisplayImageRasterKind rasterKind)
+    ImageSourceRevision sourceRevision, DisplayImageRasterKind rasterKind,
+    DecodedImageFailureRoute decodeRoute)
     : sourceIdentity(std::move(sourceIdentity))
     , imageReaderTransform(imageReaderTransform)
     , originalSize(originalSize)
@@ -78,6 +79,7 @@ StaticDisplayImagePayload::StaticDisplayImagePayload(QString sourceIdentity,
     , sourceDetailModel(sourceDetailModel)
     , sourceRevision(std::move(sourceRevision))
     , rasterKind(rasterKind)
+    , decodeRoute(decodeRoute)
 {
 }
 
@@ -117,6 +119,7 @@ void swap(StaticDisplayImagePayload& left, StaticDisplayImagePayload& right) noe
     swap(left.sourceDetailModel, right.sourceDetailModel);
     swap(left.sourceRevision, right.sourceRevision);
     swap(left.rasterKind, right.rasterKind);
+    swap(left.decodeRoute, right.decodeRoute);
 }
 
 StaticImageSourceDetailModel StaticImageDisplaySource::detailModel() const

@@ -7,7 +7,6 @@
 #include "cache/imagebyteaccounting.h"
 #include "heifcontainer.h"
 #include "heifsupport.h"
-#include "localization/imageerrortext.h"
 
 #include <libheif/heif_sequences.h>
 
@@ -91,7 +90,7 @@ kiriview::HeifSequenceWorkspacePlanResult inspectHeifSequence(const QByteArray& 
     kiriview::HeifTrack track(heif_context_get_track(context->get(), 0));
     if (track.get() == nullptr) {
         return { kiriview::HeifSequenceOpenStatus::Error, {},
-            kiriview::imageErrorText(kiriview::ImageErrorTextId::HeifSequenceTrackMissing) };
+            QStringLiteral("HEIF sequence track is missing") };
     }
     if (heif_track_get_track_handler_type(track.get()) != heif_track_type_image_sequence) {
         return { kiriview::HeifSequenceOpenStatus::NotSequence, {}, {} };
@@ -103,9 +102,8 @@ kiriview::HeifSequenceWorkspacePlanResult inspectHeifSequence(const QByteArray& 
         = heif_track_get_image_resolution(track.get(), &width, &height);
     if (resolutionError.code != heif_error_Ok) {
         return { kiriview::HeifSequenceOpenStatus::Error, {},
-            kiriview::heifErrorString(kiriview::imageErrorActionText(
-                                          kiriview::ImageErrorActionTextId::DecodeHeifSequence),
-                resolutionError) };
+            kiriview::heifErrorString(
+                QStringLiteral("sequence resolution lookup"), resolutionError) };
     }
 
     const std::optional<kiriview::HeifSequenceWorkspacePlan> plan
@@ -126,7 +124,7 @@ std::optional<HeifSequenceWorkspacePlan> heifSequenceWorkspacePlan(QSize imageSi
 
 QString heifSequenceDecodeErrorString()
 {
-    return imageErrorText(ImageErrorTextId::DecodeHeifSequence);
+    return QStringLiteral("HEIF sequence decoder failed without diagnostic detail");
 }
 
 class HeifSequenceReader::Private
@@ -265,8 +263,7 @@ HeifSequenceOpenResult HeifSequenceReader::open(
     d->track = HeifTrack(heif_context_get_track(d->context->get(), 0));
     if (d->track.get() == nullptr) {
         close();
-        return { HeifSequenceOpenStatus::Error,
-            imageErrorText(ImageErrorTextId::HeifSequenceTrackMissing) };
+        return { HeifSequenceOpenStatus::Error, QStringLiteral("HEIF sequence track is missing") };
     }
 
     if (heif_track_get_track_handler_type(d->track.get()) != heif_track_type_image_sequence) {
@@ -281,8 +278,7 @@ HeifSequenceOpenResult HeifSequenceReader::open(
     if (resolutionError.code != heif_error_Ok) {
         close();
         return { HeifSequenceOpenStatus::Error,
-            heifErrorString(imageErrorActionText(ImageErrorActionTextId::DecodeHeifSequence),
-                resolutionError) };
+            heifErrorString(QStringLiteral("sequence resolution lookup"), resolutionError) };
     }
     if (QSize(width, height) != plan.imageSize) {
         close();
@@ -308,8 +304,8 @@ HeifSequenceOpenResult HeifSequenceReader::open(
                                        : HeifSequenceOpenStatus::Error,
             resourceLimitExceeded
                 ? imageDecodeWorkspaceResourceLimitDiagnostic()
-                : heifErrorString(imageErrorActionText(ImageErrorActionTextId::DecodeHeifSequence),
-                      limitsError) };
+                : heifErrorString(
+                      QStringLiteral("sequence security-limit configuration"), limitsError) };
     }
 
     d->options.emplace();
@@ -333,7 +329,7 @@ AnimationFrameReadResult HeifSequenceReader::readNextFrame(
 {
     d->lastResourceLimitExceeded = false;
     if (d->track.get() == nullptr) {
-        return std::unexpected(imageErrorText(ImageErrorTextId::HeifSequenceTrackMissing));
+        return std::unexpected(QStringLiteral("HEIF sequence track is missing"));
     }
 
     const qsizetype outputBaselineByteCount = saturatedQtByteSum(
@@ -361,8 +357,7 @@ AnimationFrameReadResult HeifSequenceReader::readNextFrame(
             d->lastResourceLimitExceeded = true;
             return std::unexpected(imageDecodeWorkspaceResourceLimitDiagnostic());
         }
-        return std::unexpected(heifErrorString(
-            imageErrorActionText(ImageErrorActionTextId::DecodeHeifSequence), error));
+        return std::unexpected(heifErrorString(QStringLiteral("sequence frame decode"), error));
     }
 
     QString conversionError;

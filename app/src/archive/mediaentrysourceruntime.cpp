@@ -14,8 +14,8 @@
 namespace {
 namespace Backend = kiriview::MediaEntrySourceBackendDetail;
 
-void finishMediaEntrySourceCandidateResult(const kiriview::MediaEntrySourceCandidatesResult& result,
-    const kiriview::ImageDocumentPageCandidatesCallback& callback,
+void finishMediaEntrySourceEntriesResult(const kiriview::MediaEntrySourceEntriesResult& result,
+    const kiriview::MediaEntrySourceEntriesCallback& callback,
     const kiriview::MediaEntrySourceErrorCallback& errorCallback)
 {
     if (const auto* error = kiriview::mediaEntrySourceResultError(result)) {
@@ -23,9 +23,9 @@ void finishMediaEntrySourceCandidateResult(const kiriview::MediaEntrySourceCandi
         return;
     }
 
-    const auto* candidates = kiriview::mediaEntrySourceResultValue(result);
-    if (candidates != nullptr) {
-        kiriview::invokeIfSet(callback, candidates->candidates);
+    const auto* entries = kiriview::mediaEntrySourceResultValue(result);
+    if (entries != nullptr) {
+        kiriview::invokeIfSet(callback, entries->entries);
     }
 }
 
@@ -67,12 +67,16 @@ MediaEntrySourceRuntime::MediaEntrySourceRuntime(QObject* context,
 {
 }
 
-MediaEntrySourceRuntime::~MediaEntrySourceRuntime() { clear(); }
+MediaEntrySourceRuntime::~MediaEntrySourceRuntime()
+{
+    m_callbackLifetime.reset();
+    clear();
+}
 
 void MediaEntrySourceRuntime::clear()
 {
-    cancelCandidateLoadBatch();
-    m_sourceGeneration.invalidate();
+    cancelEntryLoadBatch();
+    m_sourceGeneration->invalidate();
     m_runner.reset();
 }
 
@@ -87,8 +91,8 @@ void MediaEntrySourceRuntime::switchToOpenedCollectionScope(
         return;
     }
 
-    cancelCandidateLoadBatch();
-    m_sourceGeneration.invalidate();
+    cancelEntryLoadBatch();
+    m_sourceGeneration->invalidate();
     m_runner = std::make_shared<MediaEntrySourceRunner>(
         std::move(openedCollectionScope), m_sourceFactory);
 }
@@ -106,9 +110,9 @@ bool MediaEntrySourceRuntime::hasCurrentOpenedCollectionScope(
             m_runner->openedCollectionScope(), openedCollectionScope);
 }
 
-ImageIoJob MediaEntrySourceRuntime::loadOpenedCollectionCandidates(QObject* receiver,
-    OpenedCollectionScopeLocation openedCollectionScope,
-    ImageDocumentPageCandidatesCallback callback, MediaEntrySourceErrorCallback errorCallback)
+ImageIoJob MediaEntrySourceRuntime::loadOpenedCollectionEntries(QObject* receiver,
+    OpenedCollectionScopeLocation openedCollectionScope, MediaEntrySourceEntriesCallback callback,
+    MediaEntrySourceErrorCallback errorCallback)
 {
     const OpenedCollectionScopeLocation requestedOpenedCollectionScope = openedCollectionScope;
     switchToOpenedCollectionScope(std::move(openedCollectionScope));
@@ -121,28 +125,25 @@ ImageIoJob MediaEntrySourceRuntime::loadOpenedCollectionCandidates(QObject* rece
         return ImageIoJob();
     }
 
-    if (receiver != nullptr && m_candidateLoadState.batchInProgress()) {
-        return m_candidateLoadState.addLoad(
-            receiver, std::move(callback), std::move(errorCallback));
+    if (receiver != nullptr && m_entryLoadState.batchInProgress()) {
+        return m_entryLoadState.addLoad(receiver, std::move(callback), std::move(errorCallback));
     }
 
-    if (const std::optional<std::vector<ImageDocumentPageCandidate>> cachedCandidates
-        = m_runner->cachedImageDocumentPageCandidates()) {
-        invokeIfSet(callback, *cachedCandidates);
+    if (const std::optional<std::vector<MediaEntrySourceEntry>> cachedEntries
+        = m_runner->cachedEntries()) {
+        invokeIfSet(callback, *cachedEntries);
         return ImageIoJob();
     }
 
     if (receiver == nullptr) {
-        finishMediaEntrySourceCandidateResult(
-            m_runner->loadImageDocumentPageCandidates(), callback, errorCallback);
+        finishMediaEntrySourceEntriesResult(m_runner->loadEntries(), callback, errorCallback);
         return ImageIoJob();
     }
 
     ImageIoJob ioJob
-        = m_candidateLoadState.addLoad(receiver, std::move(callback), std::move(errorCallback));
-    if (const std::optional<MediaEntrySourceCandidateLoadBatch> batch
-        = m_candidateLoadState.startBatch()) {
-        startCandidateLoad(*batch);
+        = m_entryLoadState.addLoad(receiver, std::move(callback), std::move(errorCallback));
+    if (const std::optional<MediaEntrySourceEntryLoadBatch> batch = m_entryLoadState.startBatch()) {
+        startEntryLoad(*batch);
     }
 
     return ioJob;
@@ -168,7 +169,9 @@ ImageIoJob MediaEntrySourceRuntime::loadOpenedCollectionImageData(QObject* recei
         return ImageIoJob();
     }
 
-    const quint64 generation = m_sourceGeneration.current();
+    const quint64 generation = m_sourceGeneration->current();
+    const std::shared_ptr<ImageAsyncTicket> sourceGeneration = m_sourceGeneration;
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
     const QUrl& imageUrl = request.imageUrl();
     std::shared_ptr<MediaEntrySourceRunner> runner = m_runner;
     ImageSourceDataLease lease = m_sourceDataBudget->startLease();
@@ -178,10 +181,10 @@ ImageIoJob MediaEntrySourceRuntime::loadOpenedCollectionImageData(QObject* recei
         [runner = std::move(runner), imageUrl, lease = std::move(lease)]() mutable {
             return runner->loadImageData(imageUrl, std::move(lease));
         },
-        [generation, this, callback = std::move(callback),
+        [generation, sourceGeneration, lifetime, callback = std::move(callback),
             errorCallback = std::move(errorCallback)](
             MediaEntrySourceImageDataResult result) mutable {
-            if (!m_sourceGeneration.accepts(generation)) {
+            if (lifetime.expired() || !sourceGeneration->accepts(generation)) {
                 return;
             }
 
@@ -203,43 +206,62 @@ MediaEntrySourceRuntime::loadOpenedCollectionVideoPlaybackDevice(
     return m_runner->loadVideoPlaybackDevice(videoUrl);
 }
 
-void MediaEntrySourceRuntime::startCandidateLoad(MediaEntrySourceCandidateLoadBatch batch)
+void MediaEntrySourceRuntime::startEntryLoad(MediaEntrySourceEntryLoadBatch batch)
 {
-    if (m_runner == nullptr || !m_candidateLoadState.acceptsBatch(batch)) {
+    if (m_runner == nullptr || !m_entryLoadState.acceptsBatch(batch)) {
         return;
     }
 
     std::shared_ptr<MediaEntrySourceRunner> runner = m_runner;
-    m_candidateLoadStopSource = std::stop_source();
+    const quint64 sourceGenerationValue = m_sourceGeneration->current();
+    const std::shared_ptr<ImageAsyncTicket> sourceGeneration = m_sourceGeneration;
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    m_entryLoadStopSource = std::stop_source();
     MediaEntrySourceOpenContext context;
-    context.stopToken = m_candidateLoadStopSource.get_token();
-    m_candidateLoadTask = m_workerScheduler.run(
-        m_context,
-        [runner = std::move(runner), context]() {
-            return runner->loadImageDocumentPageCandidates(context);
-        },
-        [this, batch](MediaEntrySourceCandidatesResult result) mutable {
-            finishCandidateLoad(batch, std::move(result));
+    context.stopToken = m_entryLoadStopSource.get_token();
+    ImageWorkerTask task = m_workerScheduler.run(
+        m_context, [runner = std::move(runner), context]() { return runner->loadEntries(context); },
+        [this, batch, sourceGenerationValue, sourceGeneration, lifetime](
+            MediaEntrySourceEntriesResult result) mutable {
+            if (lifetime.expired() || !sourceGeneration->accepts(sourceGenerationValue)) {
+                return;
+            }
+            finishEntryLoad(batch, sourceGenerationValue, std::move(result));
         });
+
+    if (lifetime.expired() || !sourceGeneration->accepts(sourceGenerationValue)) {
+        task.cancel();
+        return;
+    }
+    if (!m_entryLoadState.acceptsBatch(batch)) {
+        task.cancel();
+        return;
+    }
+    m_entryLoadTask = std::move(task);
 }
 
-void MediaEntrySourceRuntime::finishCandidateLoad(
-    MediaEntrySourceCandidateLoadBatch batch, MediaEntrySourceCandidatesResult result)
+void MediaEntrySourceRuntime::finishEntryLoad(MediaEntrySourceEntryLoadBatch batch,
+    quint64 sourceGenerationValue, MediaEntrySourceEntriesResult result)
 {
-    std::vector<MediaEntrySourceCandidateLoad> pendingLoads
-        = m_candidateLoadState.finishBatch(batch);
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const std::shared_ptr<ImageAsyncTicket> sourceGeneration = m_sourceGeneration;
+    std::vector<MediaEntrySourceEntryLoad> pendingLoads = m_entryLoadState.finishBatch(batch);
 
-    for (const MediaEntrySourceCandidateLoad& load : pendingLoads) {
+    for (const MediaEntrySourceEntryLoad& load : pendingLoads) {
+        if (lifetime.expired() || !sourceGeneration->accepts(sourceGenerationValue)) {
+            load.completion.cancel();
+            continue;
+        }
         load.completion.claimAndDelete([&]() {
-            finishMediaEntrySourceCandidateResult(result, load.callback, load.errorCallback);
+            finishMediaEntrySourceEntriesResult(result, load.callback, load.errorCallback);
         });
     }
 }
 
-void MediaEntrySourceRuntime::cancelCandidateLoadBatch()
+void MediaEntrySourceRuntime::cancelEntryLoadBatch()
 {
-    m_candidateLoadState.cancel();
-    m_candidateLoadStopSource.request_stop();
-    m_candidateLoadTask.cancel();
+    m_entryLoadState.cancel();
+    m_entryLoadStopSource.request_stop();
+    m_entryLoadTask.cancel();
 }
 }

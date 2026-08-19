@@ -7,7 +7,6 @@
 #include "cache/imagebytecost.h"
 #include "decoding/imagedecodeworkspace.h"
 #include "imagerendering.h"
-#include "localization/imageerrortext.h"
 #include "staticimagedisplaysourcehelpers_p.h"
 #include "svgworkerlimits.h"
 
@@ -275,7 +274,7 @@ std::shared_ptr<SvgDisplaySource> SvgDisplaySource::open(const QByteArray& data,
             *resourceExhausted = true;
         }
         setStaticImageDisplaySourceError(
-            errorString, imageErrorText(ImageErrorTextId::ReadImageData));
+            errorString, imageDecodeWorkspaceResourceLimitDiagnostic());
         return {};
     }
 
@@ -285,7 +284,10 @@ std::shared_ptr<SvgDisplaySource> SvgDisplaySource::open(const QByteArray& data,
     if (!intrinsicSize.has_value()) {
         if (resourceExhausted != nullptr && *resourceExhausted) {
             setStaticImageDisplaySourceError(
-                errorString, imageErrorText(ImageErrorTextId::ReadImageData));
+                errorString, imageDecodeWorkspaceResourceLimitDiagnostic());
+        } else {
+            setStaticImageDisplaySourceError(
+                errorString, QStringLiteral("SVG worker could not determine intrinsic size"));
         }
         return {};
     }
@@ -340,8 +342,8 @@ StaticImageFirstDisplayDecodeResult SvgDisplaySource::decodeFirstDisplayImage(
     bool resourceExhausted = false;
     QImage preview = renderSvgImage(m_data, previewSize, *m_processExecutor, &resourceExhausted);
     if (preview.isNull()) {
-        const QString message = imageErrorText(ImageErrorTextId::RenderSvgImage);
-        return { { FirstDisplayImageDecodeStatus::Error, {} }, { message, message },
+        return { { FirstDisplayImageDecodeStatus::Error, {} },
+            { QStringLiteral("SVG worker could not render the first display raster") },
             resourceExhausted ? StaticImageDisplayDecodeFailureCause::ResourceExhausted
                               : StaticImageDisplayDecodeFailureCause::Decode };
     }
@@ -372,8 +374,7 @@ StaticImageDisplayDecodeResult SvgDisplaySource::decodeRasterDisplayImage(
     bool resourceExhausted = false;
     const QImage image = renderSvgImage(m_data, rasterSize, *m_processExecutor, &resourceExhausted);
     if (image.isNull()) {
-        const QString message = imageErrorText(ImageErrorTextId::RenderSvgImage);
-        return { {}, { message, message },
+        return { {}, { QStringLiteral("SVG worker could not render the requested raster") },
             resourceExhausted ? StaticImageDisplayDecodeFailureCause::ResourceExhausted
                               : StaticImageDisplayDecodeFailureCause::Decode };
     }
@@ -388,8 +389,7 @@ StaticImageDisplayDecodeResult SvgDisplaySource::decodeBlockingDisplayImage(
     const QImage preview
         = renderSvgImage(m_data, previewSize, *m_processExecutor, &resourceExhausted);
     if (preview.isNull()) {
-        const QString message = imageErrorText(ImageErrorTextId::RenderSvgImage);
-        return { {}, { message, message },
+        return { {}, { QStringLiteral("SVG worker could not render the blocking raster") },
             resourceExhausted ? StaticImageDisplayDecodeFailureCause::ResourceExhausted
                               : StaticImageDisplayDecodeFailureCause::Decode };
     }

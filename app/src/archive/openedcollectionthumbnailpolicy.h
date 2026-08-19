@@ -4,8 +4,8 @@
 #ifndef KIRIVIEW_OPENEDCOLLECTIONTHUMBNAILPOLICY_H
 #define KIRIVIEW_OPENEDCOLLECTIONTHUMBNAILPOLICY_H
 
+#include "archive/mediaentrysourcebackend.h"
 #include "location/imagelocation.h"
-#include "navigation/imagedocumentpagenavigationtypes.h"
 
 #include <QString>
 #include <QUrl>
@@ -24,12 +24,13 @@ struct OpenedCollectionThumbnailSourcePlan
 };
 
 bool openedCollectionEntrySupportsThumbnailContentIdentity(
-    const OpenedCollectionScopeLocation& openedCollectionScope, ImageDocumentPageKind pageKind);
+    const OpenedCollectionScopeLocation& openedCollectionScope,
+    MediaEntrySourceEntryKind entryKind);
 bool openedCollectionEntryPathSupportsThumbnailContentIdentity(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QString& entryPath);
 OpenedCollectionThumbnailSourcePlan openedCollectionThumbnailSourcePlan(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& entryUrl,
-    ImageDocumentPageKind pageKind);
+    MediaEntrySourceEntryKind entryKind);
 }
 
 #endif

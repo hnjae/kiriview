@@ -18,6 +18,7 @@
 #include <QTest>
 #include <algorithm>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -28,6 +29,8 @@ class TestVideoDocumentRuntime : public QObject
 private Q_SLOTS:
     void initialStateIsNull();
     void mediaBackendFactoryIsLazyUntilPlaybackUrlResolution();
+    void unsupportedExternalBackendSchemeFailsBeforeBackendCreation_data();
+    void unsupportedExternalBackendSchemeFailsBeforeBackendCreation();
     void backendFactoryFailureSettlesAndAllowsRetry();
     void playbackUrlResolutionStartsPlayback();
     void localResolverCompletionUsesOriginalPlaybackUrl();
@@ -40,6 +43,9 @@ private Q_SLOTS:
     void synchronousMetadataCompletionReentryRetainsReplacementWork();
     void resolverFailureSurfacesErrorWithoutChangingSourceUrl();
     void resolverFailurePreservesTypedFailureMetadata();
+    void sourcePreparationFailuresPublishTypedDiagnostics_data();
+    void sourcePreparationFailuresPublishTypedDiagnostics();
+    void staleResolverFailureDoesNotPublishDiagnostic();
     void backendFailurePreservesTypedFailureMetadata();
     void backendFailureDoesNotRequireDiagnosticText();
     void invalidStatusSynthesizesStableTypedFailure();
@@ -361,7 +367,8 @@ struct RuntimeFixture
     std::unique_ptr<kiriview::VideoDocumentRuntime> runtime;
 
     explicit RuntimeFixture(kiriview::TimerScheduler playbackControlTimerScheduler = {},
-        const kiriview::ImageWorkerScheduler* embeddedMetadataWorkerScheduler = nullptr)
+        const kiriview::ImageWorkerScheduler* embeddedMetadataWorkerScheduler = nullptr,
+        kiriview::VideoSourceLoadFailureDiagnosticCallback sourceLoadFailureDiagnosticCallback = {})
     {
         const kiriview::ImageWorkerScheduler workerScheduler
             = embeddedMetadataWorkerScheduler == nullptr ? metadataWorkerScheduler.scheduler()
@@ -394,7 +401,7 @@ struct RuntimeFixture
                     projectionHook(projection);
                 }
             },
-            workerScheduler);
+            workerScheduler, std::move(sourceLoadFailureDiagnosticCallback));
     }
 
     void resolveLatest(const QUrl& playbackUrl)
@@ -535,6 +542,36 @@ void TestVideoDocumentRuntime::initialStateIsNull()
     QCOMPARE(fixture.runtime->videoSize(), QSize());
     QVERIFY(!fixture.runtime->muted());
     QCOMPARE(fixture.runtime->videoOutput(), nullptr);
+}
+
+void TestVideoDocumentRuntime::unsupportedExternalBackendSchemeFailsBeforeBackendCreation_data()
+{
+    QTest::addColumn<QUrl>("sourceUrl");
+
+    QTest::newRow("data") << QUrl(QStringLiteral("data:video/mp4,untrusted-clip.mp4"));
+    QTest::newRow("qrc") << QUrl(QStringLiteral("qrc:/untrusted/clip.mp4"));
+}
+
+void TestVideoDocumentRuntime::unsupportedExternalBackendSchemeFailsBeforeBackendCreation()
+{
+    QFETCH(QUrl, sourceUrl);
+    QObject documentObject;
+    int backendFactoryCallCount = 0;
+    kiriview::VideoDocumentRuntime runtime(&documentObject, {}, {}, [&] {
+        ++backendFactoryCallCount;
+        return std::make_unique<FakeVideoMediaBackend>();
+    });
+
+    runtime.setSourceUrl(sourceUrl);
+
+    QCOMPARE(runtime.sourceUrl(), sourceUrl);
+    QCOMPARE(runtime.status(), kiriview::VideoDocumentStatus::Error);
+    QVERIFY(runtime.sourceLoadFailure().has_value());
+    QVERIFY(runtime.sourceLoadFailure()->kind
+        == kiriview::VideoSourceLoadFailureKind::PlaybackUrlResolution);
+    QCOMPARE(
+        runtime.errorString(), kiriview::imageErrorText(kiriview::ImageErrorTextId::OpenVideo));
+    QCOMPARE(backendFactoryCallCount, 0);
 }
 
 void TestVideoDocumentRuntime::mediaBackendFactoryIsLazyUntilPlaybackUrlResolution()
@@ -886,6 +923,95 @@ void TestVideoDocumentRuntime::resolverFailurePreservesTypedFailureMetadata()
 
     QVERIFY(!fixture.runtime->sourceLoadFailure().has_value());
     QCOMPARE(fixture.runtime->errorString(), QString());
+}
+
+void TestVideoDocumentRuntime::sourcePreparationFailuresPublishTypedDiagnostics_data()
+{
+    QTest::addColumn<int>("failureKind");
+    QTest::addColumn<QString>("expectedDiagnosticDetail");
+
+    QTest::newRow("url-resolution")
+        << static_cast<int>(kiriview::VideoSourceLoadFailureKind::PlaybackUrlResolution)
+        << QStringLiteral("platform preparation detail");
+    QTest::newRow("backend-creation")
+        << static_cast<int>(kiriview::VideoSourceLoadFailureKind::PlaybackBackendCreation)
+        << QString();
+}
+
+void TestVideoDocumentRuntime::sourcePreparationFailuresPublishTypedDiagnostics()
+{
+    QFETCH(int, failureKind);
+    QFETCH(QString, expectedDiagnosticDetail);
+    const auto expectedKind = static_cast<kiriview::VideoSourceLoadFailureKind>(failureKind);
+    const QUrl sourceUrl(QStringLiteral("https://example.invalid/private/clip.mp4"));
+    std::vector<kiriview::VideoSourceLoadFailure> diagnostics;
+    std::optional<kiriview::VideoSourceLoadFailure> stateFailure;
+    const kiriview::VideoSourceLoadFailureDiagnosticCallback diagnosticCallback
+        = [&diagnostics](
+              const kiriview::VideoSourceLoadFailure& failure) { diagnostics.push_back(failure); };
+
+    if (expectedKind == kiriview::VideoSourceLoadFailureKind::PlaybackUrlResolution) {
+        RuntimeFixture fixture({}, nullptr, diagnosticCallback);
+        fixture.runtime->setSourceUrl(sourceUrl);
+        fixture.failLatest(expectedDiagnosticDetail);
+        QVERIFY(fixture.runtime->sourceLoadFailure().has_value());
+        QVERIFY(fixture.runtime->sourceLoadFailure()->kind == expectedKind);
+        stateFailure = fixture.runtime->sourceLoadFailure();
+    } else {
+        QObject documentObject;
+        auto resolverState = std::make_shared<FakeResolverState>();
+        kiriview::VideoDocumentRuntime runtime(
+            &documentObject, {}, std::make_unique<FakeVideoPlaybackUrlResolver>(resolverState),
+            []() -> std::unique_ptr<kiriview::VideoMediaBackend> { return nullptr; }, {}, {}, {},
+            diagnosticCallback);
+        runtime.setSourceUrl(sourceUrl);
+        const FakeResolverState::Request request = resolverState->requests.back();
+        request.resolvedCallback(kiriview::VideoPlaybackUrlResolution {
+            request.operationId,
+            request.sourceUrl,
+            sourceUrl,
+        });
+        QVERIFY(runtime.sourceLoadFailure().has_value());
+        QVERIFY(runtime.sourceLoadFailure()->kind == expectedKind);
+        stateFailure = runtime.sourceLoadFailure();
+    }
+
+    QVERIFY(stateFailure.has_value());
+    QVERIFY(stateFailure->kind == expectedKind);
+    if (expectedDiagnosticDetail.isEmpty()) {
+        QVERIFY(!stateFailure->diagnosticDetail.isEmpty());
+    } else {
+        QCOMPARE(stateFailure->diagnosticDetail, expectedDiagnosticDetail);
+    }
+    QCOMPARE(diagnostics.size(), std::size_t(1));
+    const kiriview::VideoSourceLoadFailure& diagnostic = diagnostics.front();
+    QCOMPARE(diagnostic.sourceUrl, stateFailure->sourceUrl);
+    QVERIFY(diagnostic.kind == stateFailure->kind);
+    QCOMPARE(diagnostic.userMessage, stateFailure->userMessage);
+    QCOMPARE(diagnostic.diagnosticDetail, stateFailure->diagnosticDetail);
+    QVERIFY(diagnostic.severity == stateFailure->severity);
+    QCOMPARE(diagnostic.retryable, stateFailure->retryable);
+}
+
+void TestVideoDocumentRuntime::staleResolverFailureDoesNotPublishDiagnostic()
+{
+    std::vector<kiriview::VideoSourceLoadFailure> diagnostics;
+    RuntimeFixture fixture(
+        {}, nullptr, [&diagnostics](const kiriview::VideoSourceLoadFailure& failure) {
+            diagnostics.push_back(failure);
+        });
+    const QUrl firstSourceUrl(QStringLiteral("zip:///private/first.zip!/credential-first.mp4"));
+    const QUrl secondSourceUrl(QStringLiteral("zip:///private/second.zip!/current.mp4"));
+    fixture.runtime->setSourceUrl(firstSourceUrl);
+    const FakeResolverState::Request staleRequest = fixture.resolverState->requests.back();
+    fixture.runtime->setSourceUrl(secondSourceUrl);
+    staleRequest.failedCallback(
+        staleRequest.operationId, staleRequest.sourceUrl, QStringLiteral("stale-secret"));
+
+    QCOMPARE(fixture.runtime->sourceUrl(), secondSourceUrl);
+    QCOMPARE(fixture.runtime->status(), kiriview::VideoDocumentStatus::Loading);
+    QVERIFY(!fixture.runtime->sourceLoadFailure().has_value());
+    QVERIFY(diagnostics.empty());
 }
 
 void TestVideoDocumentRuntime::backendFailurePreservesTypedFailureMetadata()

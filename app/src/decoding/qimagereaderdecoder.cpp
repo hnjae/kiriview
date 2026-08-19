@@ -9,7 +9,6 @@
 #include "imageanimationrequest.h"
 #include "imageanimationsourcecatalog.h"
 #include "imagedecodeworkspace.h"
-#include "localization/imageerrortext.h"
 #include "location/sourcekey.h"
 #include "staticimagedecode.h"
 
@@ -30,6 +29,8 @@ QString qtRasterFailureOperationName(kiriview::DecodedImageFailureOperation oper
         return QStringLiteral("decode first display image");
     case kiriview::DecodedImageFailureOperation::DecodeBlockingDisplayImage:
         return QStringLiteral("decode blocking display image");
+    case kiriview::DecodedImageFailureOperation::DecodeRasterDisplayImage:
+        return QStringLiteral("decode raster display image");
     case kiriview::DecodedImageFailureOperation::DecodeAnimationOpen:
         return QStringLiteral("decode animation open");
     case kiriview::DecodedImageFailureOperation::DecodeRawImage:
@@ -50,13 +51,12 @@ QString qtRasterFailureDiagnosticDetail(const QByteArray& format,
             backendError.isEmpty() ? QStringLiteral("<empty>") : backendError);
 }
 
-kiriview::DecodedImageResult failedQtRasterDecodedImageResult(QString errorString,
+kiriview::DecodedImageResult failedQtRasterDecodedImageResult(
     kiriview::DecodedImageFailureOperation operation, const QByteArray& format,
     const QString& backendError,
     kiriview::DecodedImageFailureCause cause = kiriview::DecodedImageFailureCause::Unknown)
 {
     return kiriview::failedDecodedImageResult(kiriview::DecodedImageFailure {
-        std::move(errorString),
         kiriview::DecodedImageFailureRoute::QtRaster,
         operation,
         qtRasterFailureDiagnosticDetail(format, operation, backendError),
@@ -68,9 +68,7 @@ kiriview::DecodedImageResult failedQtRasterDecodedImageResult(QString errorStrin
 
 kiriview::DecodedImageResult failedQtRasterWorkspaceResult(const QByteArray& format)
 {
-    const QString errorString
-        = kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeImageAnimation);
-    return failedQtRasterDecodedImageResult(errorString,
+    return failedQtRasterDecodedImageResult(
         kiriview::DecodedImageFailureOperation::DecodeAnimationOpen, format,
         kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
         kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
@@ -105,14 +103,15 @@ kiriview::DecodedImageResult openedStaticImageResult(const QByteArray& data,
     std::shared_ptr<kiriview::StaticImageDisplaySource> source
         = kiriview::QImageReaderDisplaySource::open(data, format, &diagnostics);
     if (source == nullptr) {
-        return failedQtRasterDecodedImageResult(std::move(diagnostics.userMessage),
+        return failedQtRasterDecodedImageResult(
             kiriview::DecodedImageFailureOperation::OpenStaticImageSource, format,
             diagnostics.diagnosticDetail);
     }
 
     QString errorString;
-    kiriview::DecodedImageResult result = kiriview::staticDecodedImageResult(
-        std::move(source), request, &errorString, std::move(workspaceBudget));
+    kiriview::DecodedImageResult result
+        = kiriview::staticDecodedImageResult(std::move(source), request, &errorString,
+            std::move(workspaceBudget), {}, kiriview::DecodedImageFailureRoute::QtRaster);
     stampQtRasterFailure(result, format);
     return result;
 }
@@ -167,14 +166,13 @@ DecodedImageResult decodeQImageReaderImageData(const QByteArray& data,
 
     BufferedImageReader reader(data, readerFormat);
     if (!reader) {
-        return failedQtRasterDecodedImageResult(imageErrorText(ImageErrorTextId::ReadImageData),
-            DecodedImageFailureOperation::DecodeAnimationOpen, readerFormat,
-            QStringLiteral("QImageReader could not be constructed"));
+        return failedQtRasterDecodedImageResult(DecodedImageFailureOperation::DecodeAnimationOpen,
+            readerFormat, QStringLiteral("QImageReader could not be constructed"));
     }
 
     QImage image = reader.read();
     if (image.isNull()) {
-        return failedQtRasterDecodedImageResult(imageErrorText(ImageErrorTextId::ReadImageData),
+        return failedQtRasterDecodedImageResult(
             DecodedImageFailureOperation::DecodeAnimationOpen, readerFormat, reader.errorString());
     }
 
@@ -184,7 +182,7 @@ DecodedImageResult decodeQImageReaderImageData(const QByteArray& data,
     }
     if (catalog->logicalSize != firstFrame.size()) {
         const QString catalogFailure = QStringLiteral("animation source catalog size mismatch");
-        return failedQtRasterDecodedImageResult(imageErrorText(ImageErrorTextId::ReadImageData),
+        return failedQtRasterDecodedImageResult(
             DecodedImageFailureOperation::DecodeAnimationOpen, readerFormat, catalogFailure);
     }
     return successfulDecodedImageResult(ReaderAnimationImage {

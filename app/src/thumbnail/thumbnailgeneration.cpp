@@ -198,7 +198,7 @@ QImage renderedThumbnailImage(const kiriview::DecodedImage& decoded, int maximum
                 kiriview::StaticImageDisplayDecodeResult result
                     = image.displayImage.refinementSource->decodeRasterDisplayImage(targetSize);
                 if (result.image.isNull() && errorString != nullptr) {
-                    *errorString = result.diagnostics.userMessage;
+                    *errorString = result.diagnostics.diagnosticDetail;
                 }
                 if (result.image.isNull() && failureCause != nullptr
                     && result.failureCause
@@ -404,7 +404,7 @@ kiriview::ThumbnailGenerationImageDecodeResult defaultThumbnailGenerationImageDe
             {},
             {},
             {},
-            failure->errorString,
+            failure->diagnosticDetail,
             failure->cause,
         };
     }
@@ -1270,7 +1270,7 @@ private:
                 = failure->cause == kiriview::DecodedImageFailureCause::ResourceLimitExceeded
                 ? kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded
                 : kiriview::ThumbnailGenerationStatus::Failed;
-            publish(failedResult(m_request.requestedBucket, failure->errorString, status));
+            publish(failedResult(m_request.requestedBucket, failure->diagnosticDetail, status));
             return;
         }
         kiriview::DecodedImage* decoded = kiriview::decodedImageResultImage(result);

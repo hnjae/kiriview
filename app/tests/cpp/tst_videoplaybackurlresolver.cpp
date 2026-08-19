@@ -3,6 +3,8 @@
 
 #include "video/videoplaybackurlresolver.h"
 
+#include "archive/archiveformat.h"
+
 #include <KProtocolInfo>
 #include <KZip>
 #include <QDBusConnection>
@@ -21,8 +23,12 @@ class TestVideoPlaybackUrlResolver : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
-    void directBackendUrlsResolveToThemselves();
+    void directExternalBackendUrlsResolveToThemselves_data();
+    void directExternalBackendUrlsResolveToThemselves();
+    void schemesOutsideExternalPolicyFailWithoutPlaybackUrl_data();
+    void schemesOutsideExternalPolicyFailWithoutPlaybackUrl();
     void nonLocalKioProtocolsFailWithoutPlaybackUrl();
+    void nonArchiveLocalKioProtocolFailsWithoutPlaybackUrl();
     void zipArchiveEntriesResolveToBackendConsumablePlaybackUrls();
 };
 
@@ -105,9 +111,18 @@ ResolverResult resolvePlaybackUrl(const QUrl& sourceUrl, int timeoutMilliseconds
 }
 }
 
-void TestVideoPlaybackUrlResolver::directBackendUrlsResolveToThemselves()
+void TestVideoPlaybackUrlResolver::directExternalBackendUrlsResolveToThemselves_data()
 {
-    const QUrl sourceUrl = QUrl::fromLocalFile(QStringLiteral("/tmp/kiriview/clip.mp4"));
+    QTest::addColumn<QUrl>("sourceUrl");
+
+    QTest::newRow("file") << QUrl::fromLocalFile(QStringLiteral("/tmp/kiriview/clip.mp4"));
+    QTest::newRow("http") << QUrl(QStringLiteral("http://example.invalid/clip.mp4"));
+    QTest::newRow("https") << QUrl(QStringLiteral("https://example.invalid/clip.mp4"));
+}
+
+void TestVideoPlaybackUrlResolver::directExternalBackendUrlsResolveToThemselves()
+{
+    QFETCH(QUrl, sourceUrl);
 
     const ResolverResult result = resolvePlaybackUrl(sourceUrl);
 
@@ -118,11 +133,63 @@ void TestVideoPlaybackUrlResolver::directBackendUrlsResolveToThemselves()
     QCOMPARE(result.playbackUrl, sourceUrl);
 }
 
+void TestVideoPlaybackUrlResolver::schemesOutsideExternalPolicyFailWithoutPlaybackUrl_data()
+{
+    QTest::addColumn<QUrl>("sourceUrl");
+
+    QTest::newRow("data") << QUrl(QStringLiteral("data:video/mp4,untrusted-clip.mp4"));
+    QTest::newRow("qrc") << QUrl(QStringLiteral("qrc:/untrusted/clip.mp4"));
+}
+
+void TestVideoPlaybackUrlResolver::schemesOutsideExternalPolicyFailWithoutPlaybackUrl()
+{
+    QFETCH(QUrl, sourceUrl);
+
+    const ResolverResult result = resolvePlaybackUrl(sourceUrl);
+
+    QVERIFY(result.finished);
+    QVERIFY(!result.resolved);
+    QCOMPARE(result.operationId, quint64(1));
+    QCOMPARE(result.sourceUrl, sourceUrl);
+    QVERIFY(result.playbackUrl.isEmpty());
+    QVERIFY(!result.errorString.isEmpty());
+}
+
 void TestVideoPlaybackUrlResolver::nonLocalKioProtocolsFailWithoutPlaybackUrl()
 {
     const QUrl sourceUrl(QStringLiteral("kiriview-unresolved:/share/clip.mp4"));
     QVERIFY(!kiriview::videoPlaybackBackendCanConsumeUrl(sourceUrl));
     QVERIFY(KProtocolInfo::protocolClass(sourceUrl.scheme()) != QLatin1String(":local"));
+
+    const ResolverResult result = resolvePlaybackUrl(sourceUrl);
+
+    QVERIFY(result.finished);
+    QVERIFY(!result.resolved);
+    QCOMPARE(result.operationId, quint64(1));
+    QCOMPARE(result.sourceUrl, sourceUrl);
+    QVERIFY(result.playbackUrl.isEmpty());
+    QVERIFY(!result.errorString.isEmpty());
+}
+
+void TestVideoPlaybackUrlResolver::nonArchiveLocalKioProtocolFailsWithoutPlaybackUrl()
+{
+    QString localProtocol;
+    for (const QString& protocol : KProtocolInfo::protocols()) {
+        const QUrl candidate(QStringLiteral("%1:/untrusted/clip.mp4").arg(protocol));
+        if (KProtocolInfo::protocolClass(protocol) == QLatin1String(":local")
+            && !kiriview::archiveRootSchemeUsesKioFuse(protocol)
+            && !kiriview::videoPlaybackBackendCanConsumeUrl(candidate)) {
+            localProtocol = protocol;
+            break;
+        }
+    }
+    if (localProtocol.isEmpty()) {
+        QSKIP("No non-archive local KIO protocol is installed.");
+    }
+
+    const QUrl sourceUrl(QStringLiteral("%1:/untrusted/clip.mp4").arg(localProtocol));
+    QVERIFY(KProtocolInfo::protocolClass(sourceUrl.scheme()) == QLatin1String(":local"));
+    QVERIFY(!kiriview::archiveRootSchemeUsesKioFuse(sourceUrl.scheme()));
 
     const ResolverResult result = resolvePlaybackUrl(sourceUrl);
 

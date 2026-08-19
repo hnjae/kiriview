@@ -4,21 +4,24 @@
 #ifndef KIRIVIEW_MEDIAENTRYSOURCECANDIDATELOADING_H
 #define KIRIVIEW_MEDIAENTRYSOURCECANDIDATELOADING_H
 
+#include "archive/mediaentrysourcebackend.h"
 #include "archive/mediaentrysourceerror.h"
 #include "async/imageiojob.h"
 #include "async/imageworkerscheduler.h"
 #include "location/imagelocation.h"
-#include "navigation/imagedocumentpagecandidatecallbacks.h"
 
 class QObject;
 
 namespace kiriview {
-ImageIoJob startOpenedCollectionCandidateList(QObject* receiver,
+using MediaEntrySourceEntryLoader = std::function<ImageIoJob(QObject*,
+    OpenedCollectionScopeLocation, MediaEntrySourceEntriesCallback, MediaEntrySourceErrorCallback)>;
+
+ImageIoJob startOpenedCollectionEntryList(QObject* receiver,
+    OpenedCollectionScopeLocation openedCollectionScope, MediaEntrySourceEntriesCallback callback,
+    MediaEntrySourceErrorCallback errorCallback);
+ImageIoJob startOpenedCollectionEntryList(QObject* receiver,
     OpenedCollectionScopeLocation openedCollectionScope,
-    ImageDocumentPageCandidatesCallback callback, MediaEntrySourceErrorCallback errorCallback);
-ImageIoJob startOpenedCollectionCandidateList(QObject* receiver,
-    OpenedCollectionScopeLocation openedCollectionScope,
-    const ImageWorkerScheduler& workerScheduler, ImageDocumentPageCandidatesCallback callback,
+    const ImageWorkerScheduler& workerScheduler, MediaEntrySourceEntriesCallback callback,
     MediaEntrySourceErrorCallback errorCallback);
 }
 

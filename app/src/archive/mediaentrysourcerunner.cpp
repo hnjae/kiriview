@@ -37,22 +37,22 @@ const OpenedCollectionScopeLocation& MediaEntrySourceRunner::openedCollectionSco
     return m_openedCollectionScope;
 }
 
-MediaEntrySourceCandidatesResult MediaEntrySourceRunner::loadImageDocumentPageCandidates(
+MediaEntrySourceEntriesResult MediaEntrySourceRunner::loadEntries(
     const MediaEntrySourceOpenContext& context)
 {
     std::scoped_lock lock(m_mutex);
-    if (m_cachedCandidates.has_value()) {
-        return MediaEntrySourceCandidates { *m_cachedCandidates };
+    if (m_cachedEntries.has_value()) {
+        return MediaEntrySourceEntries { *m_cachedEntries };
     }
 
     const std::optional<MediaEntrySourceError> error = ensureSource(context);
     if (error.has_value()) {
-        return Backend::mediaEntrySourceErrorResult<MediaEntrySourceCandidatesResult>(*error);
+        return Backend::mediaEntrySourceErrorResult<MediaEntrySourceEntriesResult>(*error);
     }
 
-    MediaEntrySourceCandidatesResult result = m_source->loadImageDocumentPageCandidates();
-    if (const auto* candidates = kiriview::mediaEntrySourceResultValue(result)) {
-        m_cachedCandidates = candidates->candidates;
+    MediaEntrySourceEntriesResult result = m_source->loadEntries();
+    if (const auto* entries = kiriview::mediaEntrySourceResultValue(result)) {
+        m_cachedEntries = entries->entries;
     }
     return result;
 }
@@ -86,11 +86,10 @@ MediaEntrySourceVideoPlaybackDeviceResult MediaEntrySourceRunner::loadVideoPlayb
     return result;
 }
 
-std::optional<std::vector<ImageDocumentPageCandidate>>
-MediaEntrySourceRunner::cachedImageDocumentPageCandidates()
+std::optional<std::vector<MediaEntrySourceEntry>> MediaEntrySourceRunner::cachedEntries()
 {
     std::scoped_lock lock(m_mutex);
-    return m_cachedCandidates;
+    return m_cachedEntries;
 }
 
 std::optional<MediaEntrySourceError> MediaEntrySourceRunner::ensureSource(

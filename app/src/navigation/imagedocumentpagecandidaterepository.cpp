@@ -130,7 +130,7 @@ ImageIoJob ImageDocumentPageCandidateRepository::loadOpenedCollectionCandidates(
             MediaEntrySourceError {
                 MediaEntrySourceErrorCause::ProviderUnavailable,
                 MediaEntrySourceBackendKind::Unknown,
-                MediaEntrySourceOperation::ListCandidates,
+                MediaEntrySourceOperation::ListEntries,
                 openedCollectionScope.fileUrl(),
                 {},
                 QStringLiteral("opened collection candidate provider is unavailable"),

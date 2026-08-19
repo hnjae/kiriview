@@ -138,7 +138,6 @@ inline DecodedImageFailure testImageDecodeFailure(DecodedImageFailureRoute route
     DecodedImageFailureOperation operation, QString diagnosticDetail, bool retryable)
 {
     return DecodedImageFailure {
-        testImageDecodeFailureString(),
         route,
         operation,
         std::move(diagnosticDetail),
@@ -210,7 +209,6 @@ inline ImageDataDecodePlanner imageDataDecodePlanner(ImageDataDecoder decoder)
         return std::make_unique<PreparedImageDecodeWork>(
             ImageDecodeWorkspaceAdmissionRequest { 0, 0, priority },
             DecodedImageFailure {
-                testImageDecodeFailureString(),
                 DecodedImageFailureRoute::Unknown,
                 DecodedImageFailureOperation::Unknown,
                 imageDecodeWorkspaceResourceLimitDiagnostic(),

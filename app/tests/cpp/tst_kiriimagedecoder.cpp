@@ -440,7 +440,8 @@ void TestKiriImageDecoder::directDecodeDerivesSourceRevisionForEveryDecodedVaria
         1, QUrl::fromLocalFile(QStringLiteral("/tmp/") + fileName));
     const kiriview::DecodedImageResult result = kiriview::decodeImageData(imageData, request);
     const kiriview::DecodedImageFailure* failure = kiriview::decodedImageResultFailure(result);
-    QVERIFY2(failure == nullptr, qPrintable(failure == nullptr ? QString() : failure->errorString));
+    QVERIFY2(
+        failure == nullptr, qPrintable(failure == nullptr ? QString() : failure->diagnosticDetail));
     const kiriview::DecodedImage* image = kiriview::decodedImageResultImage(result);
     QVERIFY(image != nullptr);
 
@@ -484,7 +485,8 @@ void TestKiriImageDecoder::realAnimatedFixturesDecodeAsAnimations()
         = kiriview::decodeImageData(imageData, kiriview::ImageDecodeRequest::fromUrl(1, imageUrl));
 
     const kiriview::DecodedImageFailure* failure = kiriview::decodedImageResultFailure(result);
-    QVERIFY2(failure == nullptr, qPrintable(failure == nullptr ? QString() : failure->errorString));
+    QVERIFY2(
+        failure == nullptr, qPrintable(failure == nullptr ? QString() : failure->diagnosticDetail));
 
     const kiriview::DecodedImage* image = kiriview::decodedImageResultImage(result);
     QVERIFY(image != nullptr);
@@ -647,8 +649,6 @@ void TestKiriImageDecoder::avifsSequenceBrandUsesHeifSequencePath()
     QCOMPARE(failure->route, kiriview::DecodedImageFailureRoute::HeifFamily);
     QVERIFY(failure->operation != kiriview::DecodedImageFailureOperation::Unknown);
     QVERIFY(!failure->diagnosticDetail.isEmpty());
-    QVERIFY(failure->diagnosticDetail != failure->errorString);
-    QVERIFY(failure->errorString.contains(QStringLiteral("HEIF image")));
 }
 
 void TestKiriImageDecoder::heifSequenceDecodesAsStreamingAnimation()
@@ -679,7 +679,8 @@ void TestKiriImageDecoder::largeHeifSequenceDecodesWithinAdmittedWorkspace()
         = kiriview::decodeImageData(*imageData, kiriview::ImageDecodeRequest {}, budget);
 
     const auto* failure = kiriview::decodedImageResultFailure(result);
-    QVERIFY2(failure == nullptr, qPrintable(failure == nullptr ? QString() : failure->errorString));
+    QVERIFY2(
+        failure == nullptr, qPrintable(failure == nullptr ? QString() : failure->diagnosticDetail));
     const auto* decoded = decodedImage<kiriview::HeifSequenceAnimationImage>(result);
     QVERIFY(decoded != nullptr);
     QCOMPARE(decoded->firstFrame.size(), QSize(1536, 1536));
@@ -697,7 +698,8 @@ void TestKiriImageDecoder::rawExtensionForcesRawDecodeBeforeQtFallback()
 
     const auto* failure = kiriview::decodedImageResultFailure(result);
     QVERIFY2(failure != nullptr, "A TIFF-family .dng request should use LibRaw before Qt fallback");
-    QVERIFY(failure->errorString.contains(QStringLiteral("RAW image")));
+    QCOMPARE(failure->route, kiriview::DecodedImageFailureRoute::Raw);
+    QVERIFY(!failure->diagnosticDetail.isEmpty());
     QVERIFY(decodedImage<kiriview::StaticDecodedImage>(result) == nullptr);
 }
 
@@ -727,7 +729,7 @@ void TestKiriImageDecoder::rawSamplesDecodeWhenConfigured()
         const auto* decoded = decodedImage<kiriview::StaticDecodedImage>(result);
         const auto* failure = kiriview::decodedImageResultFailure(result);
         QVERIFY2(decoded != nullptr,
-            qPrintable(failure != nullptr ? failure->errorString
+            qPrintable(failure != nullptr ? failure->diagnosticDetail
                                           : QStringLiteral("RAW sample did not decode.")));
         QVERIFY(decoded->displayImage.refinementSource != nullptr);
         QVERIFY(!decoded->displayImage.image.isNull());

@@ -38,6 +38,8 @@ QString heifFailureOperationName(kiriview::DecodedImageFailureOperation operatio
         return QStringLiteral("decode first display image");
     case kiriview::DecodedImageFailureOperation::DecodeBlockingDisplayImage:
         return QStringLiteral("decode blocking display image");
+    case kiriview::DecodedImageFailureOperation::DecodeRasterDisplayImage:
+        return QStringLiteral("decode raster display image");
     case kiriview::DecodedImageFailureOperation::DecodeAnimationOpen:
         return QStringLiteral("decode animation open");
     case kiriview::DecodedImageFailureOperation::DecodeRawImage:
@@ -58,16 +60,14 @@ QString heifFailureDiagnosticDetail(
             backendError.isEmpty() ? QStringLiteral("<empty>") : backendError);
 }
 
-kiriview::DecodedImageResult failedHeifDecodedImageResult(QString errorString,
+kiriview::DecodedImageResult failedHeifDecodedImageResult(const QString& diagnosticDetail,
     kiriview::DecodedImageFailureOperation operation,
     kiriview::DecodedImageFailureCause cause = kiriview::DecodedImageFailureCause::Unknown)
 {
-    const QString backendError = errorString;
     return kiriview::failedDecodedImageResult(kiriview::DecodedImageFailure {
-        std::move(errorString),
         kiriview::DecodedImageFailureRoute::HeifFamily,
         operation,
-        heifFailureDiagnosticDetail(operation, backendError),
+        heifFailureDiagnosticDetail(operation, diagnosticDetail),
         kiriview::DecodedImageFailureSeverity::Error,
         false,
         cause,
@@ -109,7 +109,8 @@ std::optional<kiriview::DecodedImageResult> decodeHeifStillImageDataForInfo(cons
         = kiriview::ImageDecodeWorkspaceDetail::startLeaseForOperation(
             *workspaceBudget, retainedInputWorkspaceByteCount);
     kiriview::DecodedImageResult result = kiriview::staticDecodedImageResult(std::move(source),
-        request, &errorString, std::move(workspaceBudget), std::move(producerLease));
+        request, &errorString, std::move(workspaceBudget), std::move(producerLease),
+        kiriview::DecodedImageFailureRoute::HeifFamily);
     stampHeifFailure(result);
     return result;
 }
@@ -160,7 +161,7 @@ std::optional<kiriview::DecodedImageResult> decodeHeifSequenceImageDataForInfo(
             reader, retainedFirstFrame, openResult.repeatCount);
     if (!catalog.has_value()) {
         kiriview::ImageAnimationSourceCatalogFailure failure = std::move(catalog.error());
-        return failedHeifDecodedImageResult(std::move(failure.errorString),
+        return failedHeifDecodedImageResult(failure.errorString,
             kiriview::DecodedImageFailureOperation::DecodeHeifSequenceFrame,
             failure.cause
                     == kiriview::ImageAnimationSourceCatalogFailureCause::ResourceLimitExceeded

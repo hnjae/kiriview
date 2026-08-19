@@ -3,6 +3,8 @@
 
 #include "localization/imageerrortext.h"
 
+#include "decoding/decodedimagefailure.h"
+
 #include <KLocalizedString>
 
 namespace kiriview {
@@ -11,6 +13,16 @@ QString imageErrorText(ImageErrorTextId id)
     switch (id) {
     case ImageErrorTextId::ReadImageData:
         return i18n("Could not read the selected image data.");
+    case ImageErrorTextId::DecodeImage:
+        return i18n("Could not decode the selected image.");
+    case ImageErrorTextId::DecodeImageResourceLimitExceeded:
+        return i18n("The selected image is too large to decode within KiriView’s resource limits.");
+    case ImageErrorTextId::DecodeSvgImage:
+        return i18n("Could not decode the selected SVG image.");
+    case ImageErrorTextId::DecodeHeifImage:
+        return i18n("Could not decode the selected HEIF image.");
+    case ImageErrorTextId::DecodeRawImage:
+        return i18n("Could not decode the selected RAW image.");
     case ImageErrorTextId::OpenVideo:
         return i18n("Could not open the selected video.");
     case ImageErrorTextId::DecodeApngAnimation:
@@ -25,95 +37,38 @@ QString imageErrorText(ImageErrorTextId id)
         return i18n("Could not open the selected comic book archive.");
     case ImageErrorTextId::DeleteFile:
         return i18n("Could not delete the selected file.");
-    case ImageErrorTextId::DetermineSvgImageSize:
-        return i18n("Could not determine the selected SVG image size.");
-    case ImageErrorTextId::RenderSvgImage:
-        return i18n("Could not render the selected SVG image.");
     case ImageErrorTextId::DecodeHeifSequence:
         return i18n("Could not decode the selected HEIF image sequence.");
-    case ImageErrorTextId::HeifSequenceTrackMissing:
-        return i18n("Could not decode the selected HEIF image: sequence track is missing.");
-    case ImageErrorTextId::HeifDecodeOptionsAllocationFailed:
-        return i18n("Could not decode the selected HEIF image: libheif could not allocate "
-                    "decoding options.");
-    case ImageErrorTextId::HeifContextAllocationFailed:
-        return i18n("Could not decode the selected HEIF image: libheif could not allocate a "
-                    "context.");
-    case ImageErrorTextId::HeifDecodedImageInvalid:
-        return i18n("Could not decode the selected HEIF image: decoded image is invalid.");
-    case ImageErrorTextId::HeifDecodedImageSizeInvalid:
-        return i18n("Could not decode the selected HEIF image: decoded image size is invalid.");
-    case ImageErrorTextId::HeifDecodedPixelDataInvalid:
-        return i18n("Could not decode the selected HEIF image: decoded pixel data is invalid.");
-    case ImageErrorTextId::HeifDecodedImageAllocationFailed:
-        return i18n("Could not decode the selected HEIF image: decoded image allocation failed.");
-    case ImageErrorTextId::HeifImageSizeInvalid:
-        return i18n("Could not decode the selected HEIF image: image size is invalid.");
-    case ImageErrorTextId::HeifFullDecodeFallbackTooLarge:
-        return i18n("The selected HEIF image is too large for fallback full-image decoding.");
-    case ImageErrorTextId::RawDecodedImageSizeInvalid:
-        return i18n("Could not decode the selected RAW image: decoded image size is invalid.");
-    case ImageErrorTextId::RawFullDecodeTooLarge:
-        return i18n("The selected RAW image is too large for full-image decoding.");
-    case ImageErrorTextId::RawDecodedImageInvalid:
-        return i18n("Could not decode the selected RAW image: decoded image is invalid.");
-    case ImageErrorTextId::RawDecodedPixelFormatUnsupported:
-        return i18n("Could not decode the selected RAW image: decoded pixel format is "
-                    "unsupported.");
-    case ImageErrorTextId::RawDecodedPixelDataInvalid:
-        return i18n("Could not decode the selected RAW image: decoded pixel data is invalid.");
-    case ImageErrorTextId::RawDecodedImageAllocationFailed:
-        return i18n("Could not decode the selected RAW image: decoded image allocation failed.");
-    case ImageErrorTextId::UnknownLibheifError:
-        return i18n("Unknown libheif error.");
-    case ImageErrorTextId::UnknownLibrawError:
-        return i18n("Unknown LibRaw error.");
     }
 
     return {};
 }
 
-QString imageErrorActionText(ImageErrorActionTextId id)
+QString decodedImageFailureText(const DecodedImageFailure& failure)
 {
-    switch (id) {
-    case ImageErrorActionTextId::InitializeLibheif:
-        return i18n("initializing libheif");
-    case ImageErrorActionTextId::ReadHeifContainer:
-        return i18n("reading the HEIF container");
-    case ImageErrorActionTextId::ReadPrimaryImage:
-        return i18n("reading the primary image");
-    case ImageErrorActionTextId::DecodePrimaryImage:
-        return i18n("decoding the primary image");
-    case ImageErrorActionTextId::DecodeHeifGridTile:
-        return i18n("decoding a HEIF grid tile");
-    case ImageErrorActionTextId::DecodeHeifSequence:
-        return i18n("decoding the HEIF image sequence");
-    case ImageErrorActionTextId::ReadRawImage:
-        return i18n("reading the RAW image");
-    case ImageErrorActionTextId::UnpackRawImage:
-        return i18n("unpacking the RAW image");
-    case ImageErrorActionTextId::ProcessRawImage:
-        return i18n("processing the RAW image");
-    case ImageErrorActionTextId::CreateDisplayImage:
-        return i18n("creating the display image");
+    if (failure.cause == DecodedImageFailureCause::ResourceLimitExceeded) {
+        return imageErrorText(ImageErrorTextId::DecodeImageResourceLimitExceeded);
     }
 
-    return {};
-}
-
-QString heifDecodeErrorText(const QString& action, const QString& detail)
-{
-    return ki18nc("@info:status", "Could not decode the selected HEIF image: %1: %2")
-        .subs(action)
-        .subs(detail)
-        .toString();
-}
-
-QString rawDecodeErrorText(const QString& action, const QString& detail)
-{
-    return ki18nc("@info:status", "Could not decode the selected RAW image: %1: %2")
-        .subs(action)
-        .subs(detail)
-        .toString();
+    if (failure.route == DecodedImageFailureRoute::Apng) {
+        return imageErrorText(ImageErrorTextId::DecodeApngAnimation);
+    }
+    if (failure.operation == DecodedImageFailureOperation::DecodeHeifSequenceOpen
+        || failure.operation == DecodedImageFailureOperation::DecodeHeifSequenceFrame) {
+        return imageErrorText(ImageErrorTextId::DecodeHeifSequence);
+    }
+    if (failure.operation == DecodedImageFailureOperation::DecodeAnimationOpen) {
+        return imageErrorText(ImageErrorTextId::DecodeImageAnimation);
+    }
+    if (failure.route == DecodedImageFailureRoute::Svg) {
+        return imageErrorText(ImageErrorTextId::DecodeSvgImage);
+    }
+    if (failure.route == DecodedImageFailureRoute::HeifFamily) {
+        return imageErrorText(ImageErrorTextId::DecodeHeifImage);
+    }
+    if (failure.route == DecodedImageFailureRoute::Raw) {
+        return imageErrorText(ImageErrorTextId::DecodeRawImage);
+    }
+    return imageErrorText(ImageErrorTextId::DecodeImage);
 }
 }

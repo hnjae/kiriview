@@ -7,6 +7,7 @@
 #include "async/directorylistingjob.h"
 #include "async/imageasynccallbacks.h"
 #include "async/imageiojob.h"
+#include "async/timerscheduler.h"
 #include "imagedocumentpagecandidatecallbacks.h"
 #include "imagedocumentpagecandidateloaderror.h"
 #include "imagedocumentpagenavigationtypes.h"
@@ -65,8 +66,27 @@ using ImageDocumentPageCandidateWatchProvider = std::function<ImageIoJob(QObject
     ImageDocumentPageCandidateWatchSnapshotCallback,
     ImageDocumentPageCandidateWatchSnapshotCallback, ImageDocumentPageCandidateLoadErrorCallback)>;
 
+using ImageDocumentPageCandidateDirectoryChangeCallback = std::function<void()>;
+
+struct ImageDocumentPageCandidateDirectoryChangeSubscription
+{
+    ImageIoJob job;
+    std::function<void()> rearm;
+};
+
+using ImageDocumentPageCandidateDirectoryChangeProvider
+    = std::function<ImageDocumentPageCandidateDirectoryChangeSubscription(
+        QObject*, const QUrl&, ImageDocumentPageCandidateDirectoryChangeCallback)>;
+
+struct ImageDocumentPageCandidateWatchDependencies
+{
+    DirectoryItemListProvider directoryItemListProvider;
+    ImageDocumentPageCandidateDirectoryChangeProvider directoryChangeProvider;
+    TimerScheduler timerScheduler;
+};
+
 ImageDocumentPageCandidateWatchProvider defaultImageDocumentPageCandidateWatchProvider(
-    DirectoryItemListProvider directoryItemListProvider = {},
+    ImageDocumentPageCandidateWatchDependencies dependencies = {},
     SiblingCandidateAdmissionLimits limits = defaultSiblingCandidateAdmissionLimits());
 }
 

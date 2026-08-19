@@ -8,7 +8,6 @@
 #include "decoding/heifcontainer.h"
 #include "decoding/heifsupport.h"
 #include "decoding/imagedecodeworkspace.h"
-#include "localization/imageerrortext.h"
 #include "staticimagedisplaysourcehelpers_p.h"
 
 #include <libheif/heif_tiling.h>
@@ -80,10 +79,8 @@ std::optional<kiriview::HeifPrimaryImage> openHeifPrimaryImageWithMemoryLimit(
         if (resourceExhausted != nullptr) {
             *resourceExhausted = heifResourceFailure(error);
         }
-        kiriview::setStaticImageDisplaySourceError(errorString,
-            kiriview::heifErrorString(
-                kiriview::imageErrorActionText(kiriview::ImageErrorActionTextId::ReadPrimaryImage),
-                error));
+        kiriview::setStaticImageDisplaySourceError(
+            errorString, kiriview::heifErrorString(QStringLiteral("primary-image lookup"), error));
         return std::nullopt;
     }
     return kiriview::HeifPrimaryImage { std::move(*context), std::move(handle) };
@@ -150,7 +147,7 @@ StaticImageDisplayDecodeResult HeifDisplaySource::decodeRasterDisplayImage(
     } else {
         image = decodeFullOrScaled(rasterSize, &errorString, &resourceExhausted);
     }
-    return { std::move(image), { errorString, errorString },
+    return { std::move(image), { errorString },
         resourceExhausted ? StaticImageDisplayDecodeFailureCause::ResourceExhausted
                           : StaticImageDisplayDecodeFailureCause::Decode };
 }
@@ -162,7 +159,7 @@ StaticImageDisplayDecodeResult HeifDisplaySource::decodeBlockingDisplayImage(
     bool resourceExhausted = false;
     QImage image = decodeFullOrScaled(
         boundedPreviewSize(m_imageSize, maximumLongEdge), &errorString, &resourceExhausted);
-    return { std::move(image), { errorString, errorString },
+    return { std::move(image), { errorString },
         resourceExhausted ? StaticImageDisplayDecodeFailureCause::ResourceExhausted
                           : StaticImageDisplayDecodeFailureCause::Decode };
 }
@@ -178,7 +175,7 @@ QImage HeifDisplaySource::decodeFullOrScaled(
             *resourceExhausted = true;
         }
         setStaticImageDisplaySourceError(
-            errorString, imageErrorText(ImageErrorTextId::HeifFullDecodeFallbackTooLarge));
+            errorString, QStringLiteral("HEIF full-image fallback exceeds its decode limit"));
         return {};
     }
 
@@ -203,9 +200,8 @@ QImage HeifDisplaySource::decodeFullOrScaled(
         if (resourceExhausted != nullptr) {
             *resourceExhausted = heifResourceFailure(error);
         }
-        setStaticImageDisplaySourceError(errorString,
-            heifErrorString(
-                imageErrorActionText(ImageErrorActionTextId::DecodePrimaryImage), error));
+        setStaticImageDisplaySourceError(
+            errorString, heifErrorString(QStringLiteral("primary-image decode"), error));
         return {};
     }
 
@@ -258,7 +254,7 @@ QImage HeifDisplaySource::decodeGridRasterDisplayImage(
             *resourceExhausted = true;
         }
         setStaticImageDisplaySourceError(
-            errorString, imageErrorText(ImageErrorTextId::HeifDecodedImageAllocationFailed));
+            errorString, QStringLiteral("HEIF raster allocation failed"));
         return {};
     }
     image.fill(Qt::transparent);
@@ -272,7 +268,7 @@ QImage HeifDisplaySource::decodeGridRasterDisplayImage(
             *resourceExhausted = true;
         }
         setStaticImageDisplaySourceError(
-            errorString, imageErrorText(ImageErrorTextId::HeifDecodedImageAllocationFailed));
+            errorString, QStringLiteral("HEIF raster painter initialization failed"));
         return {};
     }
     for (const HeifTileDecodeRegion& region :
@@ -285,9 +281,8 @@ QImage HeifDisplaySource::decodeGridRasterDisplayImage(
             if (resourceExhausted != nullptr) {
                 *resourceExhausted = heifResourceFailure(error);
             }
-            setStaticImageDisplaySourceError(errorString,
-                heifErrorString(
-                    imageErrorActionText(ImageErrorActionTextId::DecodeHeifGridTile), error));
+            setStaticImageDisplaySourceError(
+                errorString, heifErrorString(QStringLiteral("grid-tile decode"), error));
             return {};
         }
 
@@ -332,7 +327,7 @@ std::shared_ptr<HeifDisplaySource> openHeifDisplaySource(const QByteArray& data,
             *resourceExhausted = true;
         }
         setStaticImageDisplaySourceError(
-            errorString, imageErrorText(ImageErrorTextId::ReadImageData));
+            errorString, imageDecodeWorkspaceResourceLimitDiagnostic());
         return {};
     }
 
@@ -346,7 +341,7 @@ std::shared_ptr<HeifDisplaySource> openHeifDisplaySource(const QByteArray& data,
         heif_image_handle_get_height(opened->handle.get()));
     if (imageSize.isEmpty()) {
         setStaticImageDisplaySourceError(
-            errorString, imageErrorText(ImageErrorTextId::HeifImageSizeInvalid));
+            errorString, QStringLiteral("HEIF primary image has an invalid size"));
         return {};
     }
 

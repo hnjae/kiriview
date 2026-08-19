@@ -4,6 +4,7 @@
 #ifndef KIRIVIEW_IMAGEDOCUMENTPAGECANDIDATEPROVIDER_H
 #define KIRIVIEW_IMAGEDOCUMENTPAGECANDIDATEPROVIDER_H
 
+#include "archive/mediaentrysourcecandidateloading.h"
 #include "archive/mediaentrysourceerror.h"
 #include "async/directorylistingjob.h"
 #include "async/imageasynccallbacks.h"
@@ -43,6 +44,9 @@ ImageDocumentPageCandidateProvider defaultImageDocumentPageCandidateProvider(
 ImageDocumentPageCandidateProvider imageDocumentPageNavigationCandidateProviderWithDefaults(
     ImageDocumentPageCandidateProvider provider, ImageWorkerScheduler workerScheduler = {},
     DirectoryItemListProvider directoryItemListProvider = {});
+ImageDocumentPageCandidateProvider
+imageDocumentPageCandidateProviderWithOpenedCollectionEntryLoader(
+    ImageDocumentPageCandidateProvider provider, MediaEntrySourceEntryLoader entryLoader);
 }
 
 #endif

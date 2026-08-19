@@ -207,7 +207,7 @@ using DecodedImage = std::variant<StaticDecodedImage, ApngAnimationImage, Reader
 
 using DecodedImageResult = std::expected<DecodedImage, DecodedImageFailure>;
 
-DecodedImageResult failedDecodedImageResult(QString errorString);
+DecodedImageResult failedDecodedImageResult(QString diagnosticDetail);
 DecodedImageResult failedDecodedImageResult(DecodedImageFailure failure);
 DecodedImageResult successfulDecodedImageResult(DecodedImage image);
 template <typename Image> DecodedImageResult successfulDecodedImageResult(Image image)

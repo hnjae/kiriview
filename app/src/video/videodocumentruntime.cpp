@@ -51,6 +51,40 @@ const char* videoMediaErrorCategoryName(kiriview::VideoMediaErrorCategory catego
     return "Unknown";
 }
 
+const char* videoSourceLoadFailureKindName(kiriview::VideoSourceLoadFailureKind kind)
+{
+    switch (kind) {
+    case kiriview::VideoSourceLoadFailureKind::PlaybackUrlResolution:
+        return "PlaybackUrlResolution";
+    case kiriview::VideoSourceLoadFailureKind::PlaybackBackendCreation:
+        return "PlaybackBackendCreation";
+    }
+
+    return "Unknown";
+}
+
+const char* videoSourceLoadFailureSeverityName(kiriview::VideoSourceLoadFailureSeverity severity)
+{
+    switch (severity) {
+    case kiriview::VideoSourceLoadFailureSeverity::Error:
+        return "Error";
+    }
+
+    return "Unknown";
+}
+
+void publishVideoSourceLoadFailureDiagnostic(const kiriview::VideoSourceLoadFailure& failure)
+{
+    qCDebug(kiriviewVideoLog).noquote()
+        << "source preparation failure"
+        << "source=" << kiriview::diagnosticSourceReference(failure.sourceUrl)
+        << "kind=" << videoSourceLoadFailureKindName(failure.kind)
+        << "severity=" << videoSourceLoadFailureSeverityName(failure.severity)
+        << "retryable=" << failure.retryable
+        << "detailAvailable=" << !failure.diagnosticDetail.isEmpty()
+        << "detail=" << kiriview::diagnosticDetailReference(failure.diagnosticDetail);
+}
+
 kiriview::VideoBackendFailure videoBackendFailure(
     const QUrl& sourceUrl, kiriview::VideoMediaError error)
 {
@@ -91,7 +125,8 @@ VideoDocumentRuntime::VideoDocumentRuntime(QObject* documentObject, ChangeCallba
     std::unique_ptr<VideoPlaybackUrlResolver> playbackUrlResolver,
     MediaBackendFactory mediaBackendFactory, TimerScheduler playbackControlTimerScheduler,
     VideoPlaybackControlProjectionCallback playbackControlProjectionCallback,
-    ImageWorkerScheduler embeddedMetadataWorkerScheduler)
+    ImageWorkerScheduler embeddedMetadataWorkerScheduler,
+    VideoSourceLoadFailureDiagnosticCallback sourceLoadFailureDiagnosticCallback)
     : m_documentObject(documentObject)
     , m_state(std::move(changeCallback))
     , m_playbackControls(documentObject, std::move(playbackControlTimerScheduler),
@@ -99,6 +134,7 @@ VideoDocumentRuntime::VideoDocumentRuntime(QObject* documentObject, ChangeCallba
     , m_mediaBackendFactory(std::move(mediaBackendFactory))
     , m_playbackUrlResolver(sharedPlaybackUrlResolver(std::move(playbackUrlResolver)))
     , m_embeddedMetadataWorkerScheduler(std::move(embeddedMetadataWorkerScheduler))
+    , m_sourceLoadFailureDiagnosticCallback(std::move(sourceLoadFailureDiagnosticCallback))
     , m_outputRuntime(documentObject,
           VideoOutputRuntimeCallbacks {
               [this, lifetime = std::weak_ptr<void>(m_callbackLifetime)](QObject* videoOutput) {
@@ -119,6 +155,9 @@ VideoDocumentRuntime::VideoDocumentRuntime(QObject* documentObject, ChangeCallba
 {
     if (!m_mediaBackendFactory) {
         m_mediaBackendFactory = []() { return createDefaultVideoMediaBackend(); };
+    }
+    if (!m_sourceLoadFailureDiagnosticCallback) {
+        m_sourceLoadFailureDiagnosticCallback = publishVideoSourceLoadFailureDiagnostic;
     }
 }
 
@@ -970,10 +1009,19 @@ void VideoDocumentRuntime::publishSourceLoadFailure(
     }
 
     const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const VideoSourceLoadFailureDiagnosticCallback diagnosticCallback
+        = m_sourceLoadFailureDiagnosticCallback;
     invalidatePlaybackCallbacks();
     m_state.setSourceLoadFailure(std::move(failure));
     if (lifetime.expired() || !sourceTransitionAccepted(transition)) {
         return;
+    }
+    if (diagnosticCallback && m_state.sourceLoadFailure().has_value()) {
+        const VideoSourceLoadFailure acceptedFailure = *m_state.sourceLoadFailure();
+        diagnosticCallback(acceptedFailure);
+        if (lifetime.expired() || !sourceTransitionAccepted(transition)) {
+            return;
+        }
     }
     finishSourceTransition(transition);
 }

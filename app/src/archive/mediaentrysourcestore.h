@@ -8,7 +8,6 @@
 #include "decoding/imagedecodedependencies.h"
 #include "mediaentrysourcebackend.h"
 #include "mediaentrysourceruntime.h"
-#include "navigation/imagedocumentpagecandidateprovider.h"
 
 #include <QObject>
 
@@ -23,8 +22,6 @@ public:
     ~MediaEntrySourceStore() override;
     Q_DISABLE_COPY_MOVE(MediaEntrySourceStore)
 
-    ImageDocumentPageCandidateProvider wrapCandidateProvider(
-        ImageDocumentPageCandidateProvider provider);
     ImageDecodeDependencies wrapDecodeDependencies(ImageDecodeDependencies dependencies);
 
     void prepareForOpenedCollectionScope(
@@ -35,9 +32,9 @@ public:
     [[nodiscard]] bool hasCurrentOpenedCollectionScope(
         const OpenedCollectionScopeLocation& openedCollectionScope) const;
 
-    ImageIoJob loadOpenedCollectionCandidates(QObject* receiver,
+    ImageIoJob loadOpenedCollectionEntries(QObject* receiver,
         OpenedCollectionScopeLocation openedCollectionScope,
-        ImageDocumentPageCandidatesCallback callback, MediaEntrySourceErrorCallback errorCallback);
+        MediaEntrySourceEntriesCallback callback, MediaEntrySourceErrorCallback errorCallback);
     ImageIoJob loadOpenedCollectionImageData(QObject* receiver, const ImageDecodeRequest& request,
         ImageDataCallback callback, MediaEntrySourceErrorCallback errorCallback);
     MediaEntrySourceVideoPlaybackDeviceResult loadOpenedCollectionVideoPlaybackDevice(

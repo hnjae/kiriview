@@ -5,6 +5,7 @@
 #include "imageviewportproviderfacts_p.h"
 #include "imageviewportprovidersubmission_p.h"
 
+#include <ImageViewport/imagesequenceprovider.h>
 #include <QtCore/QMutex>
 #include <QtCore/QMutexLocker>
 
@@ -15,6 +16,8 @@
 #include <utility>
 
 using namespace ImageViewportInternal;
+
+Q_LOGGING_CATEGORY(imageViewportProviderLog, "org.hnjae.imageviewport.provider", QtWarningMsg)
 
 struct ImageSequenceProviderSession::EventSubmissionState
 {

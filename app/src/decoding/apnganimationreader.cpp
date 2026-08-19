@@ -7,7 +7,6 @@
 #include "apngframecomposer.h"
 #include "bridge/rustqtconversion.h"
 #include "kiriview/src/support/apnganimationreader.cxx.h"
-#include "localization/imageerrortext.h"
 
 #include <QSize>
 #include <algorithm>
@@ -20,7 +19,7 @@
 namespace {
 QString apngDecodeErrorString()
 {
-    return kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeApngAnimation);
+    return QStringLiteral("APNG decoder rejected the animation data");
 }
 
 kiriview::ApngOpenResult errorResult(QString errorString)

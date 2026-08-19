@@ -168,10 +168,11 @@ void PredecodeLoadController::finishDecode(
 
     const auto* failure = decodedImageResultFailure(result);
     if (failure != nullptr) {
-        qCDebug(kiriviewPredecodeLog) << "predecode decode failed"
-                                      << "generation" << activeRequest.id() << "url"
-                                      << diagnosticSourceReference(activeRequest.imageUrl())
-                                      << "error" << diagnosticDetailReference(failure->errorString);
+        qCDebug(kiriviewPredecodeLog)
+            << "predecode decode failed"
+            << "generation" << activeRequest.id() << "url"
+            << diagnosticSourceReference(activeRequest.imageUrl()) << "error"
+            << diagnosticDetailReference(failure->diagnosticDetail);
         return;
     }
 

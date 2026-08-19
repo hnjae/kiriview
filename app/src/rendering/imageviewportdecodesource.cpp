@@ -26,6 +26,16 @@
 #include <variant>
 
 namespace {
+kiriview::ImageLoadFailureSeverity loadFailureSeverity(
+    kiriview::DecodedImageFailureSeverity severity)
+{
+    switch (severity) {
+    case kiriview::DecodedImageFailureSeverity::Error:
+        return kiriview::ImageLoadFailureSeverity::Error;
+    }
+    return kiriview::ImageLoadFailureSeverity::Error;
+}
+
 kiriview::ImageLoadFailure loadFailure(const kiriview::ImageLoadSession& session,
     kiriview::ImageLoadFailureKind kind, QString userMessage, QString diagnosticDetail,
     kiriview::DecodedImageFailureRoute route = kiriview::DecodedImageFailureRoute::Unknown,
@@ -46,14 +56,35 @@ kiriview::ImageLoadFailure loadFailure(const kiriview::ImageLoadSession& session
     };
 }
 
+kiriview::ImageLoadFailure loadFailure(const kiriview::ImageLoadSession& session,
+    kiriview::ImageLoadFailureKind kind, const kiriview::DecodedImageFailure& failure)
+{
+    kiriview::ImageLoadFailure projected
+        = loadFailure(session, kind, kiriview::decodedImageFailureText(failure),
+            failure.diagnosticDetail, failure.route, failure.operation, failure.retryable);
+    projected.severity = loadFailureSeverity(failure.severity);
+    projected.decodeCause = failure.cause;
+    return projected;
+}
+
 kiriview::ImageLoadFailure loadFailure(
     const kiriview::ImageLoadSession& session, const kiriview::DecodedImageFailure& failure)
 {
-    kiriview::ImageLoadFailure projected
-        = loadFailure(session, kiriview::ImageLoadFailureKind::Decode, failure.errorString,
-            failure.diagnosticDetail, failure.route, failure.operation, failure.retryable);
-    projected.decodeCause = failure.cause;
-    return projected;
+    return loadFailure(session, kiriview::ImageLoadFailureKind::Decode, failure);
+}
+
+kiriview::DecodedImageFailure rasterDisplayDecodeFailure(kiriview::DecodedImageFailureRoute route,
+    QString diagnosticDetail,
+    kiriview::DecodedImageFailureCause cause = kiriview::DecodedImageFailureCause::Unknown)
+{
+    return {
+        route,
+        kiriview::DecodedImageFailureOperation::DecodeRasterDisplayImage,
+        std::move(diagnosticDetail),
+        kiriview::DecodedImageFailureSeverity::Error,
+        false,
+        cause,
+    };
 }
 
 kiriview::ImageLoadFailure loadFailure(
@@ -684,7 +715,9 @@ void ImageViewportDecodeProviderSource::finishDecode(
     }
     m_decodeComplete = true;
     if (!result) {
-        finishFailure(ImageSequenceProviderFailureCause::Decode,
+        finishFailure(result.error().cause == DecodedImageFailureCause::ResourceLimitExceeded
+                ? ImageSequenceProviderFailureCause::ResourceExhausted
+                : ImageSequenceProviderFailureCause::Decode,
             loadFailure(resolvedSession(), result.error()));
         return;
     }
@@ -819,7 +852,6 @@ void ImageViewportDecodeProviderSource::finishAnimationImage(
         firstFrameWorkspaceHold = {};
         const bool resourceLimitExceeded = animationContractValid && !workspacePlan.has_value();
         DecodedImageFailure failure {
-            QString(),
             DecodedImageFailureRoute::Unknown,
             DecodedImageFailureOperation::DecodeAnimationOpen,
             resourceLimitExceeded ? imageDecodeWorkspaceResourceLimitDiagnostic()
@@ -1189,8 +1221,7 @@ void ImageViewportDecodeProviderSource::startStaticRefinement(
         if (!admission.has_value()) {
             static_cast<void>(detachWorkerUnit(workerUnitId));
             finishPlanningFailure(StaticFrameResolution::RefinementResourceExhausted,
-                { imageErrorText(ImageErrorTextId::ReadImageData),
-                    imageDecodeWorkspaceResourceLimitDiagnostic() });
+                { imageDecodeWorkspaceResourceLimitDiagnostic() });
             return;
         }
 
@@ -1314,8 +1345,6 @@ void ImageViewportDecodeProviderSource::startGrantedStaticRefinement(
                     }
                     decodeResult.failureCause
                         = StaticImageDisplayDecodeFailureCause::ResourceExhausted;
-                    decodeResult.diagnostics.userMessage
-                        = imageErrorText(ImageErrorTextId::ReadImageData);
                     decodeResult.diagnostics.diagnosticDetail = QStringLiteral(
                         "static refinement output exceeded decoded-memory admission");
                 } else {
@@ -1591,7 +1620,8 @@ void ImageViewportDecodeProviderSource::finishStaticFrameAttempt(StaticFrameAtte
             ImageViewportProviderFrameResult::failed(
                 ImageSequenceProviderFailureCause::ProviderInternal,
                 loadFailure(resolvedSession(), ImageLoadFailureKind::Presentation,
-                    diagnostics.userMessage, diagnosticDetail)));
+                    rasterDisplayDecodeFailure(
+                        attempt.fallbackBasis.decodeRoute, diagnosticDetail))));
         return;
     }
 
@@ -1605,18 +1635,15 @@ void ImageViewportDecodeProviderSource::finishStaticFrameAttempt(StaticFrameAtte
     }
 
     if (resolution == StaticFrameResolution::RefinementResourceExhausted) {
-        const QString userMessage = diagnostics.userMessage.isEmpty()
-            ? imageErrorText(ImageErrorTextId::ReadImageData)
-            : diagnostics.userMessage;
         const QString diagnosticDetail = diagnostics.diagnosticDetail.isEmpty()
             ? QStringLiteral("current image refinement exceeds the aggregate display-output limit")
             : diagnostics.diagnosticDetail;
-        ImageLoadFailure failure = loadFailure(
-            resolvedSession(), ImageLoadFailureKind::Presentation, userMessage, diagnosticDetail);
-        failure.decodeCause = DecodedImageFailureCause::ResourceLimitExceeded;
         attempt.pending.completion(attempt.pending.identity,
             ImageViewportProviderFrameResult::failed(
-                ImageSequenceProviderFailureCause::ResourceExhausted, std::move(failure)));
+                ImageSequenceProviderFailureCause::ResourceExhausted,
+                loadFailure(resolvedSession(), ImageLoadFailureKind::Presentation,
+                    rasterDisplayDecodeFailure(attempt.fallbackBasis.decodeRoute, diagnosticDetail,
+                        DecodedImageFailureCause::ResourceLimitExceeded))));
         return;
     }
 
@@ -1627,7 +1654,8 @@ void ImageViewportDecodeProviderSource::finishStaticFrameAttempt(StaticFrameAtte
         attempt.pending.completion(attempt.pending.identity,
             ImageViewportProviderFrameResult::failed(ImageSequenceProviderFailureCause::Decode,
                 loadFailure(resolvedSession(), ImageLoadFailureKind::Decode,
-                    diagnostics.userMessage, diagnosticDetail)));
+                    rasterDisplayDecodeFailure(
+                        attempt.fallbackBasis.decodeRoute, diagnosticDetail))));
         return;
     }
 
@@ -1682,8 +1710,8 @@ void ImageViewportDecodeProviderSource::finishStaticFrameAttempt(StaticFrameAtte
         : diagnostics.diagnosticDetail;
     attempt.pending.completion(attempt.pending.identity,
         ImageViewportProviderFrameResult::failed(ImageSequenceProviderFailureCause::Decode,
-            loadFailure(resolvedSession(), ImageLoadFailureKind::Decode, diagnostics.userMessage,
-                diagnosticDetail)));
+            loadFailure(resolvedSession(), ImageLoadFailureKind::Decode,
+                rasterDisplayDecodeFailure(attempt.fallbackBasis.decodeRoute, diagnosticDetail))));
 }
 
 quint64 ImageViewportDecodeProviderSource::reserveStaticFrameAttemptId()

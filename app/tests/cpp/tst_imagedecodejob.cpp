@@ -100,7 +100,6 @@ kiriview::ThumbnailCacheLookupResult missingThumbnailLookup()
 kiriview::DecodedImageFailure preparedHardLimitTestFailure()
 {
     return kiriview::DecodedImageFailure {
-        QStringLiteral("workspace rejected"),
         kiriview::DecodedImageFailureRoute::Svg,
         kiriview::DecodedImageFailureOperation::DecodeFirstDisplayImage,
         QStringLiteral("prepared SVG raster exceeds its hard envelope"),
@@ -601,7 +600,7 @@ void TestImageDecodeJob::decodeErrorsAreDeliveredAsResults()
     QTRY_VERIFY(decodedResult.has_value());
     const auto* failure = kiriview::decodedImageResultFailure(*decodedResult);
     QVERIFY(failure != nullptr);
-    QCOMPARE(failure->errorString, testImageDecodeFailureString());
+    QCOMPARE(failure->diagnosticDetail, testImageDecodeFailureString());
     QVERIFY(!decodeJob.hasActiveRequest());
 }
 

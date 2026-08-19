@@ -364,9 +364,9 @@ void TestImageLoader::openedCollectionFailurePreservesTypedSourceDetails()
             kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(archiveCollection.has_value());
     const kiriview::MediaEntrySourceError expectedFailure {
-        kiriview::MediaEntrySourceErrorCause::CandidateListingFailed,
+        kiriview::MediaEntrySourceErrorCause::EntryListingFailed,
         kiriview::MediaEntrySourceBackendKind::LibArchive,
-        kiriview::MediaEntrySourceOperation::ListCandidates,
+        kiriview::MediaEntrySourceOperation::ListEntries,
         archiveUrl,
         QStringLiteral("nested/chapter.cbz"),
         QStringLiteral("candidate traversal stopped at a malformed nested entry"),

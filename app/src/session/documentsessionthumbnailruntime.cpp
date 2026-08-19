@@ -38,7 +38,7 @@ kiriview::ThumbnailSourceAdapter documentSessionThumbnailSourceAdapter(
             = imageDocument->snapshot().displayedOpenedCollectionScope;
         const kiriview::OpenedCollectionThumbnailSourcePlan collectionPlan
             = kiriview::openedCollectionThumbnailSourcePlan(openedCollectionScope,
-                request.sourceKey.sourceUrl, kiriview::ImageDocumentPageKind::Image);
+                request.sourceKey.sourceUrl, kiriview::MediaEntrySourceEntryKind::Image);
         if (collectionPlan.kind
             != kiriview::OpenedCollectionThumbnailSourcePlanKind::CacheableOpenedCollectionEntry) {
             return kiriview::ThumbnailSourceAdapterPlan {};

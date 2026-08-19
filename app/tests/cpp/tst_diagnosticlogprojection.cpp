@@ -127,7 +127,7 @@ void TestDiagnosticLogProjection::mediaEntrySourceErrorStreamExcludesRawPayloads
     kiriview::MediaEntrySourceError differentBackend = error;
     differentBackend.backend = kiriview::MediaEntrySourceBackendKind::Directory;
     kiriview::MediaEntrySourceError differentOperation = error;
-    differentOperation.operation = kiriview::MediaEntrySourceOperation::ListCandidates;
+    differentOperation.operation = kiriview::MediaEntrySourceOperation::ListEntries;
 
     QVERIFY(!rendered.isEmpty());
     QVERIFY(rendered.size() <= kiriview::maximumDiagnosticLogProjectionCharacters * 3 + 128);

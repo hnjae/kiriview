@@ -270,9 +270,9 @@ public:
                         QString error) mutable {
                         if (errorCallback) {
                             errorCallback(MediaEntrySourceError {
-                                MediaEntrySourceErrorCause::CandidateListingFailed,
+                                MediaEntrySourceErrorCause::EntryListingFailed,
                                 MediaEntrySourceBackendKind::Unknown,
-                                MediaEntrySourceOperation::ListCandidates,
+                                MediaEntrySourceOperation::ListEntries,
                                 collectionUrl,
                                 {},
                                 std::move(error),

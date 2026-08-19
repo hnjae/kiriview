@@ -5,6 +5,7 @@
 
 #include "candidate_test_support.h"
 #include "location/imagedocumentlocation.h"
+#include "navigation/imagedocumentpagecandidateprovider.h"
 
 #include <QObject>
 #include <QTest>
@@ -49,6 +50,7 @@ private Q_SLOTS:
     void loadImagesPreservesTypedDirectoryFailure();
     void loadImagesRejectsForeignProviderCandidatesAtomically();
     void loadImagesRoutesArchiveSources();
+    void openedCollectionEntryFactsMapKindsAndSortAtNavigationBoundary();
     void loadContainersRoutesDirectoryContainerSources();
     void watchCandidateChangesRoutesDirectorySources();
 };
@@ -155,6 +157,37 @@ void TestImageDocumentPageCandidateRepository::loadImagesRoutesArchiveSources()
         {});
 
     compareSingleImageDocumentPageCandidate(loadedCandidates, imageUrl);
+}
+
+void TestImageDocumentPageCandidateRepository::
+    openedCollectionEntryFactsMapKindsAndSortAtNavigationBoundary()
+{
+    const QUrl rootUrl(QStringLiteral("zip:///books/book.cbz/"));
+    kiriview::ImageDocumentPageCandidateProvider provider
+        = kiriview::imageDocumentPageCandidateProviderWithOpenedCollectionEntryLoader({},
+            [rootUrl](QObject*, kiriview::OpenedCollectionScopeLocation,
+                kiriview::MediaEntrySourceEntriesCallback callback,
+                kiriview::MediaEntrySourceErrorCallback) {
+                callback({
+                    { rootUrl.resolved(QUrl(QStringLiteral("b.png"))), QStringLiteral("b.png"),
+                        kiriview::MediaEntrySourceEntryKind::Image },
+                    { rootUrl.resolved(QUrl(QStringLiteral("a.mp4"))), QStringLiteral("a.mp4"),
+                        kiriview::MediaEntrySourceEntryKind::Video },
+                });
+                return kiriview::ImageIoJob {};
+            });
+    std::vector<ImageDocumentPageCandidate> candidates;
+
+    provider.openedCollectionCandidates(nullptr, {},
+        [&candidates](
+            std::vector<ImageDocumentPageCandidate> loaded) { candidates = std::move(loaded); },
+        {});
+
+    QCOMPARE(candidates.size(), std::size_t(2));
+    QCOMPARE(candidates.at(0).name, QStringLiteral("a.mp4"));
+    QCOMPARE(candidates.at(0).kind, kiriview::ImageDocumentPageKind::Video);
+    QCOMPARE(candidates.at(1).name, QStringLiteral("b.png"));
+    QCOMPARE(candidates.at(1).kind, kiriview::ImageDocumentPageKind::Image);
 }
 
 void TestImageDocumentPageCandidateRepository::loadContainersRoutesDirectoryContainerSources()

@@ -31,8 +31,6 @@
 
 using namespace std::chrono_literals;
 
-Q_LOGGING_CATEGORY(imageViewportProviderLog, "org.hnjae.imageviewport.provider", QtWarningMsg)
-
 ViewportProviderExecutorOutcome ViewportProviderExecutor::releaseFailureHandle(
     const std::shared_ptr<ViewportProviderSessionControl>& sessionControl,
     ImageSequenceProviderFailureHandle* failureHandle, std::function<void()>&& completion)

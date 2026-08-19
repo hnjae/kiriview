@@ -21,6 +21,7 @@
 
 namespace {
 using kiriview::ImageDocumentPageCandidate;
+using kiriview::MediaEntrySourceEntry;
 using kiriview::NavigationDirection;
 using kiriview::TestSupport::addInstrumentedMediaEntrySourceFixture;
 using kiriview::TestSupport::archiveCollectionForLocalArchiveUrl;
@@ -57,6 +58,20 @@ kiriview::ImageDocumentPageCandidateProvider openedCollectionOnlyProvider()
         {},
         {},
     };
+}
+
+kiriview::ImageDocumentPageCandidateProvider candidateProviderForStore(
+    kiriview::MediaEntrySourceStore* store,
+    kiriview::ImageDocumentPageCandidateProvider provider = openedCollectionOnlyProvider())
+{
+    return kiriview::imageDocumentPageCandidateProviderWithOpenedCollectionEntryLoader(
+        std::move(provider),
+        [store](QObject* receiver, kiriview::OpenedCollectionScopeLocation openedCollectionScope,
+            kiriview::MediaEntrySourceEntriesCallback callback,
+            kiriview::MediaEntrySourceErrorCallback errorCallback) {
+            return store->loadOpenedCollectionEntries(receiver, std::move(openedCollectionScope),
+                std::move(callback), std::move(errorCallback));
+        });
 }
 
 kiriview::ImageDocumentPageNavigationService::Callbacks navigationCallbacks(
@@ -118,14 +133,14 @@ void TestMediaEntrySourceStore::candidateAndDataLoadsShareOneArchiveOpen()
         { imageDocumentPageCandidate(firstUrl), imageDocumentPageCandidate(secondUrl) });
 
     kiriview::MediaEntrySourceStore store(instrumentedMediaEntrySourceFactory(state));
-    std::vector<ImageDocumentPageCandidate> candidates;
+    std::vector<MediaEntrySourceEntry> candidates;
     QByteArray firstData;
     QByteArray secondData;
-    store.loadOpenedCollectionCandidates(nullptr, *archiveCollection,
+    store.loadOpenedCollectionEntries(nullptr, *archiveCollection,
         [&candidates](
-            std::vector<ImageDocumentPageCandidate> loaded) { candidates = std::move(loaded); },
+            std::vector<MediaEntrySourceEntry> loaded) { candidates = std::move(loaded); },
         {});
-    store.loadOpenedCollectionCandidates(nullptr, *archiveCollection, [](auto) { }, {});
+    store.loadOpenedCollectionEntries(nullptr, *archiveCollection, [](auto) { }, {});
     store.loadOpenedCollectionImageData(nullptr,
         kiriview::ImageDecodeRequest::fromLocation(1,
             kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
@@ -158,10 +173,10 @@ void TestMediaEntrySourceStore::simultaneousCandidateLoadsSharePendingSourceLoad
 
     kiriview::MediaEntrySourceStore store(instrumentedMediaEntrySourceFactory(state));
     int callbackCount = 0;
-    kiriview::ImageIoJob firstJob = store.loadOpenedCollectionCandidates(this, *archiveCollection,
-        [&callbackCount](std::vector<ImageDocumentPageCandidate>) { ++callbackCount; }, {});
-    kiriview::ImageIoJob secondJob = store.loadOpenedCollectionCandidates(this, *archiveCollection,
-        [&callbackCount](std::vector<ImageDocumentPageCandidate>) { ++callbackCount; }, {});
+    kiriview::ImageIoJob firstJob = store.loadOpenedCollectionEntries(this, *archiveCollection,
+        [&callbackCount](std::vector<MediaEntrySourceEntry>) { ++callbackCount; }, {});
+    kiriview::ImageIoJob secondJob = store.loadOpenedCollectionEntries(this, *archiveCollection,
+        [&callbackCount](std::vector<MediaEntrySourceEntry>) { ++callbackCount; }, {});
 
     QTRY_COMPARE(callbackCount, 2);
     QCOMPARE(state->openCount.load(), 1);
@@ -214,9 +229,9 @@ void TestMediaEntrySourceStore::candidateWrapperPreservesTypedFailure()
         = archiveCollectionForLocalArchiveUrl(archiveUrl);
     QVERIFY(archiveCollection.has_value());
     const kiriview::MediaEntrySourceError expectedFailure {
-        kiriview::MediaEntrySourceErrorCause::CandidateListingFailed,
+        kiriview::MediaEntrySourceErrorCause::EntryListingFailed,
         kiriview::MediaEntrySourceBackendKind::LibArchive,
-        kiriview::MediaEntrySourceOperation::ListCandidates,
+        kiriview::MediaEntrySourceOperation::ListEntries,
         archiveUrl,
         QStringLiteral("nested/chapter.cbz"),
         QStringLiteral("candidate traversal stopped at a malformed nested entry"),
@@ -226,8 +241,7 @@ void TestMediaEntrySourceStore::candidateWrapperPreservesTypedFailure()
             const kiriview::MediaEntrySourceOpenContext&) -> kiriview::MediaEntrySourceOpenResult {
             return std::unexpected(expectedFailure);
         });
-    kiriview::ImageDocumentPageCandidateProvider provider
-        = store.wrapCandidateProvider(openedCollectionOnlyProvider());
+    kiriview::ImageDocumentPageCandidateProvider provider = candidateProviderForStore(&store);
     bool candidatesReported = false;
     std::optional<kiriview::MediaEntrySourceError> preservedFailure;
 
@@ -332,8 +346,7 @@ void TestMediaEntrySourceStore::navigationReusesCachedOpenedCollectionCandidates
 
     kiriview::MediaEntrySourceStore store(instrumentedMediaEntrySourceFactory(state));
     QUrl openedUrl;
-    kiriview::ImageDocumentPageNavigationService service(
-        store.wrapCandidateProvider(openedCollectionOnlyProvider()),
+    kiriview::ImageDocumentPageNavigationService service(candidateProviderForStore(&store),
         navigationCallbacks([&openedUrl](const QUrl& url) { openedUrl = url; }));
 
     service.updatePageNavigation(navigationContext(
@@ -377,7 +390,7 @@ void TestMediaEntrySourceStore::predecodeLoadsAdjacentOpenedCollectionImagesThro
 
     kiriview::MediaEntrySourceStore store(instrumentedMediaEntrySourceFactory(state));
     kiriview::ImageDocumentPageNavigationService navigationService(
-        store.wrapCandidateProvider(openedCollectionOnlyProvider()), navigationCallbacks());
+        candidateProviderForStore(&store), navigationCallbacks());
     kiriview::ImageDocumentPageCandidateListSnapshot candidateSnapshot;
     bool candidateSnapshotReady = false;
     const std::optional<kiriview::ImageDocumentPageCandidateListContext> candidateContext
@@ -481,19 +494,19 @@ void TestMediaEntrySourceStore::lifecycleClearsSourceForDifferentArchiveNormalIm
         state, *secondArchiveCollection, { imageDocumentPageCandidate(secondPageUrl) });
 
     kiriview::MediaEntrySourceStore store(instrumentedMediaEntrySourceFactory(state));
-    store.loadOpenedCollectionCandidates(nullptr, *firstArchiveCollection, [](auto) { }, {});
+    store.loadOpenedCollectionEntries(nullptr, *firstArchiveCollection, [](auto) { }, {});
     QCOMPARE(state->openCount.load(), 1);
     QVERIFY(store.hasCurrentOpenedCollectionScope(*firstArchiveCollection));
 
     store.prepareForOpenedCollectionScope(*secondArchiveCollection);
     QVERIFY(store.hasCurrentOpenedCollectionScope(*secondArchiveCollection));
-    store.loadOpenedCollectionCandidates(nullptr, *secondArchiveCollection, [](auto) { }, {});
+    store.loadOpenedCollectionEntries(nullptr, *secondArchiveCollection, [](auto) { }, {});
     QCOMPARE(state->openCount.load(), 2);
 
     store.prepareForOpenedCollectionScope(kiriview::OpenedCollectionScopeLocation::none());
     QVERIFY(!store.hasCurrentOpenedCollectionScope());
 
-    store.loadOpenedCollectionCandidates(nullptr, *secondArchiveCollection, [](auto) { }, {});
+    store.loadOpenedCollectionEntries(nullptr, *secondArchiveCollection, [](auto) { }, {});
     QCOMPARE(state->openCount.load(), 3);
     store.clear();
     QVERIFY(!store.hasCurrentOpenedCollectionScope());

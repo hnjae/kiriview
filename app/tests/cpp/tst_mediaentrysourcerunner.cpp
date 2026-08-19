@@ -14,8 +14,7 @@
 #include <vector>
 
 namespace {
-using kiriview::ImageDocumentPageCandidate;
-using kiriview::MediaEntrySourceCandidates;
+using kiriview::MediaEntrySourceEntry;
 using kiriview::MediaEntrySourceError;
 using kiriview::MediaEntrySourceImageData;
 using kiriview::TestSupport::addInstrumentedMediaEntrySourceFixture;
@@ -68,22 +67,19 @@ void TestMediaEntrySourceRunner::candidateLoadsAreCachedAfterLazyOpen()
     kiriview::MediaEntrySourceRunner runner(
         *archiveCollection, instrumentedMediaEntrySourceFactory(state));
 
-    kiriview::MediaEntrySourceCandidatesResult firstResult
-        = runner.loadImageDocumentPageCandidates();
-    kiriview::MediaEntrySourceCandidatesResult secondResult
-        = runner.loadImageDocumentPageCandidates();
+    kiriview::MediaEntrySourceEntriesResult firstResult = runner.loadEntries();
+    kiriview::MediaEntrySourceEntriesResult secondResult = runner.loadEntries();
 
     const auto* firstCandidates = kiriview::mediaEntrySourceResultValue(firstResult);
     const auto* secondCandidates = kiriview::mediaEntrySourceResultValue(secondResult);
     QVERIFY(firstCandidates != nullptr);
     QVERIFY(secondCandidates != nullptr);
-    QCOMPARE(firstCandidates->candidates.size(), std::size_t(2));
-    QCOMPARE(secondCandidates->candidates.size(), std::size_t(2));
+    QCOMPARE(firstCandidates->entries.size(), std::size_t(2));
+    QCOMPARE(secondCandidates->entries.size(), std::size_t(2));
     QCOMPARE(state->openCount.load(), 1);
     QCOMPARE(state->candidateLoadCount.load(), 1);
 
-    const std::optional<std::vector<ImageDocumentPageCandidate>> cached
-        = runner.cachedImageDocumentPageCandidates();
+    const std::optional<std::vector<MediaEntrySourceEntry>> cached = runner.cachedEntries();
     QVERIFY(cached.has_value());
     QCOMPARE(cached->size(), std::size_t(2));
 }
@@ -153,8 +149,7 @@ void TestMediaEntrySourceRunner::failedOpenIsMemoized()
     kiriview::MediaEntrySourceRunner runner(
         *archiveCollection, instrumentedMediaEntrySourceFactory(state));
 
-    kiriview::MediaEntrySourceCandidatesResult candidatesResult
-        = runner.loadImageDocumentPageCandidates();
+    kiriview::MediaEntrySourceEntriesResult candidatesResult = runner.loadEntries();
     kiriview::MediaEntrySourceImageDataResult dataResult = runner.loadImageData(
         archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.png")));
 

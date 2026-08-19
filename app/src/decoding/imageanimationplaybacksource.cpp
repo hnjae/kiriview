@@ -10,7 +10,6 @@
 #include "decoding/imagerendering.h"
 #include "decoding/jxlanimationreader.h"
 #include "decoding/webpanimationreader.h"
-#include "localization/imageerrortext.h"
 
 #include <QImage>
 #include <limits>
@@ -267,7 +266,7 @@ private:
         if (!*reader) {
             resetWorkspaceAfterReaderRelease(std::move(reader));
             return playbackOpenError(
-                kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData));
+                QStringLiteral("Qt image reader could not open the animation data"));
         }
 
         kiriview::ImageDecodeWorkspaceLease outputLease
@@ -449,13 +448,11 @@ private:
             return playbackOpenResourceLimit(openResult.errorString);
         case kiriview::ApngOpenStatus::NotApng:
             m_reader.reset();
-            return playbackOpenError(
-                kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeApngAnimation));
+            return playbackOpenError(QStringLiteral("APNG reader rejected the animation data"));
         }
 
         m_reader.reset();
-        return playbackOpenError(
-            kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeApngAnimation));
+        return playbackOpenError(QStringLiteral("APNG reader returned an invalid open status"));
     }
 
     kiriview::ImageAnimationPlaybackReadResult readNextFrameWithBudget(
@@ -541,13 +538,11 @@ private:
         case kiriview::WebPAnimationOpenStatus::NotWebP:
         case kiriview::WebPAnimationOpenStatus::NotAnimation:
             m_reader.reset();
-            return playbackOpenError(
-                kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeImageAnimation));
+            return playbackOpenError(QStringLiteral("WebP reader rejected the animation data"));
         }
 
         m_reader.reset();
-        return playbackOpenError(
-            kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeImageAnimation));
+        return playbackOpenError(QStringLiteral("WebP reader returned an invalid open status"));
     }
 
     kiriview::ImageAnimationPlaybackReadResult readNextFrameWithBudget(
@@ -633,13 +628,11 @@ private:
         case kiriview::JxlAnimationOpenStatus::NotJxl:
         case kiriview::JxlAnimationOpenStatus::NotAnimation:
             m_reader.reset();
-            return playbackOpenError(
-                kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeImageAnimation));
+            return playbackOpenError(QStringLiteral("JPEG XL reader rejected the animation data"));
         }
 
         m_reader.reset();
-        return playbackOpenError(
-            kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeImageAnimation));
+        return playbackOpenError(QStringLiteral("JPEG XL reader returned an invalid open status"));
     }
 
     kiriview::ImageAnimationPlaybackReadResult readNextFrameWithBudget(

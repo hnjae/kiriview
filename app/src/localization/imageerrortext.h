@@ -7,8 +7,15 @@
 #include <QString>
 
 namespace kiriview {
+struct DecodedImageFailure;
+
 enum class ImageErrorTextId {
     ReadImageData,
+    DecodeImage,
+    DecodeImageResourceLimitExceeded,
+    DecodeSvgImage,
+    DecodeHeifImage,
+    DecodeRawImage,
     OpenVideo,
     DecodeApngAnimation,
     DecodeImageAnimation,
@@ -16,45 +23,11 @@ enum class ImageErrorTextId {
     OpenOpenedCollection,
     OpenComicBookArchive,
     DeleteFile,
-    DetermineSvgImageSize,
-    RenderSvgImage,
     DecodeHeifSequence,
-    HeifSequenceTrackMissing,
-    HeifDecodeOptionsAllocationFailed,
-    HeifContextAllocationFailed,
-    HeifDecodedImageInvalid,
-    HeifDecodedImageSizeInvalid,
-    HeifDecodedPixelDataInvalid,
-    HeifDecodedImageAllocationFailed,
-    HeifImageSizeInvalid,
-    HeifFullDecodeFallbackTooLarge,
-    RawDecodedImageSizeInvalid,
-    RawFullDecodeTooLarge,
-    RawDecodedImageInvalid,
-    RawDecodedPixelFormatUnsupported,
-    RawDecodedPixelDataInvalid,
-    RawDecodedImageAllocationFailed,
-    UnknownLibheifError,
-    UnknownLibrawError,
-};
-
-enum class ImageErrorActionTextId {
-    InitializeLibheif,
-    ReadHeifContainer,
-    ReadPrimaryImage,
-    DecodePrimaryImage,
-    DecodeHeifGridTile,
-    DecodeHeifSequence,
-    ReadRawImage,
-    UnpackRawImage,
-    ProcessRawImage,
-    CreateDisplayImage,
 };
 
 QString imageErrorText(ImageErrorTextId id);
-QString imageErrorActionText(ImageErrorActionTextId id);
-QString heifDecodeErrorText(const QString& action, const QString& detail);
-QString rawDecodeErrorText(const QString& action, const QString& detail);
+QString decodedImageFailureText(const DecodedImageFailure& failure);
 }
 
 #endif

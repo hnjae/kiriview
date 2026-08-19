@@ -6,7 +6,6 @@
 #include "animationtiming.h"
 #include "decoding/imagerendering.h"
 #include "imageanimationsourcelimits_p.h"
-#include "localization/imageerrortext.h"
 
 #include <jxl/decode.h>
 #include <jxl/thread_parallel_runner.h>
@@ -77,7 +76,7 @@ struct JxlReadResult
 
 QString jxlAnimationDecodeErrorString()
 {
-    return kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeImageAnimation);
+    return QStringLiteral("JPEG XL decoder rejected the animation data");
 }
 
 kiriview::JxlAnimationOpenResult notJxlResult() { return {}; }

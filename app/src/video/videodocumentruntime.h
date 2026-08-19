@@ -30,6 +30,8 @@
 #include <vector>
 
 namespace kiriview {
+using VideoSourceLoadFailureDiagnosticCallback = std::function<void(const VideoSourceLoadFailure&)>;
+
 class VideoDocumentRuntime final
 {
 public:
@@ -41,7 +43,8 @@ public:
         MediaBackendFactory mediaBackendFactory = {},
         TimerScheduler playbackControlTimerScheduler = {},
         VideoPlaybackControlProjectionCallback playbackControlProjectionCallback = {},
-        ImageWorkerScheduler embeddedMetadataWorkerScheduler = {});
+        ImageWorkerScheduler embeddedMetadataWorkerScheduler = {},
+        VideoSourceLoadFailureDiagnosticCallback sourceLoadFailureDiagnosticCallback = {});
     ~VideoDocumentRuntime();
     Q_DISABLE_COPY_MOVE(VideoDocumentRuntime)
 
@@ -199,6 +202,7 @@ private:
     MediaBackendFactory m_mediaBackendFactory;
     std::shared_ptr<VideoPlaybackUrlResolver> m_playbackUrlResolver;
     ImageWorkerScheduler m_embeddedMetadataWorkerScheduler;
+    VideoSourceLoadFailureDiagnosticCallback m_sourceLoadFailureDiagnosticCallback;
     ImageAsyncScopedOperationState<QUrl> m_embeddedMetadataOperation;
     ImageIoJob m_embeddedMetadataJob;
     ImageAsyncScopedOperationState<QUrl> m_sourceTransition;

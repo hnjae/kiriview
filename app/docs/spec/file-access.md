@@ -16,6 +16,8 @@ KiriView opens direct video URLs as direct media items for MP4, M4V, and MOV fil
 
 Direct video playback supports local paths, `file://` URLs, and HTTP(S) URLs.
 
+Other direct-video URL schemes are unsupported unless they are separately supported archive-entry URLs as described below, and opening one follows the ordinary video-open failure behavior.
+
 SMB URLs remain supported for direct images but not for video playback. Opening an `smb://` video follows the ordinary video-open failure behavior.
 
 Direct image and video source identity follows [Direct Media Source Identity](#direct-media-source-identity).

@@ -4,7 +4,6 @@
 #include "decoding/heifsequencereader.h"
 
 #include "image_test_support.h"
-#include "localization/imageerrortext.h"
 
 #include <QByteArray>
 #include <QColor>
@@ -164,8 +163,7 @@ void TestHeifSequenceReader::closeClearsTheActiveSequence()
 
     const kiriview::AnimationFrameReadResult frame = reader.readNextFrame();
     QVERIFY(!frame.has_value());
-    QCOMPARE(frame.error(),
-        kiriview::imageErrorText(kiriview::ImageErrorTextId::HeifSequenceTrackMissing));
+    QVERIFY(!frame.error().isEmpty());
 }
 
 QTEST_GUILESS_MAIN(TestHeifSequenceReader)

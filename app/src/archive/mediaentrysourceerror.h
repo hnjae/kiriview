@@ -21,7 +21,7 @@ enum class MediaEntrySourceBackendKind {
 
 enum class MediaEntrySourceOperation {
     OpenCollection,
-    ListCandidates,
+    ListEntries,
     ReadImageData,
     LoadThumbnailMetadata,
     OpenVideoPlaybackDevice,
@@ -30,7 +30,7 @@ enum class MediaEntrySourceOperation {
 enum class MediaEntrySourceErrorCause {
     CollectionOpenFailed,
     UnsupportedCollection,
-    CandidateListingFailed,
+    EntryListingFailed,
     EntryNotFound,
     EntryReadFailed,
     VideoPlaybackUnsupported,

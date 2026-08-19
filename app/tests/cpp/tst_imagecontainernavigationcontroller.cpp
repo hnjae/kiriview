@@ -145,7 +145,7 @@ public:
                     errorCallback(kiriview::MediaEntrySourceError {
                         kiriview::MediaEntrySourceErrorCause::ProviderUnavailable,
                         kiriview::MediaEntrySourceBackendKind::Unknown,
-                        kiriview::MediaEntrySourceOperation::ListCandidates,
+                        kiriview::MediaEntrySourceOperation::ListEntries,
                         openedCollectionScope.fileUrl(),
                         {},
                         QStringLiteral("unexpected archive image listing"),

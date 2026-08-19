@@ -315,13 +315,22 @@ class FakeOpenedCollectionMediaEntrySource final : public kiriview::MediaEntrySo
 public:
     explicit FakeOpenedCollectionMediaEntrySource(
         std::vector<kiriview::ImageDocumentPageCandidate> candidates)
-        : m_candidates(std::move(candidates))
     {
+        m_entries.reserve(candidates.size());
+        for (kiriview::ImageDocumentPageCandidate& candidate : candidates) {
+            m_entries.push_back(kiriview::MediaEntrySourceEntry {
+                std::move(candidate.url),
+                std::move(candidate.name),
+                candidate.kind == kiriview::ImageDocumentPageKind::Video
+                    ? kiriview::MediaEntrySourceEntryKind::Video
+                    : kiriview::MediaEntrySourceEntryKind::Image,
+            });
+        }
     }
 
-    kiriview::MediaEntrySourceCandidatesResult loadImageDocumentPageCandidates() override
+    kiriview::MediaEntrySourceEntriesResult loadEntries() override
     {
-        return kiriview::MediaEntrySourceCandidates { m_candidates };
+        return kiriview::MediaEntrySourceEntries { m_entries };
     }
 
     kiriview::MediaEntrySourceImageDataResult loadImageData(
@@ -359,7 +368,7 @@ public:
     }
 
 private:
-    std::vector<kiriview::ImageDocumentPageCandidate> m_candidates;
+    std::vector<kiriview::MediaEntrySourceEntry> m_entries;
 };
 
 kiriview::MediaEntrySourceFactory mediaEntrySourceFactoryForCandidates(

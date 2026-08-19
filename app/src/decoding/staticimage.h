@@ -4,6 +4,7 @@
 #ifndef KIRIVIEW_STATICIMAGE_H
 #define KIRIVIEW_STATICIMAGE_H
 
+#include "decoding/decodedimagefailure.h"
 #include "decoding/imagedecodeworkspace.h"
 #include "decoding/imagesourcedata.h"
 #include "decoding/imagesourcerevision.h"
@@ -43,7 +44,6 @@ struct FirstDisplayImageDecodeResult
 
 struct StaticImageDisplayDecodeDiagnostics
 {
-    QString userMessage;
     QString diagnosticDetail;
 };
 
@@ -129,6 +129,7 @@ struct StaticDisplayImagePayload
     StaticImageSourceDetailModel sourceDetailModel = StaticImageSourceDetailModel::FiniteRaster;
     ImageSourceRevision sourceRevision;
     DisplayImageRasterKind rasterKind = DisplayImageRasterKind::AuthoritativeStill;
+    DecodedImageFailureRoute decodeRoute = DecodedImageFailureRoute::Unknown;
 
     StaticDisplayImagePayload() = default;
     StaticDisplayImagePayload(QString sourceIdentity,
@@ -138,7 +139,8 @@ struct StaticDisplayImagePayload
         std::shared_ptr<StaticImageDisplaySource> refinementSource,
         DisplayImagePreviewOrigin previewOrigin, StaticImageSourceDetailModel sourceDetailModel,
         ImageSourceRevision sourceRevision = {},
-        DisplayImageRasterKind rasterKind = DisplayImageRasterKind::AuthoritativeStill);
+        DisplayImageRasterKind rasterKind = DisplayImageRasterKind::AuthoritativeStill,
+        DecodedImageFailureRoute decodeRoute = DecodedImageFailureRoute::Unknown);
     StaticDisplayImagePayload(const StaticDisplayImagePayload&) = default;
     StaticDisplayImagePayload(StaticDisplayImagePayload&&) noexcept = default;
     ~StaticDisplayImagePayload() = default;

@@ -4,7 +4,6 @@
 #include "heifsupport.h"
 
 #include "decoding/imagerendering.h"
-#include "localization/imageerrortext.h"
 
 #include <QColorSpace>
 #include <algorithm>
@@ -25,11 +24,11 @@ void setHeifSupportError(QString* errorString, const QString& message)
 namespace kiriview {
 QString heifErrorString(const QString& action, heif_error error)
 {
-    QString message = imageErrorText(ImageErrorTextId::UnknownLibheifError);
+    QString message = QStringLiteral("unknown libheif error");
     if (error.message != nullptr) {
         message = QString::fromUtf8(error.message);
     }
-    return heifDecodeErrorText(action, message);
+    return QStringLiteral("libheif %1 failed: %2").arg(action, message);
 }
 
 namespace {
@@ -47,8 +46,7 @@ namespace {
 
         if (initError.code != heif_error_Ok) {
             return HeifInitializationFailure {
-                heifErrorString(
-                    imageErrorActionText(ImageErrorActionTextId::InitializeLibheif), initError),
+                heifErrorString(QStringLiteral("initialization"), initError),
                 initError.code == heif_error_Memory_allocation_error
                     || initError.subcode == heif_suberror_Security_limit_exceeded,
             };
@@ -116,8 +114,7 @@ std::optional<HeifContext> openHeifContext(const QByteArray& data, QString* erro
         if (resourceLimitExceeded != nullptr) {
             *resourceLimitExceeded = true;
         }
-        setHeifSupportError(
-            errorString, imageErrorText(ImageErrorTextId::HeifContextAllocationFailed));
+        setHeifSupportError(errorString, QStringLiteral("libheif context allocation failed"));
         return std::nullopt;
     }
 
@@ -139,7 +136,7 @@ std::optional<HeifContext> openHeifContext(const QByteArray& data, QString* erro
             }
             setHeifSupportError(errorString,
                 heifErrorString(
-                    imageErrorActionText(ImageErrorActionTextId::ReadHeifContainer), limitsError));
+                    QStringLiteral("container security-limit configuration"), limitsError));
             return std::nullopt;
         }
     }
@@ -151,9 +148,7 @@ std::optional<HeifContext> openHeifContext(const QByteArray& data, QString* erro
             *resourceLimitExceeded = error.code == heif_error_Memory_allocation_error
                 || error.subcode == heif_suberror_Security_limit_exceeded;
         }
-        setHeifSupportError(errorString,
-            heifErrorString(
-                imageErrorActionText(ImageErrorActionTextId::ReadHeifContainer), error));
+        setHeifSupportError(errorString, heifErrorString(QStringLiteral("container read"), error));
         return std::nullopt;
     }
 
@@ -170,8 +165,8 @@ std::optional<HeifPrimaryImage> openHeifPrimaryImage(const QByteArray& data, QSt
     HeifImageHandle handle;
     const heif_error error = heif_context_get_primary_image_handle(context->get(), handle.out());
     if (error.code != heif_error_Ok) {
-        setHeifSupportError(errorString,
-            heifErrorString(imageErrorActionText(ImageErrorActionTextId::ReadPrimaryImage), error));
+        setHeifSupportError(
+            errorString, heifErrorString(QStringLiteral("primary-image lookup"), error));
         return std::nullopt;
     }
 
@@ -186,7 +181,7 @@ std::optional<QImage> qImageFromHeifImage(const heif_image* heifImage, QString* 
     }
     if (heifImage == nullptr) {
         if (errorString != nullptr) {
-            *errorString = imageErrorText(ImageErrorTextId::HeifDecodedImageInvalid);
+            *errorString = QStringLiteral("libheif returned no decoded image");
         }
         return std::nullopt;
     }
@@ -195,7 +190,7 @@ std::optional<QImage> qImageFromHeifImage(const heif_image* heifImage, QString* 
     const int imageHeight = heif_image_get_height(heifImage, heif_channel_interleaved);
     if (imageWidth <= 0 || imageHeight <= 0) {
         if (errorString != nullptr) {
-            *errorString = imageErrorText(ImageErrorTextId::HeifDecodedImageSizeInvalid);
+            *errorString = QStringLiteral("libheif returned an invalid decoded image size");
         }
         return std::nullopt;
     }
@@ -207,7 +202,7 @@ std::optional<QImage> qImageFromHeifImage(const heif_image* heifImage, QString* 
     const size_t rowBytes = static_cast<size_t>(imageWidth) * bytesPerPixel;
     if (source == nullptr || sourceStride < rowBytes) {
         if (errorString != nullptr) {
-            *errorString = imageErrorText(ImageErrorTextId::HeifDecodedPixelDataInvalid);
+            *errorString = QStringLiteral("libheif returned invalid decoded pixel data");
         }
         return std::nullopt;
     }
@@ -218,7 +213,7 @@ std::optional<QImage> qImageFromHeifImage(const heif_image* heifImage, QString* 
             *failureCause = HeifImageConversionFailureCause::ResourceLimitExceeded;
         }
         if (errorString != nullptr) {
-            *errorString = imageErrorText(ImageErrorTextId::HeifDecodedImageAllocationFailed);
+            *errorString = QStringLiteral("HEIF decoded-image allocation failed");
         }
         return std::nullopt;
     }
@@ -234,7 +229,7 @@ std::optional<QImage> qImageFromHeifImage(const heif_image* heifImage, QString* 
             *failureCause = HeifImageConversionFailureCause::ResourceLimitExceeded;
         }
         if (errorString != nullptr) {
-            *errorString = imageErrorText(ImageErrorTextId::HeifDecodedImageAllocationFailed);
+            *errorString = QStringLiteral("HEIF display-image conversion failed");
         }
         return std::nullopt;
     }

@@ -8,7 +8,6 @@
 #include "async/imageasyncoperationstate.h"
 #include "async/imageiojob.h"
 #include "mediaentrysourcebackend.h"
-#include "navigation/imagedocumentpagecandidatecallbacks.h"
 
 #include <QtGlobal>
 #include <optional>
@@ -17,34 +16,33 @@
 class QObject;
 
 namespace kiriview {
-struct MediaEntrySourceCandidateLoad
+struct MediaEntrySourceEntryLoad
 {
     ImageIoJobCompletion completion;
-    ImageDocumentPageCandidatesCallback callback;
+    MediaEntrySourceEntriesCallback callback;
     MediaEntrySourceErrorCallback errorCallback;
 };
 
-struct MediaEntrySourceCandidateLoadBatch
+struct MediaEntrySourceEntryLoadBatch
 {
     quint64 operationId = 0;
 };
 
-class MediaEntrySourceCandidateLoadState final
+class MediaEntrySourceEntryLoadState final
 {
 public:
-    ImageIoJob addLoad(QObject* receiver, ImageDocumentPageCandidatesCallback callback,
+    ImageIoJob addLoad(QObject* receiver, MediaEntrySourceEntriesCallback callback,
         MediaEntrySourceErrorCallback errorCallback);
-    std::optional<MediaEntrySourceCandidateLoadBatch> startBatch();
-    [[nodiscard]] bool acceptsBatch(MediaEntrySourceCandidateLoadBatch batch) const;
+    std::optional<MediaEntrySourceEntryLoadBatch> startBatch();
+    [[nodiscard]] bool acceptsBatch(MediaEntrySourceEntryLoadBatch batch) const;
     [[nodiscard]] bool batchInProgress() const;
-    std::vector<MediaEntrySourceCandidateLoad> finishBatch(
-        MediaEntrySourceCandidateLoadBatch batch);
+    std::vector<MediaEntrySourceEntryLoad> finishBatch(MediaEntrySourceEntryLoadBatch batch);
     void cancel();
 
 private:
     void reset();
 
-    std::vector<MediaEntrySourceCandidateLoad> m_pendingLoads;
+    std::vector<MediaEntrySourceEntryLoad> m_pendingLoads;
     ImageAsyncOperationState m_batch;
 };
 }

@@ -146,12 +146,12 @@ void TestSvgDisplaySource::sourceRendersIntrinsicPreviewAndBlockingDisplay()
     QCOMPARE(firstDisplay.image.size(), QSize(20, 10));
 
     const kiriview::StaticImageDisplayDecodeResult preview = source->decodeBlockingDisplayImage(20);
-    QVERIFY2(!preview.image.isNull(), qPrintable(preview.diagnostics.userMessage));
+    QVERIFY2(!preview.image.isNull(), qPrintable(preview.diagnostics.diagnosticDetail));
     QCOMPARE(preview.image.size(), QSize(20, 10));
 
     const kiriview::StaticImageDisplayDecodeResult bucket
         = source->decodeRasterDisplayImage(QSize(80, 40));
-    QVERIFY2(!bucket.image.isNull(), qPrintable(bucket.diagnostics.userMessage));
+    QVERIFY2(!bucket.image.isNull(), qPrintable(bucket.diagnostics.diagnosticDetail));
     QCOMPARE(bucket.image.size(), QSize(80, 40));
     QCOMPARE(bucket.image.pixelColor(10, 10), QColor(Qt::red));
 }
@@ -177,7 +177,7 @@ void TestSvgDisplaySource::sourceRendersWholeSurfaceDisplayBucket()
     const kiriview::StaticImageDisplayDecodeResult bucket
         = source->decodeRasterDisplayImage(QSize(120, 60));
 
-    QVERIFY2(!bucket.image.isNull(), qPrintable(bucket.diagnostics.userMessage));
+    QVERIFY2(!bucket.image.isNull(), qPrintable(bucket.diagnostics.diagnosticDetail));
     QCOMPARE(bucket.image.size(), QSize(120, 60));
     QCOMPARE(bucket.image.pixelColor(10, 10), QColor(Qt::red));
 }
@@ -252,7 +252,7 @@ void TestSvgDisplaySource::sourceReportsFirstDisplayRenderFailure()
 
     QCOMPARE(firstDisplay.status, kiriview::FirstDisplayImageDecodeStatus::Error);
     QVERIFY(firstDisplay.image.isNull());
-    QVERIFY(!decoded.diagnostics.userMessage.isEmpty());
+    QVERIFY(!decoded.diagnostics.diagnosticDetail.isEmpty());
 }
 
 void TestSvgDisplaySource::sourceReportsWholeSurfaceRenderFailure()
@@ -264,7 +264,7 @@ void TestSvgDisplaySource::sourceReportsWholeSurfaceRenderFailure()
 
     QVERIFY(source.supportsRasterDisplayRefinement());
     QVERIFY(bucket.image.isNull());
-    QVERIFY(!bucket.diagnostics.userMessage.isEmpty());
+    QVERIFY(!bucket.diagnostics.diagnosticDetail.isEmpty());
 }
 
 void TestSvgDisplaySource::workerFailureIsTypedAndRecovers_data()
@@ -324,7 +324,7 @@ void TestSvgDisplaySource::workerFailureIsTypedAndRecovers()
 
     const kiriview::StaticImageDisplayDecodeResult recovered
         = source->decodeRasterDisplayImage(QSize(2, 1));
-    QVERIFY2(!recovered.image.isNull(), qPrintable(recovered.diagnostics.userMessage));
+    QVERIFY2(!recovered.image.isNull(), qPrintable(recovered.diagnostics.diagnosticDetail));
     QCOMPARE(recovered.image.size(), QSize(2, 1));
 
     const auto& requests = executor->requests();
@@ -357,7 +357,7 @@ void TestSvgDisplaySource::workerLimitFailureIsTypedAndDoesNotPoisonLaterRenderi
 
     const kiriview::StaticImageDisplayDecodeResult recovered
         = source->decodeRasterDisplayImage(QSize(80, 40));
-    QVERIFY2(!recovered.image.isNull(), qPrintable(recovered.diagnostics.userMessage));
+    QVERIFY2(!recovered.image.isNull(), qPrintable(recovered.diagnostics.diagnosticDetail));
     QCOMPARE(recovered.image.size(), QSize(80, 40));
 }
 
@@ -370,13 +370,13 @@ void TestSvgDisplaySource::sourceAppliesClipPathToBlockingAndBucketDisplay()
     QCOMPARE(source->imageSize(), QSize(12, 8));
 
     const kiriview::StaticImageDisplayDecodeResult preview = source->decodeBlockingDisplayImage(12);
-    QVERIFY2(!preview.image.isNull(), qPrintable(preview.diagnostics.userMessage));
+    QVERIFY2(!preview.image.isNull(), qPrintable(preview.diagnostics.diagnosticDetail));
     QCOMPARE(preview.image.pixelColor(3, 2), QColor(Qt::red));
     QCOMPARE(preview.image.pixelColor(8, 2), QColor(Qt::white));
 
     const kiriview::StaticImageDisplayDecodeResult bucket
         = source->decodeRasterDisplayImage(QSize(12, 8));
-    QVERIFY2(!bucket.image.isNull(), qPrintable(bucket.diagnostics.userMessage));
+    QVERIFY2(!bucket.image.isNull(), qPrintable(bucket.diagnostics.diagnosticDetail));
     QCOMPARE(bucket.image.pixelColor(3, 2), QColor(Qt::red));
     QCOMPARE(bucket.image.pixelColor(8, 2), QColor(Qt::white));
 }
@@ -395,7 +395,7 @@ void TestSvgDisplaySource::sourceRendersOversampledDisplayBucket()
 
     const kiriview::StaticImageDisplayDecodeResult bucket
         = source->decodeRasterDisplayImage(QSize(120, 60));
-    QVERIFY2(!bucket.image.isNull(), qPrintable(bucket.diagnostics.userMessage));
+    QVERIFY2(!bucket.image.isNull(), qPrintable(bucket.diagnostics.diagnosticDetail));
     QCOMPARE(bucket.image.size(), QSize(120, 60));
     QCOMPARE(bucket.image.pixelColor(10, 10), QColor(Qt::red));
 }

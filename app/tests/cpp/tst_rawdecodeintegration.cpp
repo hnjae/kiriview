@@ -49,7 +49,7 @@ void verifyDecodedRawFixture(
     const auto* decoded = kiriview::decodedImageResultImageAs<kiriview::StaticDecodedImage>(result);
     const auto* failure = kiriview::decodedImageResultFailure(result);
     QVERIFY2(decoded != nullptr,
-        qPrintable(failure != nullptr ? failure->errorString
+        qPrintable(failure != nullptr ? failure->diagnosticDetail
                                       : QStringLiteral("RAW fixture did not decode.")));
 
     QVERIFY(decoded->displayImage.refinementSource != nullptr);
@@ -104,9 +104,7 @@ void TestRawDecodeIntegration::smallDngFixtureRequiresAdmissionBeforeRawProducti
     const kiriview::DecodedImageFailure* failure = kiriview::decodedImageResultFailure(result);
     QVERIFY(failure != nullptr);
     QCOMPARE(failure->cause, kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
-    QVERIFY(!failure->errorString.isEmpty());
     QVERIFY(!failure->diagnosticDetail.isEmpty());
-    QVERIFY(failure->diagnosticDetail != failure->errorString);
     QVERIFY(kiriview::decodedImageResultImage(result) == nullptr);
     QCOMPARE(budget->reservedByteCount(), qsizetype(0));
 }
@@ -173,7 +171,7 @@ void TestRawDecodeIntegration::retainedRawFixtureConsumesAggregateAdmission()
             = kiriview::decodedImageResultImageAs<kiriview::StaticDecodedImage>(first);
         const auto* firstFailure = kiriview::decodedImageResultFailure(first);
         QVERIFY2(firstDecoded != nullptr,
-            qPrintable(firstFailure != nullptr ? firstFailure->errorString
+            qPrintable(firstFailure != nullptr ? firstFailure->diagnosticDetail
                                                : QStringLiteral("RAW fixture did not decode.")));
         const qsizetype retainedByteCount = firstDecoded->displayImage.retainedRasterByteCost();
         QVERIFY(retainedByteCount > 0);
@@ -203,7 +201,6 @@ void TestRawDecodeIntegration::invalidRawDataPreservesBackendFailureDiagnostics(
     QCOMPARE(failure->route, kiriview::DecodedImageFailureRoute::Raw);
     QVERIFY(failure->operation != kiriview::DecodedImageFailureOperation::Unknown);
     QVERIFY(!failure->diagnosticDetail.isEmpty());
-    QVERIFY(failure->diagnosticDetail != failure->errorString);
     QVERIFY(kiriview::decodedImageResultImage(result) == nullptr);
 }
 

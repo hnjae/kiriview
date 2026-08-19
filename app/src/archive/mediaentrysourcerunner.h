@@ -19,12 +19,11 @@ public:
 
     [[nodiscard]] const OpenedCollectionScopeLocation& openedCollectionScope() const;
 
-    MediaEntrySourceCandidatesResult loadImageDocumentPageCandidates(
-        const MediaEntrySourceOpenContext& context = {});
+    MediaEntrySourceEntriesResult loadEntries(const MediaEntrySourceOpenContext& context = {});
     MediaEntrySourceImageDataResult loadImageData(
         const QUrl& imageUrl, ImageSourceDataLease lease = {});
     MediaEntrySourceVideoPlaybackDeviceResult loadVideoPlaybackDevice(const QUrl& videoUrl);
-    std::optional<std::vector<ImageDocumentPageCandidate>> cachedImageDocumentPageCandidates();
+    std::optional<std::vector<MediaEntrySourceEntry>> cachedEntries();
 
 private:
     std::optional<MediaEntrySourceError> ensureSource(
@@ -34,7 +33,7 @@ private:
     MediaEntrySourceFactory m_sourceFactory;
     MediaEntrySourcePtr m_source;
     std::optional<MediaEntrySourceError> m_openError;
-    std::optional<std::vector<ImageDocumentPageCandidate>> m_cachedCandidates;
+    std::optional<std::vector<MediaEntrySourceEntry>> m_cachedEntries;
     bool m_openAttempted = false;
     std::mutex m_mutex;
 };

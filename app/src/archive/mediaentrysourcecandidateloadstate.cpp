@@ -7,7 +7,7 @@
 #include <utility>
 
 namespace {
-void cancelMediaEntrySourceCandidateLoadToken(QObject* object)
+void cancelMediaEntrySourceEntryLoadToken(QObject* object)
 {
     if (object != nullptr) {
         object->deleteLater();
@@ -16,12 +16,12 @@ void cancelMediaEntrySourceCandidateLoadToken(QObject* object)
 }
 
 namespace kiriview {
-ImageIoJob MediaEntrySourceCandidateLoadState::addLoad(QObject* receiver,
-    ImageDocumentPageCandidatesCallback callback, MediaEntrySourceErrorCallback errorCallback)
+ImageIoJob MediaEntrySourceEntryLoadState::addLoad(QObject* receiver,
+    MediaEntrySourceEntriesCallback callback, MediaEntrySourceErrorCallback errorCallback)
 {
     QObject* token = new QObject(receiver);
-    ImageIoJob job(token, cancelMediaEntrySourceCandidateLoadToken);
-    m_pendingLoads.push_back(MediaEntrySourceCandidateLoad {
+    ImageIoJob job(token, cancelMediaEntrySourceEntryLoadToken);
+    m_pendingLoads.push_back(MediaEntrySourceEntryLoad {
         job.completion(),
         std::move(callback),
         std::move(errorCallback),
@@ -29,46 +29,45 @@ ImageIoJob MediaEntrySourceCandidateLoadState::addLoad(QObject* receiver,
     return job;
 }
 
-std::optional<MediaEntrySourceCandidateLoadBatch> MediaEntrySourceCandidateLoadState::startBatch()
+std::optional<MediaEntrySourceEntryLoadBatch> MediaEntrySourceEntryLoadState::startBatch()
 {
     if (m_batch.active() || m_pendingLoads.empty()) {
         return std::nullopt;
     }
 
-    return MediaEntrySourceCandidateLoadBatch {
+    return MediaEntrySourceEntryLoadBatch {
         m_batch.start(),
     };
 }
 
-bool MediaEntrySourceCandidateLoadState::acceptsBatch(
-    MediaEntrySourceCandidateLoadBatch batch) const
+bool MediaEntrySourceEntryLoadState::acceptsBatch(MediaEntrySourceEntryLoadBatch batch) const
 {
     return m_batch.accepts(batch.operationId);
 }
 
-bool MediaEntrySourceCandidateLoadState::batchInProgress() const { return m_batch.active(); }
+bool MediaEntrySourceEntryLoadState::batchInProgress() const { return m_batch.active(); }
 
-std::vector<MediaEntrySourceCandidateLoad> MediaEntrySourceCandidateLoadState::finishBatch(
-    MediaEntrySourceCandidateLoadBatch batch)
+std::vector<MediaEntrySourceEntryLoad> MediaEntrySourceEntryLoadState::finishBatch(
+    MediaEntrySourceEntryLoadBatch batch)
 {
     if (!m_batch.finish(batch.operationId)) {
         return {};
     }
 
-    std::vector<MediaEntrySourceCandidateLoad> pendingLoads = std::move(m_pendingLoads);
+    std::vector<MediaEntrySourceEntryLoad> pendingLoads = std::move(m_pendingLoads);
     reset();
     return pendingLoads;
 }
 
-void MediaEntrySourceCandidateLoadState::cancel()
+void MediaEntrySourceEntryLoadState::cancel()
 {
-    for (const MediaEntrySourceCandidateLoad& load : m_pendingLoads) {
+    for (const MediaEntrySourceEntryLoad& load : m_pendingLoads) {
         load.completion.cancel();
     }
     reset();
 }
 
-void MediaEntrySourceCandidateLoadState::reset()
+void MediaEntrySourceEntryLoadState::reset()
 {
     m_pendingLoads.clear();
     m_batch.cancel();

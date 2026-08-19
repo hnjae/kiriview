@@ -14,7 +14,7 @@
 #include <QFileSystemWatcher>
 #include <QPointer>
 #include <QSet>
-#include <QTimer>
+#include <chrono>
 #include <memory>
 #include <utility>
 
@@ -37,6 +37,81 @@ kiriview::ImageDocumentPageCandidateLoadError candidateAdmissionFailure(
     };
 }
 
+class LocalDirectoryChangeController final : public QObject
+{
+public:
+    LocalDirectoryChangeController(QObject* parent, const QUrl& directoryUrl,
+        kiriview::ImageDocumentPageCandidateDirectoryChangeCallback callback)
+        : QObject(parent)
+        , m_localDirectoryPath(QDir::cleanPath(directoryUrl.toLocalFile()))
+        , m_callback(std::move(callback))
+        , m_directoryWatch(std::make_unique<KDirWatch>())
+        , m_fileSystemWatch(std::make_unique<QFileSystemWatcher>())
+    {
+        auto notify = [this](const QString&) { notifyChanged(); };
+        QObject::connect(m_directoryWatch.get(), &KDirWatch::dirty, this, notify);
+        QObject::connect(m_directoryWatch.get(), &KDirWatch::created, this, notify);
+        QObject::connect(m_directoryWatch.get(), &KDirWatch::deleted, this, notify);
+        m_directoryWatch->addDir(m_localDirectoryPath, KDirWatch::WatchDirOnly);
+        QObject::connect(m_fileSystemWatch.get(), &QFileSystemWatcher::directoryChanged, this,
+            [this](const QString&) { notifyChanged(); });
+        rearm();
+    }
+
+    void rearm()
+    {
+        if (!m_localDirectoryPath.isEmpty()
+            && !m_fileSystemWatch->directories().contains(m_localDirectoryPath)) {
+            m_fileSystemWatch->addPath(m_localDirectoryPath);
+        }
+    }
+
+    void cancel()
+    {
+        m_callback = {};
+        m_directoryWatch->stopScan();
+        deleteLater();
+    }
+
+private:
+    void notifyChanged()
+    {
+        rearm();
+        kiriview::invokeIfSet(m_callback);
+    }
+
+    QString m_localDirectoryPath;
+    kiriview::ImageDocumentPageCandidateDirectoryChangeCallback m_callback;
+    std::unique_ptr<KDirWatch> m_directoryWatch;
+    std::unique_ptr<QFileSystemWatcher> m_fileSystemWatch;
+};
+
+void cancelLocalDirectoryChanges(QObject* object)
+{
+    static_cast<LocalDirectoryChangeController*>(object)->cancel();
+}
+
+kiriview::ImageDocumentPageCandidateDirectoryChangeSubscription subscribeToLocalDirectoryChanges(
+    QObject* receiver, const QUrl& directoryUrl,
+    kiriview::ImageDocumentPageCandidateDirectoryChangeCallback callback)
+{
+    if (!directoryUrl.isLocalFile()) {
+        return {};
+    }
+
+    auto* controller
+        = new LocalDirectoryChangeController(receiver, directoryUrl, std::move(callback));
+    const QPointer<LocalDirectoryChangeController> guardedController(controller);
+    return kiriview::ImageDocumentPageCandidateDirectoryChangeSubscription {
+        kiriview::ImageIoJob(controller, cancelLocalDirectoryChanges),
+        [guardedController]() {
+            if (!guardedController.isNull()) {
+                guardedController->rearm();
+            }
+        },
+    };
+}
+
 class CandidateWatchController final : public QObject
 {
 public:
@@ -44,32 +119,20 @@ public:
         kiriview::ImageDocumentPageCandidateWatchSnapshotCallback initialSnapshot,
         kiriview::ImageDocumentPageCandidateWatchSnapshotCallback changedSnapshot,
         kiriview::ImageDocumentPageCandidateLoadErrorCallback errorCallback,
-        kiriview::DirectoryItemListProvider directoryItemListProvider,
+        kiriview::ImageDocumentPageCandidateWatchDependencies dependencies,
         kiriview::SiblingCandidateAdmissionLimits limits)
         : QObject(parent)
         , m_directoryUrl(std::move(directoryUrl))
         , m_initialSnapshot(std::move(initialSnapshot))
         , m_changedSnapshot(std::move(changedSnapshot))
         , m_errorCallback(std::move(errorCallback))
-        , m_directoryItemListProvider(std::move(directoryItemListProvider))
+        , m_directoryItemListProvider(std::move(dependencies.directoryItemListProvider))
+        , m_directoryChangeProvider(std::move(dependencies.directoryChangeProvider))
         , m_limits(limits)
+        , m_refreshTimer(
+              kiriview::timerSchedulerWithDefaults(std::move(dependencies.timerScheduler))
+                  .singleShotTimer(this, std::chrono::milliseconds(0), [this]() { runRefresh(); }))
     {
-        m_refreshTimer.setSingleShot(true);
-        QObject::connect(&m_refreshTimer, &QTimer::timeout, this, [this]() { runRefresh(); });
-
-        if (m_directoryUrl.isLocalFile()) {
-            m_localDirectoryPath = QDir::cleanPath(m_directoryUrl.toLocalFile());
-            m_directoryWatch = std::make_unique<KDirWatch>();
-            auto request = [this](const QString&) { requestRefresh(); };
-            QObject::connect(m_directoryWatch.get(), &KDirWatch::dirty, this, request);
-            QObject::connect(m_directoryWatch.get(), &KDirWatch::created, this, request);
-            QObject::connect(m_directoryWatch.get(), &KDirWatch::deleted, this, request);
-            m_directoryWatch->addDir(m_localDirectoryPath, KDirWatch::WatchDirOnly);
-            m_fileSystemWatch = std::make_unique<QFileSystemWatcher>();
-            QObject::connect(m_fileSystemWatch.get(), &QFileSystemWatcher::directoryChanged, this,
-                [this](const QString&) { requestRefresh(); });
-            ensureFileSystemWatch();
-        }
     }
 
     void setCompletion(kiriview::ImageIoJobCompletion completion)
@@ -77,7 +140,18 @@ public:
         m_completion = std::move(completion);
     }
 
-    void start() { requestRefresh(); }
+    void start()
+    {
+        if (m_directoryUrl.isLocalFile()) {
+            const QPointer<CandidateWatchController> guardedThis(this);
+            m_directoryChanges = m_directoryChangeProvider(this, m_directoryUrl, [guardedThis]() {
+                if (!guardedThis.isNull()) {
+                    guardedThis->requestRefresh();
+                }
+            });
+        }
+        requestRefresh();
+    }
 
     void cancel()
     {
@@ -86,10 +160,8 @@ public:
         }
         m_canceled = true;
         m_refreshAdmission.invalidatePendingRefresh();
-        m_refreshTimer.stop();
-        if (m_directoryWatch) {
-            m_directoryWatch->stopScan();
-        }
+        m_refreshTimer->stop();
+        m_directoryChanges.job.cancel();
         m_listing.cancel();
         m_initialSnapshot = {};
         m_changedSnapshot = {};
@@ -105,7 +177,7 @@ private:
         }
         if (m_refreshAdmission.requestRefresh()) {
             m_scheduledEpoch = m_refreshAdmission.epoch();
-            m_refreshTimer.start(0);
+            m_refreshTimer->start(std::chrono::milliseconds(0));
         }
     }
 
@@ -115,25 +187,24 @@ private:
             return;
         }
         m_refreshAdmission.beginRefresh();
+        const quint64 refreshEpoch = m_scheduledEpoch;
 
         const QPointer<CandidateWatchController> guardedThis(this);
-        auto listed = [guardedThis](const kiriview::DirectoryItemList& items) mutable {
+        auto listed
+            = [guardedThis, refreshEpoch](const kiriview::DirectoryItemList& items) mutable {
+                  if (!guardedThis.isNull()) {
+                      guardedThis->handleItems(refreshEpoch, items);
+                  }
+              };
+        auto failed = [guardedThis, refreshEpoch](kiriview::KioOperationFailure failure) mutable {
             if (!guardedThis.isNull()) {
-                guardedThis->handleItems(items);
-            }
-        };
-        auto failed = [guardedThis](kiriview::KioOperationFailure failure) mutable {
-            if (!guardedThis.isNull()) {
-                guardedThis->handleFailure(
+                guardedThis->handleFailure(refreshEpoch,
                     kiriview::ImageDocumentPageCandidateLoadError { std::move(failure) });
             }
         };
 
-        kiriview::ImageIoJob listing = m_directoryItemListProvider
-            ? kiriview::startDirectoryItemList(this, m_directoryUrl, std::move(listed),
-                  std::move(failed), m_directoryItemListProvider)
-            : kiriview::startDirectoryItemList(
-                  this, m_directoryUrl, std::move(listed), std::move(failed), m_limits);
+        kiriview::ImageIoJob listing = kiriview::startDirectoryItemList(this, m_directoryUrl,
+            std::move(listed), std::move(failed), m_directoryItemListProvider);
         if (guardedThis.isNull() || m_canceled) {
             listing.cancel();
             return;
@@ -141,18 +212,22 @@ private:
         m_listing = std::move(listing);
     }
 
-    void handleItems(const kiriview::DirectoryItemList& items)
+    void handleItems(quint64 refreshEpoch, const kiriview::DirectoryItemList& items)
     {
+        if (m_canceled || !m_refreshAdmission.acceptsEpoch(refreshEpoch)) {
+            return;
+        }
         kiriview::ImageDocumentPageCandidateAdmissionResult candidates
             = kiriview::imageDocumentPageNavigationCandidates(m_directoryUrl, items, m_limits);
         if (!candidates) {
-            handleFailure(candidateAdmissionFailure(m_directoryUrl, candidates.error()));
+            handleFailure(
+                refreshEpoch, candidateAdmissionFailure(m_directoryUrl, candidates.error()));
             return;
         }
 
         m_freshness.noteSnapshot(items);
         m_freshness.apply(&*candidates);
-        ensureFileSystemWatch();
+        kiriview::invokeIfSet(m_directoryChanges.rearm);
         const bool initialAttempt = !std::exchange(m_initialAttemptHandled, true);
         const kiriview::ImageDocumentPageCandidateWatchSnapshotCallback callback
             = initialAttempt ? m_initialSnapshot : m_changedSnapshot;
@@ -163,8 +238,11 @@ private:
         }
     }
 
-    void handleFailure(kiriview::ImageDocumentPageCandidateLoadError failure)
+    void handleFailure(quint64 refreshEpoch, kiriview::ImageDocumentPageCandidateLoadError failure)
     {
+        if (m_canceled || !m_refreshAdmission.acceptsEpoch(refreshEpoch)) {
+            return;
+        }
         m_initialAttemptHandled = true;
         const kiriview::ImageDocumentPageCandidateLoadErrorCallback callback = m_errorCallback;
         const QPointer<CandidateWatchController> guardedThis(this);
@@ -179,38 +257,29 @@ private:
         if (m_canceled) {
             return;
         }
-        if (!m_directoryWatch) {
+        if (!m_directoryChanges.job.isActive()) {
             m_completion.claimAndDelete([]() { });
             return;
         }
         if (m_refreshAdmission.finishRefresh()) {
             m_scheduledEpoch = m_refreshAdmission.epoch();
-            m_refreshTimer.start(0);
-        }
-    }
-
-    void ensureFileSystemWatch()
-    {
-        if (m_fileSystemWatch && !m_localDirectoryPath.isEmpty()
-            && !m_fileSystemWatch->directories().contains(m_localDirectoryPath)) {
-            m_fileSystemWatch->addPath(m_localDirectoryPath);
+            m_refreshTimer->start(std::chrono::milliseconds(0));
         }
     }
 
     QUrl m_directoryUrl;
-    QString m_localDirectoryPath;
     kiriview::ImageDocumentPageCandidateWatchSnapshotCallback m_initialSnapshot;
     kiriview::ImageDocumentPageCandidateWatchSnapshotCallback m_changedSnapshot;
     kiriview::ImageDocumentPageCandidateLoadErrorCallback m_errorCallback;
     kiriview::DirectoryItemListProvider m_directoryItemListProvider;
+    kiriview::ImageDocumentPageCandidateDirectoryChangeProvider m_directoryChangeProvider;
+    kiriview::ImageDocumentPageCandidateDirectoryChangeSubscription m_directoryChanges;
     kiriview::SiblingCandidateAdmissionLimits m_limits;
     kiriview::ImageDocumentPageCandidateRefreshAdmission m_refreshAdmission;
     kiriview::ImageDocumentPageCandidateFreshnessState m_freshness;
     kiriview::ImageIoJobCompletion m_completion;
     kiriview::ImageIoJob m_listing;
-    QTimer m_refreshTimer;
-    std::unique_ptr<KDirWatch> m_directoryWatch;
-    std::unique_ptr<QFileSystemWatcher> m_fileSystemWatch;
+    std::unique_ptr<kiriview::RuntimeTimerHandle> m_refreshTimer;
     quint64 m_scheduledEpoch = 0;
     bool m_initialAttemptHandled = false;
     bool m_canceled = false;
@@ -226,7 +295,7 @@ kiriview::ImageIoJob startImageDocumentPageCandidateWatch(QObject* receiver,
     kiriview::ImageDocumentPageCandidateWatchSnapshotCallback initialSnapshot,
     kiriview::ImageDocumentPageCandidateWatchSnapshotCallback changedSnapshot,
     kiriview::ImageDocumentPageCandidateLoadErrorCallback errorCallback,
-    kiriview::DirectoryItemListProvider directoryItemListProvider,
+    kiriview::ImageDocumentPageCandidateWatchDependencies dependencies,
     kiriview::SiblingCandidateAdmissionLimits limits)
 {
     if (directoryUrl.isEmpty()) {
@@ -237,9 +306,9 @@ kiriview::ImageIoJob startImageDocumentPageCandidateWatch(QObject* receiver,
         return {};
     }
 
-    auto* controller = new CandidateWatchController(receiver, directoryUrl,
-        std::move(initialSnapshot), std::move(changedSnapshot), std::move(errorCallback),
-        std::move(directoryItemListProvider), limits);
+    auto* controller
+        = new CandidateWatchController(receiver, directoryUrl, std::move(initialSnapshot),
+            std::move(changedSnapshot), std::move(errorCallback), std::move(dependencies), limits);
     kiriview::ImageIoJob job(controller, cancelCandidateWatch);
     controller->setCompletion(job.completion());
     controller->start();
@@ -348,16 +417,26 @@ bool ImageDocumentPageCandidateRefreshAdmission::acceptsEpoch(quint64 epoch) con
 }
 
 ImageDocumentPageCandidateWatchProvider defaultImageDocumentPageCandidateWatchProvider(
-    DirectoryItemListProvider directoryItemListProvider, SiblingCandidateAdmissionLimits limits)
+    ImageDocumentPageCandidateWatchDependencies dependencies,
+    SiblingCandidateAdmissionLimits limits)
 {
-    return [directoryItemListProvider = std::move(directoryItemListProvider), limits](
-               QObject* receiver, const QUrl& directoryUrl,
+    if (!dependencies.directoryItemListProvider) {
+        dependencies.directoryItemListProvider = defaultDirectoryItemListProvider(limits);
+    }
+    if (!dependencies.directoryChangeProvider) {
+        dependencies.directoryChangeProvider = subscribeToLocalDirectoryChanges;
+    }
+    dependencies.timerScheduler
+        = timerSchedulerWithDefaults(std::move(dependencies.timerScheduler));
+
+    return [dependencies = std::move(dependencies), limits](QObject* receiver,
+               const QUrl& directoryUrl,
                ImageDocumentPageCandidateWatchSnapshotCallback initialSnapshot,
                ImageDocumentPageCandidateWatchSnapshotCallback changedSnapshot,
                ImageDocumentPageCandidateLoadErrorCallback errorCallback) {
         return startImageDocumentPageCandidateWatch(receiver, directoryUrl,
             std::move(initialSnapshot), std::move(changedSnapshot), std::move(errorCallback),
-            directoryItemListProvider, limits);
+            dependencies, limits);
     };
 }
 }

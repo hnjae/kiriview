@@ -7,7 +7,6 @@
 #include "decoding/imagesourcedata.h"
 #include "location/imagelocation.h"
 #include "mediaentrysourceerror.h"
-#include "navigation/imagedocumentpagenavigationtypes.h"
 
 #include <QByteArray>
 #include <QIODevice>
@@ -24,10 +23,24 @@ namespace kiriview {
 class MediaEntrySource;
 using MediaEntrySourcePtr = std::shared_ptr<MediaEntrySource>;
 
-struct MediaEntrySourceCandidates
-{
-    std::vector<ImageDocumentPageCandidate> candidates;
+enum class MediaEntrySourceEntryKind {
+    Image,
+    Video,
 };
+
+struct MediaEntrySourceEntry
+{
+    QUrl url;
+    QString name;
+    MediaEntrySourceEntryKind kind = MediaEntrySourceEntryKind::Image;
+};
+
+struct MediaEntrySourceEntries
+{
+    std::vector<MediaEntrySourceEntry> entries;
+};
+
+using MediaEntrySourceEntriesCallback = std::function<void(std::vector<MediaEntrySourceEntry>)>;
 
 struct MediaEntrySourceImageData
 {
@@ -59,7 +72,7 @@ struct MediaEntrySourceThumbnailMetadata
 
 template <typename Value>
 using MediaEntrySourceResult = std::expected<Value, MediaEntrySourceError>;
-using MediaEntrySourceCandidatesResult = MediaEntrySourceResult<MediaEntrySourceCandidates>;
+using MediaEntrySourceEntriesResult = MediaEntrySourceResult<MediaEntrySourceEntries>;
 using MediaEntrySourceImageDataResult = MediaEntrySourceResult<MediaEntrySourceImageData>;
 using MediaEntrySourceVideoPlaybackDeviceResult
     = MediaEntrySourceResult<MediaEntrySourceVideoPlaybackDevice>;
@@ -96,7 +109,7 @@ public:
     MediaEntrySource() = default;
     virtual ~MediaEntrySource() = default;
 
-    virtual MediaEntrySourceCandidatesResult loadImageDocumentPageCandidates() = 0;
+    virtual MediaEntrySourceEntriesResult loadEntries() = 0;
     virtual MediaEntrySourceImageDataResult loadImageData(
         const QUrl& imageUrl, ImageSourceDataLease lease = {})
         = 0;
@@ -126,7 +139,7 @@ struct MediaEntrySourceOpenContext
 using MediaEntrySourceFactory = std::function<MediaEntrySourceOpenResult(
     const OpenedCollectionScopeLocation&, const MediaEntrySourceOpenContext&)>;
 
-MediaEntrySourceCandidatesResult loadMediaEntrySourceCandidates(
+MediaEntrySourceEntriesResult loadMediaEntrySourceEntries(
     const OpenedCollectionScopeLocation& openedCollectionScope);
 MediaEntrySourceImageDataResult loadMediaEntrySourceImageData(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& imageUrl,
