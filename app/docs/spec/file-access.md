@@ -14,7 +14,9 @@ JPEG-compressed HEIF files use the generic HEIF extensions because they do not h
 
 KiriView opens direct video URLs as direct media items for MP4, M4V, and MOV files, case-insensitively.
 
-Direct video URLs include local paths, `file://` URLs, and KDE-supported remote file URLs such as `smb://`.
+Direct video playback supports local paths, `file://` URLs, and HTTP(S) URLs.
+
+SMB URLs remain supported for direct images but not for video playback. Opening an `smb://` video follows the ordinary video-open failure behavior.
 
 Direct image and video source identity follows [Direct Media Source Identity](#direct-media-source-identity).
 
