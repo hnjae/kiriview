@@ -44,6 +44,7 @@ in
     kiriviewLibHeif.dev
     kiriviewLibHeif.lib
     pkgs.desktop-file-utils
+    pkgs.flatpak
     pkgs.flatpak-builder
     pkgs.jq
     pkgs.cargo-nextest

@@ -303,7 +303,9 @@ in
           require_arg "--filesystem=xdg-run/pipewire-0"
           require_arg "--filesystem=xdg-run/gvfs"
           require_arg "--filesystem=xdg-cache/thumbnails:create"
+          require_arg "--share=network"
           require_arg "--talk-name=org.kde.KIOFuse"
+          require_arg "--talk-name=org.kde.kpasswdserver6"
           require_arg "--talk-name=org.freedesktop.FileManager1"
 
           forbid_arg "--filesystem=/run/user"
@@ -312,6 +314,9 @@ in
           forbid_arg "--filesystem=xdg-cache"
           forbid_arg "--filesystem=xdg-cache:ro"
           forbid_arg "--filesystem=xdg-cache:create"
+          forbid_arg "--talk-name=org.kde.kiod6"
+          forbid_arg "--talk-name=org.kde.kwalletd6"
+          forbid_arg "--system-talk-name=org.freedesktop.Avahi"
         '';
     };
 

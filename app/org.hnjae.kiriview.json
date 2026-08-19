@@ -43,6 +43,7 @@
     "--filesystem=xdg-run/pipewire-0",
     "--filesystem=xdg-run/gvfs",
     "--talk-name=org.kde.KIOFuse",
+    "--talk-name=org.kde.kpasswdserver6",
     "--talk-name=org.freedesktop.FileManager1",
     "--env=LIBHEIF_PLUGIN_PATH=/app/lib/libheif"
   ],
@@ -96,6 +97,285 @@
           "type": "archive",
           "url": "https://www.libraw.org/data/LibRaw-0.22.1.tar.gz",
           "sha256": "a789dc4e2409e2901d93793a4e0b80c7b49d0d97cf6ad71c850eb7616acfd786"
+        }
+      ]
+    },
+    {
+      "name": "parse-yapp",
+      "buildsystem": "simple",
+      "build-commands": [
+        "perl Makefile.PL PREFIX=/app LIB=/app/lib/perl5",
+        "make",
+        "make install"
+      ],
+      "post-install": [
+        "install -Dm644 $FLATPAK_BUILDER_BUILDDIR/README /app/share/licenses/parse-yapp/README",
+        "install -Dm644 $FLATPAK_BUILDER_BUILDDIR/lib/Parse/Yapp.pm /app/share/licenses/parse-yapp/Yapp.pm"
+      ],
+      "cleanup": ["/bin", "/lib/perl5", "/share/man"],
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://cpan.metacpan.org/authors/id/W/WB/WBRASWELL/Parse-Yapp-1.21.tar.gz",
+          "sha256": "3810e998308fba2e0f4f26043035032b027ce51ce5c8a52a8b8e340ca65f13e5",
+          "x-checker-data": {
+            "type": "anitya",
+            "project-id": 3197,
+            "stable-only": true,
+            "url-template": "https://cpan.metacpan.org/authors/id/W/WB/WBRASWELL/Parse-Yapp-$version.tar.gz"
+          }
+        }
+      ]
+    },
+    {
+      "name": "rpcsvc-proto",
+      "buildsystem": "autotools",
+      "post-install": [
+        "install -Dm644 $FLATPAK_BUILDER_BUILDDIR/COPYING /app/share/licenses/rpcsvc-proto/COPYING"
+      ],
+      "cleanup": ["/bin", "/include", "/lib/pkgconfig", "/share/man"],
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://github.com/thkukuk/rpcsvc-proto/releases/download/v1.4.4/rpcsvc-proto-1.4.4.tar.xz",
+          "sha256": "81c3aa27edb5d8a18ef027081ebb984234d5b5860c65bd99d4ac8f03145a558b",
+          "x-checker-data": {
+            "type": "anitya",
+            "project-id": 155452,
+            "stable-only": true,
+            "url-template": "https://github.com/thkukuk/rpcsvc-proto/releases/download/v$version/rpcsvc-proto-$version.tar.xz"
+          }
+        }
+      ]
+    },
+    {
+      "name": "samba",
+      "buildsystem": "autotools",
+      "build-options": {
+        "env": {
+          "PERL5LIB": "/app/lib/perl5"
+        }
+      },
+      "config-opts": [
+        "--prefix=/app",
+        "--libdir=/app/lib",
+        "--disable-python",
+        "--without-json",
+        "--without-ad-dc",
+        "--without-ldb-lmdb",
+        "--without-ldap",
+        "--without-ads",
+        "--without-pam",
+        "--without-systemd",
+        "--disable-cups",
+        "--disable-iprint"
+      ],
+      "post-install": [
+        "install -Dm644 $FLATPAK_BUILDER_BUILDDIR/COPYING /app/share/licenses/samba/COPYING",
+        "install -Dm644 $FLATPAK_BUILDER_BUILDDIR/lib/talloc/LICENSE /app/share/licenses/samba/talloc-LICENSE",
+        "install -Dm644 $FLATPAK_BUILDER_BUILDDIR/lib/tdb/LICENSE /app/share/licenses/samba/tdb-LICENSE",
+        "install -Dm644 $FLATPAK_BUILDER_BUILDDIR/lib/tevent/LICENSE /app/share/licenses/samba/tevent-LICENSE",
+        "install -Dm644 $FLATPAK_BUILDER_BUILDDIR/lib/ldb/LICENSE /app/share/licenses/samba/ldb-LICENSE",
+        "install -Dm644 $FLATPAK_BUILDER_BUILDDIR/third_party/heimdal/LICENSE /app/share/licenses/samba/heimdal-LICENSE",
+        "install -Dm644 $FLATPAK_BUILDER_BUILDDIR/third_party/heimdal/lib/hcrypto/libtommath/LICENSE /app/share/licenses/samba/libtommath-LICENSE",
+        "install -Dm644 $FLATPAK_BUILDER_BUILDDIR/third_party/popt/COPYING /app/share/licenses/samba/popt-COPYING",
+        "install -Dm644 $FLATPAK_BUILDER_BUILDDIR/third_party/quic/COPYING /app/share/licenses/samba/quic-COPYING",
+        "install -Dm644 $FLATPAK_BUILDER_BUILDDIR/ngtcp2-COPYING /app/share/licenses/samba/ngtcp2-COPYING"
+      ],
+      "cleanup": [
+        "/bin",
+        "/sbin",
+        "/libexec",
+        "/include",
+        "/lib/*.so",
+        "/lib/idmap",
+        "/lib/krb5/winbind_krb5_locator.so",
+        "/lib/libdcerpc-server-core.so*",
+        "/lib/libnetapi.so*",
+        "/lib/libnss_winbind.so*",
+        "/lib/libnss_wins.so*",
+        "/lib/libsamba-passdb.so*",
+        "/lib/nss_info",
+        "/lib/perl5",
+        "/lib/pkgconfig",
+        "/lib/private/libRPC-SERVER-LOOP-private-samba.so",
+        "/lib/private/libRPC-WORKER-private-samba.so",
+        "/lib/private/libREG-FULL-private-samba.so",
+        "/lib/private/libads-private-samba.so",
+        "/lib/private/libauth-private-samba.so",
+        "/lib/private/libcmocka-private-samba.so",
+        "/lib/private/libidmap-private-samba.so",
+        "/lib/private/libsmbd-base-private-samba.so",
+        "/lib/private/libtorture-private-samba.so",
+        "/lib/python*",
+        "/lib/systemd",
+        "/lib/vfs",
+        "/share/doc",
+        "/share/man",
+        "net.mo",
+        "pam_winbind.mo"
+      ],
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://download.samba.org/pub/samba/stable/samba-4.24.6.tar.gz",
+          "sha256": "810cc955acb367e9bde556dccfb50db177a02b7c553aa1629a0b905fa7616267",
+          "x-checker-data": {
+            "type": "anitya",
+            "project-id": 4758,
+            "stable-only": true,
+            "url-template": "https://download.samba.org/pub/samba/stable/samba-$version.tar.gz"
+          }
+        },
+        {
+          "type": "file",
+          "url": "https://raw.githubusercontent.com/ngtcp2/ngtcp2/v1.11.0/COPYING",
+          "sha256": "542dd526d2ea23565f0571cc68df6f05ed11248a90ff0f32de19d8ba589db513",
+          "dest-filename": "ngtcp2-COPYING"
+        }
+      ]
+    },
+    {
+      "name": "kdsoap",
+      "buildsystem": "cmake-ninja",
+      "config-opts": [
+        "-DCMAKE_INSTALL_LIBDIR=lib",
+        "-DKDSoap_QT6=ON",
+        "-DKDSoap_TESTS=OFF",
+        "-DKDSoap_EXAMPLES=OFF",
+        "-DKDSoap_DOCS=OFF"
+      ],
+      "post-install": [
+        "install -Dm644 $FLATPAK_BUILDER_BUILDDIR/LICENSE.txt /app/share/licenses/kdsoap/LICENSE.txt",
+        "mkdir -p /app/share/licenses/kdsoap/LICENSES",
+        "cp -a $FLATPAK_BUILDER_BUILDDIR/LICENSES/. /app/share/licenses/kdsoap/LICENSES/"
+      ],
+      "cleanup": [
+        "/bin",
+        "/include",
+        "/lib/cmake",
+        "/lib/libkdsoap-qt6.so",
+        "/lib/libkdsoap-server-qt6.so*",
+        "/lib/pkgconfig",
+        "/mkspecs",
+        "/share/doc"
+      ],
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://github.com/KDAB/KDSoap/releases/download/kdsoap-2.3.0/kdsoap-2.3.0.tar.gz",
+          "sha256": "d2184951145cb768cc30376a10701be13869a164c1272d09f831ba2d195f02de",
+          "x-checker-data": {
+            "type": "anitya",
+            "project-id": 17735,
+            "stable-only": true,
+            "url-template": "https://github.com/KDAB/KDSoap/releases/download/kdsoap-$version/kdsoap-$version.tar.gz"
+          }
+        }
+      ]
+    },
+    {
+      "name": "kdsoap-ws-discovery-client",
+      "buildsystem": "cmake-ninja",
+      "config-opts": [
+        "-DCMAKE_INSTALL_LIBDIR=lib",
+        "-DQT_MAJOR_VERSION=6",
+        "-DBUILD_TESTING=OFF",
+        "-DBUILD_QCH=OFF",
+        "-DCMAKE_DISABLE_FIND_PACKAGE_Doxygen=TRUE"
+      ],
+      "post-install": [
+        "mkdir -p /app/share/licenses/kdsoap-ws-discovery-client",
+        "cp -a $FLATPAK_BUILDER_BUILDDIR/LICENSES/. /app/share/licenses/kdsoap-ws-discovery-client/"
+      ],
+      "cleanup": [
+        "/include",
+        "/lib/cmake",
+        "/lib/libKDSoapWSDiscoveryClient.so",
+        "/share/doc"
+      ],
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://download.kde.org/stable/kdsoap-ws-discovery-client/kdsoap-ws-discovery-client-0.4.0.tar.xz",
+          "sha256": "2cd247c013e75f410659bac372aff93d22d71c5a54c059e137b9444af8b3427a",
+          "x-checker-data": {
+            "type": "html",
+            "url": "https://download.kde.org/stable/kdsoap-ws-discovery-client/",
+            "version-pattern": "kdsoap-ws-discovery-client-([\\d.]+)\\.tar\\.xz",
+            "url-template": "https://download.kde.org/stable/kdsoap-ws-discovery-client/kdsoap-ws-discovery-client-$version.tar.xz"
+          }
+        }
+      ]
+    },
+    {
+      "name": "kio-extras",
+      "buildsystem": "cmake-ninja",
+      "config-opts": [
+        "-DCMAKE_INSTALL_LIBDIR=lib",
+        "-DBUILD_TESTING=OFF",
+        "-DBUILD_WITH_QT6=ON",
+        "-DBUILD_ACTIVITIES=OFF",
+        "-DBUILD_DOC=OFF",
+        "-DBUILD_KCMS=OFF",
+        "-DWITH_LIBPROXY=OFF",
+        "-DUSE_DBUS=ON",
+        "-DCMAKE_DISABLE_FIND_PACKAGE_libssh=TRUE",
+        "-DCMAKE_DISABLE_FIND_PACKAGE_Libmtp=TRUE",
+        "-DCMAKE_DISABLE_FIND_PACKAGE_IMobileDevice=TRUE",
+        "-DCMAKE_DISABLE_FIND_PACKAGE_PList=TRUE",
+        "-DCMAKE_DISABLE_FIND_PACKAGE_Gperf=TRUE",
+        "-DCMAKE_DISABLE_FIND_PACKAGE_TIRPC=TRUE"
+      ],
+      "post-install": [
+        "mkdir -p /app/share/licenses/kio-extras",
+        "cp -a $FLATPAK_BUILDER_BUILDDIR/LICENSES/. /app/share/licenses/kio-extras/"
+      ],
+      "cleanup": [
+        "/include",
+        "/lib/cmake",
+        "/lib/libkioarchive6.so*",
+        "/lib/libexec/kf6/smbnotifier",
+        "/lib/plugins/kf6/kded/filenamesearchmodule.so",
+        "/lib/plugins/kf6/kded/smbwatcher.so",
+        "/lib/plugins/kf6/thumbcreator",
+        "/lib/plugins/kf6/kio/archive.so",
+        "/lib/plugins/kf6/kio/filter.so",
+        "/lib/plugins/kf6/kio/fish.so",
+        "/lib/plugins/kf6/kio/info.so",
+        "/lib/plugins/kf6/kio/kio_filenamesearch.so",
+        "/lib/plugins/kf6/kio/thumbnail.so",
+        "/share/config.kcfg/jpegcreatorsettings5.kcfg",
+        "/share/doc",
+        "/share/kio_filenamesearch",
+        "/share/kio_info",
+        "/share/konqueror",
+        "/share/remoteview",
+        "kio-extras_kcms.mo",
+        "kio6_activities.mo",
+        "kio6_afc.mo",
+        "kio6_archive.mo",
+        "kio6_filenamesearch.mo",
+        "kio6_fish.mo",
+        "kio6_info.mo",
+        "kio6_man.mo",
+        "kio6_mtp.mo",
+        "kio6_nfs.mo",
+        "kio6_recentlyused.mo",
+        "kio6_sftp.mo",
+        "kio6_thumbnail.mo"
+      ],
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://download.kde.org/stable/release-service/26.04.3/src/kio-extras-26.04.3.tar.xz",
+          "sha256": "8448075fdedd1e5ae43b865337f5ac3ca39037726dd0deaa061797fa84d31d63",
+          "x-checker-data": {
+            "type": "anitya",
+            "project-id": 8763,
+            "stable-only": true,
+            "url-template": "https://download.kde.org/stable/release-service/$version/src/kio-extras-$version.tar.xz"
+          }
         }
       ]
     },

@@ -47,6 +47,7 @@ run:
         --device=dri \
         --talk-name=org.freedesktop.portal.Desktop \
         --talk-name=org.kde.KIOFuse \
+        --talk-name=org.kde.kpasswdserver6 \
         --filesystem=home \
         --filesystem=/media \
         --filesystem=/mnt \
@@ -97,8 +98,19 @@ build:
 
 [group('build')]
 build-flatpak-with-test:
+    #!/bin/sh
+    set -eu
+
     flatpak-builder \
         --install-deps-from=flathub \
         --delete-build-dirs \
         --force-clean app/build-dir \
         app/org.hnjae.kiriview.json
+
+    flatpak build --runtime --readonly app/build-dir sh -euc '
+        plugin=/app/lib/plugins/kf6/kio/smb.so
+        test -f "$plugin"
+        dependencies=$(LC_ALL=C ldd "$plugin" 2>&1)
+        printf "%s\n" "$dependencies"
+        ! printf "%s\n" "$dependencies" | grep -F "not found"
+    '
