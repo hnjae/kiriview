@@ -104,9 +104,9 @@ Fit mode's displayed image is interpreted by the active viewport geometry frame.
 
 Fit Height mode scales the image height to the viewport height while preserving aspect ratio.
 
-Fit Width mode scales the image width to the viewport width while preserving aspect ratio.
-
 Within the same directly opened archive or directory collection, KiriView preserves the current zoom state while users move between pages with Previous, Next, or page number navigation.
+
+Moving to a sibling archive preserves the current zoom state the same way: the newly displayed first item starts at its scan start at the preserved zoom level, and the toolbar-selected fit preference is unchanged.
 
 Switching between single-page display and Two-Page Spread preserves the user's active fit mode or preferred manual zoom. A target-specific maximum may temporarily lower the effective manual zoom, but changing presentation shape does not replace the preferred percentage with that temporary value.
 
@@ -118,11 +118,9 @@ When the displayed page changes inside the archive or directory collection throu
 
 The scan-backward shortcut may open the previous image at its final scan position instead: bottom-right normally and bottom-left in Right-to-Left Reading mode.
 
-Starting KiriView, opening an ordinary direct image, moving between ordinary direct images in a direct media URL scope, opening a KDE archive URL image directly, opening a different archive or directory collection, or moving to a sibling archive resets zoom and the toolbar-selected fit preference to Fit mode when the new image is displayed. A replacement that fails before displaying the new image does not reset the prior selection.
+Starting KiriView, opening an ordinary direct image, moving between ordinary direct images in a direct media URL scope, opening a KDE archive URL image directly, or opening a different archive or directory collection resets zoom and the toolbar-selected fit preference to Fit mode when the new image is displayed. A replacement that fails before displaying the new image does not reset the prior selection.
 
 ## Rotation
-
-When an image is ready and Two-Page Spread is disabled, Rotate Clockwise turns the current image view by 90 degrees clockwise and Rotate Counterclockwise turns it by 90 degrees counterclockwise.
 
 Successive rotation commands accumulate immediately in quarter turns and wrap after a full turn: four clockwise or four counterclockwise commands return the view to 0 degrees. A same-image detail replacement pending for an earlier rotation does not block a newer rotation command or revert its result.
 

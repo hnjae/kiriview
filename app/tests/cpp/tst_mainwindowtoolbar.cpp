@@ -65,6 +65,7 @@ private Q_SLOTS:
     void startupInitialDirectImageRendersMainViewport();
     void startupInitialComicArchiveRendersAndNavigatesMainViewport();
     void outsideScopePresentationCommitResetsFitSelection();
+    void siblingContainerNavigationPreservesZoomState();
     void comicPageReplacementKeepsRightToolbarPresentationStable();
     void spreadPageReplacementKeepsRightToolbarPresentationStable();
     void dropOpensFirstUrlOnly();
@@ -1076,6 +1077,58 @@ void TestMainWindowToolBar::outsideScopePresentationCommitResetsFitSelection()
     QCOMPARE(imageDocument->fitModeSelection(), KiriImageDocument::ZoomMode::Fit);
     QTRY_COMPARE(toolbar->property("presentedFitModeSelection").toInt(),
         static_cast<int>(KiriImageDocument::ZoomMode::Fit));
+}
+void TestMainWindowToolBar::siblingContainerNavigationPreservesZoomState()
+{
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    ScopedToolbarImageWorkerSchedulerOverride workerSchedulerOverride(workerScheduler.scheduler());
+    QTemporaryDir booksDirectory;
+    QVERIFY(booksDirectory.isValid());
+    const QByteArray firstPage = encodedTestPng(Qt::blue);
+    const QByteArray secondPage = encodedTestPng(Qt::green);
+    QVERIFY(!firstPage.isEmpty());
+    QVERIFY(!secondPage.isEmpty());
+    for (const QString& archiveName : { QStringLiteral("a.cbz"), QStringLiteral("b.cbz") }) {
+        KZip archive(booksDirectory.filePath(archiveName));
+        QVERIFY(archive.open(QIODevice::WriteOnly));
+        QVERIFY(archive.writeFile(QStringLiteral("01.png"), firstPage));
+        QVERIFY(archive.writeFile(QStringLiteral("02.png"), secondPage));
+        archive.close();
+    }
+
+    MainWindowFixture fixture = createMainWindowFixture(
+        QUrl::fromLocalFile(booksDirectory.filePath(QStringLiteral("a.cbz"))));
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    KiriDocumentSession* documentSession = findDocumentSession(fixture.window);
+    QVERIFY(documentSession != nullptr);
+    KiriImageDocument* imageDocument = documentSession->imageDocument();
+    QVERIFY(imageDocument != nullptr);
+
+    std::size_t nextWorkerSchedule = 0;
+    const auto driveUntilReady = [&]() {
+        for (int attempt = 0; attempt < 2'000 && !documentSession->activeImageReady(); ++attempt) {
+            kiriview::TestSupport::runOutstandingImageWorkerSchedules(
+                workerScheduler, nextWorkerSchedule);
+            fixture.window->update();
+            static_cast<void>(fixture.window->grabWindow());
+            QCoreApplication::processEvents();
+            QTest::qWait(1);
+        }
+        QVERIFY2(documentSession->activeImageReady(),
+            qPrintable(imageViewportStateReport(fixture.window)));
+    };
+
+    driveUntilReady();
+    QVERIFY(imageDocument->requestFitMode(KiriImageDocument::ZoomMode::FitWidth));
+    QTRY_COMPARE(imageDocument->zoomMode(), KiriImageDocument::ZoomMode::FitWidth);
+    QCOMPARE(imageDocument->fitModeSelection(), KiriImageDocument::ZoomMode::FitWidth);
+    QVERIFY(imageDocument->requestManualZoomPercent(150.0));
+    QTRY_COMPARE(imageDocument->zoomMode(), KiriImageDocument::ZoomMode::Manual);
+
+    imageDocument->openNextContainer();
+    driveUntilReady();
+    QCOMPARE(imageDocument->zoomMode(), KiriImageDocument::ZoomMode::Manual);
+    QCOMPARE(imageDocument->fitModeSelection(), KiriImageDocument::ZoomMode::FitWidth);
 }
 
 void TestMainWindowToolBar::comicPageReplacementKeepsRightToolbarPresentationStable()

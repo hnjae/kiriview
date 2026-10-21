@@ -598,9 +598,11 @@ bool ImageDocumentRuntimeGraph::startViewportImageTarget(const ImageLoadSession&
     ImageViewportIntegrationTarget target;
     target.sourceGeneration = session.id();
     target.selectedSourceUrl = session.request().sourceUrl();
-    target.transitionIntent = session.request().sameScopePageNavigation()
-        ? ImageViewportTargetTransitionIntent::SameNavigationScope
-        : ImageViewportTargetTransitionIntent::OutsideNavigationScope;
+    // Sibling container navigation replaces the collection scope but preserves zoom like
+    // same-scope page navigation; only external source replacement resets zoom.
+    target.transitionIntent = session.request().externalSource() != nullptr
+        ? ImageViewportTargetTransitionIntent::OutsideNavigationScope
+        : ImageViewportTargetTransitionIntent::SameNavigationScope;
     target.rightToLeft = m_spreadController->rightToLeftReadingEnabled();
     target.anchorAtEnd = std::exchange(m_nextViewportTargetAnchorAtEnd, false);
     const std::shared_ptr<DisplayImageStore> displayStore = m_viewportDisplayStore;
@@ -1172,7 +1174,7 @@ void ImageDocumentRuntimeGraph::handleViewportProjection(
 
         PendingViewportImageLoad completedLoad = std::move(*m_pendingViewportImageLoad);
         m_pendingViewportImageLoad.reset();
-        if (!completedLoad.session.request().sameScopePageNavigation()) {
+        if (completedLoad.session.request().externalSource() != nullptr) {
             m_state.setFitModeSelection(ImageZoomMode::Fit);
         }
         EmbeddedMetadata metadata
